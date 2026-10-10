@@ -1,0 +1,68 @@
+<?php
+
+use App\Http\Controllers\AccidentController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EnvironmentalStickerController;
+use App\Http\Controllers\FerryController;
+use App\Http\Controllers\FineController;
+use App\Http\Controllers\InsuranceController;
+use App\Http\Controllers\LocaleController;
+use App\Http\Controllers\MaintenanceController;
+use App\Http\Controllers\ParkingController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ReconditioningController;
+use App\Http\Controllers\RefuelingController;
+use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\TaxController;
+use App\Http\Controllers\TimelineController;
+use App\Http\Controllers\TollController;
+use App\Http\Controllers\VehicleController;
+use App\Http\Controllers\VignetteController;
+use App\Http\Middleware\CreateFirstVehicle;
+use Illuminate\Support\Facades\Route;
+
+Route::post('locale', LocaleController::class)->name('locale.update');
+
+Route::middleware(['auth', 'verified'])->group(function () {
+    // The garage is reachable without a vehicle, so that the first one can be created.
+    Route::get('vehicles/rdw-lookup', [VehicleController::class, 'rdwLookup'])->name('vehicles.rdw-lookup');
+    Route::get('vehicles/{vehicle}/image', [VehicleController::class, 'image'])->name('vehicle.image');
+    Route::post('vehicles/{vehicle}/select', [VehicleController::class, 'select'])->name('vehicles.select');
+    Route::resource('vehicles', VehicleController::class);
+
+    Route::middleware(CreateFirstVehicle::class)->group(function () {
+        Route::get('/', DashboardController::class)->name('dashboard');
+        Route::get('timeline', TimelineController::class)->name('timeline');
+        Route::post('fuel-prices/refresh', [DashboardController::class, 'refreshFuelPrices'])->name('fuel-prices.refresh');
+
+        Route::post('maintenances/small-check', [MaintenanceController::class, 'smallCheck'])->name('maintenances.small-check');
+
+        $records = [
+            'maintenances' => MaintenanceController::class,
+            'reconditionings' => ReconditioningController::class,
+            'accidents' => AccidentController::class,
+            'products' => ProductController::class,
+            'refuelings' => RefuelingController::class,
+            'insurances' => InsuranceController::class,
+            'taxes' => TaxController::class,
+            'parking' => ParkingController::class,
+            'toll' => TollController::class,
+            'fines' => FineController::class,
+            'vignettes' => VignetteController::class,
+            'environmental-stickers' => EnvironmentalStickerController::class,
+            'services' => ServiceController::class,
+            'ferries' => FerryController::class,
+        ];
+
+        foreach ($records as $uri => $controller) {
+            Route::post("{$uri}/{record}/duplicate", [$controller, 'duplicate'])->name("{$uri}.duplicate");
+            Route::resource($uri, $controller)
+                ->parameters([$uri => 'record'])
+                ->only(method_exists($controller, 'show')
+                    ? ['index', 'create', 'store', 'show', 'edit', 'update', 'destroy']
+                    : ['index', 'create', 'store', 'edit', 'update', 'destroy']);
+        }
+    });
+});
+
+require __DIR__.'/settings.php';
