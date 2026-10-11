@@ -21,6 +21,7 @@ use App\Models\Reconditioning;
 use App\Models\Tax;
 use App\Models\Vehicle;
 use App\Models\Vignette;
+use App\Support\GasStationLogo;
 use App\Support\Roads;
 use Carbon\Carbon;
 use DateTimeInterface;
@@ -32,8 +33,6 @@ use Illuminate\Support\Collection;
  */
 class TimelineService
 {
-    private const MAINTENANCE_TYPES = ['small_maintenance', 'maintenance', 'big_maintenance'];
-
     /** The navigation group a record belongs to, which the timeline colors it by. */
     private const GROUPS = [
         Maintenance::class => 'maintenance',
@@ -44,6 +43,8 @@ class TimelineService
         Tax::class => 'fixed',
         Vignette::class => 'fixed',
         EnvironmentalSticker::class => 'fixed',
+        // The vehicle itself stands for its MOT.
+        Vehicle::class => 'maintenance',
     ];
 
     /**
@@ -52,11 +53,10 @@ class TimelineService
     public function history(Vehicle $vehicle): array
     {
         $insuranceTypes = config('insurances.types');
-        $logos = config('refuelings.gas_station_logos');
         $fuelTypes = trans('fuel_types');
 
         $vehicle->load([
-            'maintenances' => fn ($query) => $query->whereIn('type_maintenance', self::MAINTENANCE_TYPES),
+            'maintenances' => fn ($query) => $query->whereIn('type_maintenance', Vehicle::MAINTENANCE_TYPES),
             'refuelings', 'insurances', 'taxes', 'parkings', 'tolls', 'fines', 'reconditionings',
             'vignettes', 'environmentalStickers', 'ferries', 'products', 'services', 'accidents',
         ]);
@@ -75,10 +75,8 @@ class TimelineService
         }
 
         foreach ($vehicle->refuelings as $refueling) {
-            $brand = (string) str($refueling->gas_station)->lower()->explode(' ')->first();
-
             $items->push($this->item($refueling, __('Refueling'), 'ic:round-local-gas-station', 'refuelings', $refueling->date, [
-                'logo' => $logos[$brand] ?? $logos['default'],
+                'logo' => GasStationLogo::url($refueling->gas_station),
                 'price' => round((float) $refueling->total_price, 2),
                 'mileage' => $refueling->mileage_end && $refueling->mileage_begin ? $refueling->mileage_end - $refueling->mileage_begin : null,
                 'location' => $refueling->gas_station,
@@ -205,26 +203,42 @@ class TimelineService
         $insuranceTypes = config('insurances.types');
         $items = collect();
 
-        $lastMaintenance = Maintenance::query()
-            ->where('vehicle_id', $vehicle->id)
-            ->whereIn('type_maintenance', self::MAINTENANCE_TYPES)
-            ->orderByDesc('date')
-            ->first();
+        // The history only loaded the maintenance of the maintenance types; the MOT needs all of it.
+        $vehicle->load('maintenances');
 
-        if ($lastMaintenance) {
-            $date = Carbon::parse($lastMaintenance->date);
+        $nextMaintenance = $vehicle->nextMaintenance();
 
-            $next = match ($lastMaintenance->type_maintenance) {
-                MaintenanceTypeMaintenance::SmallMaintenance->value => $date->addMonths(6),
-                MaintenanceTypeMaintenance::Maintenance->value => $date->addMonths((int) ($vehicle->maintenance_interval_time ?: 12)),
-                MaintenanceTypeMaintenance::BigMaintenance->value => $date->addYears(2),
-                default => null,
-            };
+        if ($nextMaintenance) {
+            $lastMaintenance = $nextMaintenance['maintenance'];
 
-            if ($next?->isFuture()) {
-                $items->push($this->item($lastMaintenance, __('Maintenance'), 'mdi:car-wrench', null, $next, [
+            // Whichever comes first: the interval in time or the one in distance.
+            $date = $nextMaintenance['daysTillDistance'] === null
+                ? $nextMaintenance['date']
+                : $nextMaintenance['date']->min(now()->addDays($nextMaintenance['daysTillDistance']));
+
+            if ($date->isFuture()) {
+                $items->push($this->item($lastMaintenance, __('Maintenance'), 'mdi:car-wrench', null, $date, [
                     'location' => $lastMaintenance->garage,
                     'badges' => [$this->badge(MaintenanceTypeMaintenance::from($lastMaintenance->type_maintenance)->getLabel(), icon: 'mdi:car-wrench')],
+                ]));
+            }
+        }
+
+        $apkDate = $vehicle->apkExpiryDate();
+
+        if ($apkDate?->isFuture()) {
+            $items->push($this->item($vehicle, __('MOT'), 'ic:baseline-security', null, $apkDate, [
+                'badges' => [$this->badge(__('Expires'), 'warning', 'ic:sharp-timer')],
+            ]));
+        }
+
+        foreach ($vehicle->vignettes->concat($vehicle->environmentalStickers) as $sticker) {
+            if ($sticker->end_date?->isFuture()) {
+                $isVignette = $sticker instanceof Vignette;
+
+                $items->push($this->item($sticker, $isVignette ? __('Vignette') : __('Environmental sticker'), $isVignette ? 'mdi:sticker-text' : 'fa7-solid:leaf', null, $sticker->end_date, [
+                    'country' => $sticker->country,
+                    'badges' => [$this->badge(__('Expires'), 'warning', 'ic:sharp-timer')],
                 ]));
             }
         }

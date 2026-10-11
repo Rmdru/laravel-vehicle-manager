@@ -277,22 +277,29 @@ const label = (key: string) => {
                         {{ vehicle.status }}
                     </ColorBadge>
                 </div>
-                <div
-                    class="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground"
-                >
-                    <span v-if="mileage !== null">
-                        <strong
-                            class="font-semibold text-foreground tabular-nums"
-                            >{{ mileage }} km</strong
-                        >
-                        {{ t('Mileage').toLowerCase() }}
-                    </span>
-                    <span v-if="vehicle.age !== null">
-                        <strong class="font-semibold text-foreground">{{
-                            vehicle.age
-                        }}</strong>
-                        {{ t('years old') }}
-                    </span>
+                <div class="flex flex-wrap gap-2">
+                    <ColorBadge
+                        v-if="mileage !== null"
+                        class="tabular-nums"
+                        :title="t('Mileage')"
+                    >
+                        <AppIcon name="ic:baseline-route" class="size-3.5" />
+                        {{ mileage }} km
+                    </ColorBadge>
+                    <ColorBadge
+                        v-if="vehicle.age !== null"
+                        :title="
+                            vehicle.constructionDate
+                                ? `${t('Construction date')}: ${vehicle.constructionDate}`
+                                : undefined
+                        "
+                    >
+                        <AppIcon
+                            name="fa7-solid:cake-candles"
+                            class="size-3.5"
+                        />
+                        {{ vehicle.age }} {{ t('years old') }}
+                    </ColorBadge>
                 </div>
             </div>
             <Deferred data="statuses">

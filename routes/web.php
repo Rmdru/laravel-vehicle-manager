@@ -8,6 +8,7 @@ use App\Http\Controllers\FineController;
 use App\Http\Controllers\InsuranceController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\MaintenanceController;
+use App\Http\Controllers\ManifestController;
 use App\Http\Controllers\ParkingController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ReconditioningController;
@@ -22,6 +23,7 @@ use App\Http\Middleware\CreateFirstVehicle;
 use Illuminate\Support\Facades\Route;
 
 Route::post('locale', LocaleController::class)->name('locale.update');
+Route::get('manifest.webmanifest', ManifestController::class)->name('manifest');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     // The garage is reachable without a vehicle, so that the first one can be created.

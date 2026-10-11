@@ -150,6 +150,7 @@ class DashboardService
             ->all();
 
         $countries = config('countries');
+        $home = $vehicle->fuelPriceHomeCountry($fuelPrices->pluck('country')->unique()->values()->all());
 
         return [
             'fuelTypes' => $fuelTypes,
@@ -160,7 +161,7 @@ class DashboardService
                     'key' => $country,
                     'name' => $countries[$country]['name'] ?? $country,
                     'isoCode' => $countries[$country]['iso_code'] ?? null,
-                    'isHome' => $country === 'netherlands',
+                    'isHome' => $country === $home,
                     'prices' => $prices->mapWithKeys(fn (FuelPrice $price) => [$price->fuel_type => [
                         'date' => $price->date->format('d-m-Y'),
                         'price' => number_format((float) $price->price, 3, ',', '.'),

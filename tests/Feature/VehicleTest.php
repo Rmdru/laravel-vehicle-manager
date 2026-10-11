@@ -128,13 +128,29 @@ class VehicleTest extends TestCase
             'image' => UploadedFile::fake()->image('car.png'),
         ]))->assertSessionHasNoErrors();
 
-        Storage::disk('private')->assertExists("vehicles/{$vehicle->id}.png");
+        Storage::disk('private')->assertExists("vehicles/{$vehicle->id}.webp");
 
         $this->get(route('vehicle.image', $vehicle))->assertOk();
 
         $this->actingAs(User::factory()->create())
             ->get(route('vehicle.image', $vehicle))
             ->assertNotFound();
+    }
+
+    public function test_a_large_image_is_stored_no_larger_than_it_is_shown()
+    {
+        Storage::fake('private');
+
+        $vehicle = $this->signInWithVehicle();
+
+        $this->post(route('vehicles.update', $vehicle), $this->validData([
+            '_method' => 'PATCH',
+            'image' => UploadedFile::fake()->image('car.jpg', 4000, 3000),
+        ]))->assertSessionHasNoErrors();
+
+        [$width, $height] = getimagesizefromstring(Storage::disk('private')->get("vehicles/{$vehicle->id}.webp"));
+
+        $this->assertSame([1600, 1200], [$width, $height]);
     }
 
     public function test_vehicles_of_other_users_are_not_accessible()

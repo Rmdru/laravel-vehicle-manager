@@ -11,10 +11,12 @@ use App\Enums\RefuelingRoutes;
 use App\Enums\RefuelingTires;
 use App\Forms\RefuelingForm;
 use App\Models\Refueling;
+use App\Support\GasStationLogo;
 use App\Support\Html;
 use App\Tables\RefuelingsTable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -54,8 +56,6 @@ class RefuelingController extends VehicleRecordController
         $powertrain = trans('powertrains')[$this->vehicle()->powertrain] ?? [];
         $unit = $powertrain['unit_short'] ?? 'l';
         $consumptionUnit = $powertrain['consumption_unit'] ?? 'l/100km';
-        $logos = config('refuelings.gas_station_logos');
-        $brand = (string) str($refueling->gas_station)->lower()->explode(' ')->first();
         $averages = Refueling::where('vehicle_id', $refueling->vehicle_id)
             ->selectRaw('AVG(fuel_consumption) as consumption, AVG(avg_speed) as speed')
             ->first();
@@ -71,7 +71,7 @@ class RefuelingController extends VehicleRecordController
             'indexUrl' => route('refuelings.index'),
             'indexTitle' => $this->title(),
             'editUrl' => route('refuelings.edit', $refueling->id),
-            'logo' => $logos[$brand] ?? $logos['default'],
+            'logo' => GasStationLogo::url($refueling->gas_station),
             'sections' => [
                 ['title' => __('Refueling'), 'icon' => 'ic:round-local-gas-station', 'items' => [
                     ['label' => __('Gas station'), 'value' => $refueling->gas_station, 'icon' => 'ic:round-location-on'],
@@ -85,7 +85,7 @@ class RefuelingController extends VehicleRecordController
                     ['label' => __('Tank percentage after refueling'), 'value' => filled($refueling->percentage) ? $number($refueling->percentage, 0).'%' : null, 'icon' => 'mdi:water-percent'],
                     ['label' => __('Unit price'), 'value' => '€ '.$number($refueling->unit_price, 3).'/'.$unit, 'icon' => 'ic:baseline-local-offer'],
                     ['label' => __('Total price'), 'value' => '€ '.$number($refueling->total_price), 'icon' => 'mdi:hand-coin-outline'],
-                    ['label' => __('Costs per kilometer'), 'value' => '€ '.$number($refueling->costs_per_kilometer).'/km', 'icon' => 'uil:euro-circle'],
+                    ['label' => __('Costs per kilometer'), 'value' => '€ '.$number($refueling->costs_per_kilometer, 3).'/km', 'icon' => 'uil:euro-circle'],
                 ]],
                 ['title' => __('Car'), 'icon' => 'ic:round-directions-car', 'items' => [
                     ['label' => __('Mileage'), 'value' => $refueling->mileage_begin.' km - '.$refueling->mileage_end.' km ('.($refueling->mileage_end - $refueling->mileage_begin).' km)', 'icon' => 'ic:round-route'],
@@ -119,21 +119,54 @@ class RefuelingController extends VehicleRecordController
 
     protected function prepare(array $data, ?Model $record): array
     {
-        $distance = $data['mileage_end'] - $data['mileage_begin'];
+        $vehicle = $this->vehicle();
 
-        $data['fuel_consumption'] = round(($data['amount'] / $distance) * 100, 2);
-        $data['costs_per_kilometer'] = round($data['total_price'] / $distance, 2);
+        $refueling = $record ? clone $record : new Refueling;
+        $refueling->fill([...$data, 'vehicle_id' => $vehicle->id])->setRelation('vehicle', $vehicle);
+        $refueling->calculateConsumption();
+
+        $data['fuel_consumption'] = $refueling->fuel_consumption;
+        $data['costs_per_kilometer'] = $refueling->costs_per_kilometer;
 
         return $data;
     }
 
     protected function saved(Model $record): void
     {
+        /** @var Refueling $record */
         $vehicle = $this->vehicle();
 
         if ($vehicle->mileage_latest < $record->mileage_end) {
             $vehicle->update(['mileage_latest' => $record->mileage_end]);
         }
+
+        $this->recalculate($record->next());
+    }
+
+    public function destroy(string $id): RedirectResponse
+    {
+        /** @var Refueling $refueling */
+        $refueling = $this->record($id);
+        $next = $refueling->next();
+
+        $response = parent::destroy($id);
+
+        $this->recalculate($next);
+
+        return $response;
+    }
+
+    /**
+     * The consumption of a refueling depends on how full the tank was left the time before.
+     */
+    private function recalculate(?Refueling $refueling): void
+    {
+        if (! $refueling) {
+            return;
+        }
+
+        $refueling->calculateConsumption();
+        $refueling->save();
     }
 
     protected function formData(Model $record): array

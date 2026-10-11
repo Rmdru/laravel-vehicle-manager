@@ -10,12 +10,16 @@ use App\Support\CurrentVehicle;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class DashboardController extends Controller
 {
+    /** Minutes between two refreshes of the fuel prices, at least. */
+    private const REFRESH_FUEL_PRICES_EVERY = 5;
+
     public function __invoke(Request $request, DashboardService $dashboard): Response
     {
         $vehicle = CurrentVehicle::get();
@@ -51,9 +55,17 @@ class DashboardController extends Controller
 
     public function refreshFuelPrices(): RedirectResponse
     {
-        Artisan::call('import:fuel-prices');
+        // The import calls several external services, so it runs after the response
+        // has been sent, and not again while it is running or has only just run.
+        if (! Cache::add('fuel-prices:refreshing', true, now()->addMinutes(self::REFRESH_FUEL_PRICES_EVERY))) {
+            Inertia::flash('toast', ['type' => 'success', 'message' => __('The fuel prices have just been refreshed.')]);
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => __('Fuel prices imported successfully.')]);
+            return back();
+        }
+
+        defer(fn () => Artisan::call('import:fuel-prices'));
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('The fuel prices are being refreshed.')]);
 
         return back();
     }

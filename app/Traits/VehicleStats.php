@@ -171,7 +171,7 @@ trait VehicleStats
                 }
 
                 if ($latest) {
-                    return round((float) ($refuelings->latest()->value('fuel_consumption') ?? 0), 2);
+                    return round((float) ($refuelings->newest()->value('fuel_consumption') ?? 0), 2);
                 }
 
                 return round((float) ($refuelings->avg('fuel_consumption') ?? 0), 2);
@@ -202,7 +202,7 @@ trait VehicleStats
                 }
 
                 if ($latest) {
-                    return round((float) ($refuelings->latest()->value('avg_speed') ?? 0), 1);
+                    return round((float) ($refuelings->newest()->value('avg_speed') ?? 0), 1);
                 }
 
                 return round((float) ($refuelings->avg('avg_speed') ?? 0), 1);
@@ -277,7 +277,7 @@ trait VehicleStats
                 }
 
                 if ($latest) {
-                    $latestRefueling = $refuelings->latest()->first();
+                    $latestRefueling = $refuelings->newest()->first();
 
                     if (! $latestRefueling) {
                         return 0.0;

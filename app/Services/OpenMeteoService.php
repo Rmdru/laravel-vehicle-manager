@@ -9,6 +9,37 @@ use Illuminate\Support\Facades\Log;
 
 class OpenMeteoService
 {
+    /**
+     * The coordinates of a city, or nothing when it is not found.
+     *
+     * @return array{lat: float, lon: float}|null
+     */
+    public function geocode(string $city): ?array
+    {
+        try {
+            $response = Http::timeout(5)
+                ->retry(3, 100)
+                ->get(config('open_meteo.geocoding_url'), [
+                    'name' => $city,
+                    'count' => 1,
+                    'format' => 'json',
+                ]);
+
+            $result = $response->json('results.0');
+
+            if (isset($result['latitude'], $result['longitude'])) {
+                return ['lat' => (float) $result['latitude'], 'lon' => (float) $result['longitude']];
+            }
+        } catch (\Throwable $exception) {
+            Log::channel('openmeteo-api')->warning('OpenMeteo geocoding call failed.', [
+                'message' => $exception->getMessage(),
+                'city' => $city,
+            ]);
+        }
+
+        return null;
+    }
+
     public function fetchHistoricalMinTempsInDateRange(array $ipLocation, string $startDate, string $endDate): array
     {
         try {

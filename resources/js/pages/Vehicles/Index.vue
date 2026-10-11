@@ -11,7 +11,6 @@ import type { VehicleSummary } from '@/types';
 
 type VehicleCard = VehicleSummary & {
     mileageStart: number | null;
-    constructionDate: string | null;
     showUrl: string;
     editUrl: string;
     selectUrl: string;

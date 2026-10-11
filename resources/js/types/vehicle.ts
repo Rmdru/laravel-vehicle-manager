@@ -16,6 +16,7 @@ export type VehicleSummary = {
     powertrain: string;
     imageUrl: string | null;
     age: number | null;
+    constructionDate: string | null;
     status: string;
     statusIcon: string | null;
     statusColor: string;

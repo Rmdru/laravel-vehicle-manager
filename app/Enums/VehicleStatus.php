@@ -37,7 +37,7 @@ enum VehicleStatus: string implements HasIcon, HasLabel
     public function getIcon(): string
     {
         return match ($this) {
-            self::Drivable => 'mdi:speedometer',
+            self::Drivable => 'mdi:check',
             self::Suspended => 'mdi:garage',
             self::Wok => 'mdi:shield-off',
             self::Apk => 'mdi:shield-alert',

@@ -2,9 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\FuelPrice;
+use App\Models\Reconditioning;
 use App\Models\Refueling;
 use App\Models\User;
+use App\Services\DashboardService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -135,5 +139,98 @@ class DashboardTest extends TestCase
 
         $this->get(route('dashboard', ['dashboard_start' => '2026-02-01', 'dashboard_end' => '2026-01-01']))
             ->assertSessionHasErrors('dashboard_end');
+    }
+
+    public function test_old_e10_fuel_is_reported_and_other_fuel_is_not()
+    {
+        $vehicle = $this->signInWithVehicle();
+
+        $refueling = Refueling::factory()->for($vehicle)->create([
+            'date' => now()->subMonths(2)->toDateString(),
+            'fuel_type' => 'Unleaded 95 (E10)',
+            'charge_time' => null,
+        ]);
+
+        $keys = fn () => collect(app(DashboardService::class)->notifications($vehicle->fresh()))->pluck('key');
+
+        $this->assertContains('old_fuel', $keys());
+
+        $refueling->update(['fuel_type' => 'Super Plus (E5)']);
+
+        $this->assertNotContains('old_fuel', $keys());
+    }
+
+    public function test_the_newest_refueling_is_the_one_refueled_last_not_the_one_entered_last()
+    {
+        $vehicle = $this->signInWithVehicle();
+
+        $recent = Refueling::factory()->for($vehicle)->create(['date' => now()->subDay()->toDateString(), 'charge_time' => null, 'created_at' => now()->subHour()]);
+        Refueling::factory()->for($vehicle)->create(['date' => now()->subYear()->toDateString(), 'charge_time' => null, 'created_at' => now()]);
+
+        $this->assertTrue($vehicle->refuelings()->newest()->first()->is($recent));
+    }
+
+    public function test_the_dashboard_can_be_shown_with_an_insurance_and_tax_that_have_yet_to_start()
+    {
+        $vehicle = $this->signInWithVehicle();
+
+        $period = ['start_date' => now()->addMonth()->toDateString(), 'end_date' => now()->addYear()->toDateString(), 'price' => 40, 'invoice_day' => 1];
+        $vehicle->insurances()->create([...$period, 'insurance_company' => 'Insurer', 'type' => 0]);
+        $vehicle->taxes()->create($period);
+
+        $this->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->loadDeferredProps('status', fn (Assert $reload) => $reload->has('notifications')->has('statuses')->etc()));
+    }
+
+    public function test_the_weather_for_the_washing_advice_is_that_of_the_city_of_the_user()
+    {
+        $vehicle = $this->signInWithVehicle();
+        $vehicle->user->update(['city' => 'Utrecht', 'latitude' => 52.09083, 'longitude' => 5.12222]);
+        Reconditioning::factory()->for($vehicle)->create(['type' => 'carwash', 'date' => now()->subDays(25)->toDateString()]);
+
+        app(DashboardService::class)->notifications($vehicle->fresh());
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'open-meteo.com') && (float) $request['latitude'] === 52.09083);
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'ip-api.com'));
+    }
+
+    public function test_without_a_city_the_weather_is_that_of_the_ip_address()
+    {
+        $vehicle = $this->signInWithVehicle();
+        Reconditioning::factory()->for($vehicle)->create(['type' => 'carwash', 'date' => now()->subDays(25)->toDateString()]);
+
+        app(DashboardService::class)->notifications($vehicle->fresh());
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'ip-api.com'));
+    }
+
+    public function test_refreshing_the_fuel_prices_happens_in_the_background_and_not_twice_in_a_row()
+    {
+        $this->signInWithVehicle();
+        $this->withoutDefer();
+
+        $this->post(route('fuel-prices.refresh'))->assertRedirect();
+        $this->post(route('fuel-prices.refresh'))->assertRedirect();
+
+        $this->assertCount(1, Http::recorded(fn ($request) => str_contains($request->url(), 'opendata.cbs.nl')));
+    }
+
+    public function test_the_fuel_prices_abroad_are_compared_with_the_country_of_registration()
+    {
+        $vehicle = $this->signInWithVehicle(['country_registration' => 'germany']);
+
+        foreach (['netherlands', 'germany'] as $country) {
+            FuelPrice::create(['date' => now()->toDateString(), 'country' => $country, 'fuel_type' => 'Diesel', 'price' => 1.5]);
+        }
+
+        $home = fn () => collect(app(DashboardService::class)->fuelPricesAbroad($vehicle->fresh())['countries'])->firstWhere('isHome', true)['key'] ?? null;
+
+        $this->assertSame('germany', $home());
+
+        // Without prices of the country of registration the Netherlands is home.
+        $vehicle->update(['country_registration' => 'france']);
+
+        $this->assertSame('netherlands', $home());
     }
 }

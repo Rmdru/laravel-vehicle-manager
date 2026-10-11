@@ -18,8 +18,6 @@ class AccidentForm extends VehicleRecordForm
 {
     public function fields(): array
     {
-        $situations = $this->enumOptions(AccidentSituation::class);
-
         return [
             Heading::make(__('You, your vehicle, your passengers and your objects')),
             $this->choice('type', __('Type'), $this->enumOptions(AccidentType::class), required: true),
@@ -35,7 +33,7 @@ class AccidentForm extends VehicleRecordForm
             Checkbox::make('guilty')
                 ->label(__('Guilty'))
                 ->rules(['boolean']),
-            $this->choices('situation', __('Situation'), $situations)
+            $this->choices('situation', __('Situation'), AccidentSituation::class)
                 ->help(__('Select all that apply')),
             $this->money('damage_own', __('Own damage'))
                 ->help(__('This includes all damage: damage to the vehicle, damage to objects in the vehicle and costs of the injury of occupants.')),
@@ -56,7 +54,7 @@ class AccidentForm extends VehicleRecordForm
                     $this->choice('attribute_type', __('Type'), $this->enumOptions(AccidentAttributeType::class)),
                     Checkbox::make('attribute_guilty')->label(__('Guilty')),
                     Checkbox::make('attribute_witness')->label(__('Witness')),
-                    $this->choices('attribute_situation', __('Situation'), $situations)
+                    $this->choices('attribute_situation', __('Situation'), AccidentSituation::class)
                         ->help(__('Select all that apply')),
                     Textarea::make('attribute_description')
                         ->label(__('Description'))

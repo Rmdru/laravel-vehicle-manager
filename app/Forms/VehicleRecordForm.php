@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Forms;
 
+use App\Contracts\HasIcon;
 use App\Contracts\HasLabel;
 use App\Models\Vehicle;
 use App\Support\CurrentVehicle;
@@ -105,10 +106,18 @@ abstract class VehicleRecordForm extends AbstractForm
     }
 
     /**
-     * @param  array<string, string>  $options
+     * Multiple choice: a button per case of the enum, with its icon.
+     *
+     * @param  class-string<\BackedEnum&HasLabel>  $enum
      */
-    protected function choices(string $name, string $label, array $options): Checkboxes
+    protected function choices(string $name, string $label, string $enum): Checkboxes
     {
+        $options = collect($enum::cases())->map(fn ($case) => [
+            'value' => (string) $case->value,
+            'label' => $case->getLabel(),
+            'icon' => $case instanceof HasIcon ? $case->getIcon() : null,
+        ])->all();
+
         return Checkboxes::make($name)
             ->label($label)
             ->options($options)

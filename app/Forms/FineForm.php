@@ -67,7 +67,7 @@ class FineForm extends VehicleRecordForm
             $this->choice('payment_method', __('Payment method'), $this->enumOptions(FinePaymentMethod::class)),
 
             Heading::make(__('Sanctions')),
-            $this->choices('sanctions', __('Sanctions'), $this->enumOptions(FineSanction::class)),
+            $this->choices('sanctions', __('Sanctions'), FineSanction::class),
 
             Submit::make()->label(__('Save')),
         ];

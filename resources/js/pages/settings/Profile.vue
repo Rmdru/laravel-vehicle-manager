@@ -73,6 +73,24 @@ const user = computed(() => page.props.auth.user);
                 <InputError class="mt-2" :message="errors.email" />
             </div>
 
+            <div class="grid gap-2">
+                <Label for="city">City</Label>
+                <Input
+                    id="city"
+                    class="mt-1 block w-full"
+                    name="city"
+                    :default-value="user.city ?? ''"
+                    autocomplete="address-level2"
+                    placeholder="City"
+                />
+                <p class="text-sm text-muted-foreground">
+                    Optional. Used for the weather your washing advice is based
+                    on; without it your location is estimated from your IP
+                    address.
+                </p>
+                <InputError class="mt-2" :message="errors.city" />
+            </div>
+
             <div v-if="page.props.mustVerifyEmail && !user.email_verified_at">
                 <p class="-mt-4 text-sm text-muted-foreground">
                     Your email address is unverified.

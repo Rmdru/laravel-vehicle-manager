@@ -10,6 +10,7 @@ use App\Enums\RefuelingRoutes;
 use App\Enums\RefuelingTires;
 use App\Models\Refueling;
 use App\Support\CurrentVehicle;
+use App\Support\GasStationLogo;
 use App\Support\Html;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\HtmlString;
@@ -38,7 +39,6 @@ class RefuelingsTable extends VehicleRecordTable
     public function configure(TableBuilder $table): void
     {
         $vehicle = CurrentVehicle::get();
-        $logos = config('refuelings.gas_station_logos');
         $fuelTypes = trans('fuel_types');
         $unit = trans('powertrains')[$vehicle?->powertrain]['consumption_unit'] ?? 'l/100km';
         $average = round((float) Refueling::where('vehicle_id', $vehicle?->id)->avg('fuel_consumption'), 2);
@@ -46,11 +46,7 @@ class RefuelingsTable extends VehicleRecordTable
         $table
             ->defaultSort('-date')
             ->withGlobalSearch(columns: ['gas_station'])
-            ->column('logo', '', canBeHidden: false, as: function ($value, Refueling $refueling) use ($logos) {
-                $brand = (string) str($refueling->gas_station)->lower()->explode(' ')->first();
-
-                return new HtmlString(Html::logo($logos[$brand] ?? $logos['default']));
-            })
+            ->column('logo', '', canBeHidden: false, as: fn ($value, Refueling $refueling) => new HtmlString(Html::logo(GasStationLogo::url($refueling->gas_station))))
             ->column('date', __('Date'), sortable: true, as: fn ($value, Refueling $refueling) => $this->text($this->date($refueling->date)))
             ->column('gas_station', __('Gas station'), sortable: true, as: fn ($value) => $this->text($value))
             ->column('total_price', __('Total price'), sortable: true, as: fn ($value) => $this->amount($this->money($value)))

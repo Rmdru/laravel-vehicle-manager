@@ -234,6 +234,53 @@ class VehicleRecordTest extends TestCase
                 ->where('sections.1.items.1.value', '40,00 l'));
     }
 
+    public function test_the_consumption_accounts_for_a_tank_that_was_not_filled_up()
+    {
+        // A tank of 50 liters.
+        $vehicle = $this->signInWithVehicle();
+
+        $input = fn (int $begin, float $amount, int $percentage, float $price) => [
+            'date' => '2026-03-01',
+            'gas_station' => 'Shell Utrecht',
+            'fuel_type' => 'Unleaded 95 (E10)',
+            'amount' => $amount,
+            'percentage' => $percentage,
+            'unit_price' => 2,
+            'total_price' => $price,
+            'mileage_begin' => $begin,
+            'mileage_end' => $begin + 500,
+        ];
+
+        $this->post(route('refuelings.store'), $input(1000, 40, 100, 80))->assertSessionHasNoErrors();
+        $this->post(route('refuelings.store'), $input(1500, 20, 60, 40))->assertSessionHasNoErrors();
+        $this->post(route('refuelings.store'), $input(2000, 45, 100, 90))->assertSessionHasNoErrors();
+
+        [$first, $partial, $full] = $vehicle->refuelings()->orderBy('mileage_begin')->get()->all();
+
+        // 20 liters refueled, and the tank was left 40% (20 liters) emptier than before.
+        $this->assertEquals(8.0, $partial->fuel_consumption);
+        $this->assertEquals(0.16, $partial->costs_per_kilometer);
+        // 45 liters refueled, of which 20 liters made up for the time before.
+        $this->assertEquals(5.0, $full->fuel_consumption);
+        $this->assertEquals(0.1, $full->costs_per_kilometer);
+
+        // Changing how full the tank was left changes the refueling after it as well.
+        $this->patch(route('refuelings.update', $partial->id), $input(1500, 20, 100, 40))->assertSessionHasNoErrors();
+
+        $this->assertEquals(4.0, $partial->refresh()->fuel_consumption);
+        $this->assertEquals(9.0, $full->refresh()->fuel_consumption);
+
+        $this->patch(route('refuelings.update', $partial->id), $input(1500, 20, 60, 40))->assertSessionHasNoErrors();
+
+        $this->assertEquals(5.0, $full->refresh()->fuel_consumption);
+
+        // And so does deleting it: the first refueling filled up the tank.
+        $this->delete(route('refuelings.destroy', $partial->id));
+
+        $this->assertEquals(8.0, $first->refresh()->fuel_consumption);
+        $this->assertEquals(9.0, $full->refresh()->fuel_consumption);
+    }
+
     public function test_a_refueling_must_end_at_a_higher_mileage_and_use_a_compatible_fuel()
     {
         $this->signInWithVehicle();

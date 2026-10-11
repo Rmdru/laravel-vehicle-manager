@@ -16,15 +16,20 @@ class CalculateFuelDetourAggregates
 
     public function handle($data, $next): array
     {
+        $countries = array_values(array_unique(array_column($data, 'country')));
+
         Vehicle::query()
-            ->chunkById(100, function ($vehicles) use ($data) {
+            ->chunkById(100, function ($vehicles) use ($data, $countries) {
                 foreach ($vehicles as $vehicle) {
                     if (in_array($vehicle->powertrain, ['electricity', 'hydrogen'])) {
                         continue;
                     }
 
+                    // The detours are worth it compared to the prices at home.
+                    $home = $vehicle->fuelPriceHomeCountry($countries);
+
                     foreach ($data as $fuelPrice) {
-                        if ($fuelPrice['country'] === 'netherlands') {
+                        if ($fuelPrice['country'] === $home) {
                             continue;
                         }
 
@@ -56,15 +61,15 @@ class CalculateFuelDetourAggregates
                             default => $fuelPrice['fuel_type'],
                         };
 
-                        $dutchFuelPrice = array_filter($data, function ($item) use ($comparisionFuelType) {
-                            return $item['country'] === 'netherlands' && $item['fuel_type'] === $comparisionFuelType;
+                        $homeFuelPrice = array_filter($data, function ($item) use ($comparisionFuelType, $home) {
+                            return $item['country'] === $home && $item['fuel_type'] === $comparisionFuelType;
                         });
 
-                        if (empty($dutchFuelPrice)) {
+                        if (empty($homeFuelPrice)) {
                             continue;
                         }
 
-                        $priceDiff = ($dutchFuelPrice[array_key_first($dutchFuelPrice)]['price'] - $fuelPrice['price']) * $vehicle->tank_capacity;
+                        $priceDiff = ($homeFuelPrice[array_key_first($homeFuelPrice)]['price'] - $fuelPrice['price']) * $vehicle->tank_capacity;
 
                         $maxDetourOnlyFuelCosts = 0;
                         if ($avgFuelCostsPerKm > 0 && $priceDiff > 0) {

@@ -33,7 +33,7 @@ enum RefuelingClimateControl: string implements HasIcon, HasLabel
             self::Airco => 'mdi:air-conditioner',
             self::Heater => 'mdi:heat-wave',
             self::Demisting => 'mdi:wiper',
-            self::Defrost => 'forkawesome-snowflake-o',
+            self::Defrost => 'mdi:snowflake',
         };
     }
 

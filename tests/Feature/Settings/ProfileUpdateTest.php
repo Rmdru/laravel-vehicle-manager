@@ -4,6 +4,8 @@ namespace Tests\Feature\Settings;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class ProfileUpdateTest extends TestCase
@@ -95,5 +97,39 @@ class ProfileUpdateTest extends TestCase
             ->assertRedirect(route('profile.edit'));
 
         $this->assertNotNull($user->fresh());
+    }
+
+    public function test_the_city_is_optional_and_located_when_given()
+    {
+        $user = User::factory()->create();
+
+        Http::swap(new Factory);
+        Http::fake(['https://geocoding-api.open-meteo.com/*' => Http::response(['results' => [['latitude' => 52.09083, 'longitude' => 5.12222]]])]);
+
+        $this->actingAs($user)
+            ->patch(route('profile.update'), ['name' => $user->name, 'email' => $user->email, 'city' => 'Utrecht'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('Utrecht', $user->refresh()->city);
+        $this->assertSame(52.09083, $user->latitude);
+        $this->assertSame(5.12222, $user->longitude);
+
+        $this->actingAs($user)
+            ->patch(route('profile.update'), ['name' => $user->name, 'email' => $user->email, 'city' => ''])
+            ->assertSessionHasNoErrors();
+
+        $this->assertNull($user->refresh()->city);
+        $this->assertNull($user->latitude);
+    }
+
+    public function test_a_city_that_cannot_be_found_is_rejected()
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->patch(route('profile.update'), ['name' => $user->name, 'email' => $user->email, 'city' => 'Nowhereville'])
+            ->assertSessionHasErrors('city');
+
+        $this->assertNull($user->refresh()->city);
     }
 }

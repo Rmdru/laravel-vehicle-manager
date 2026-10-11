@@ -31,6 +31,7 @@ class VehiclePresenter
             'powertrain' => $vehicle->powertrain,
             'imageUrl' => $vehicle->image_url ?: null,
             'age' => $vehicle->construction_date?->age,
+            'constructionDate' => $vehicle->construction_date?->format('d-m-Y'),
             'status' => $status->getLabel(),
             'statusIcon' => $status->getIcon(),
             'statusColor' => $status->getColor(),
@@ -45,7 +46,6 @@ class VehiclePresenter
         return [
             ...self::summary($vehicle),
             'mileageStart' => $vehicle->mileage_start,
-            'constructionDate' => $vehicle->construction_date?->format('d-m-Y'),
             'showUrl' => route('vehicles.show', $vehicle),
             'editUrl' => route('vehicles.edit', $vehicle),
             'selectUrl' => route('vehicles.select', $vehicle),

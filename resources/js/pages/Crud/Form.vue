@@ -2,6 +2,7 @@
 import { Head, Link, router } from '@inertiajs/vue3';
 import Form from '@form-builder/components/Form.vue';
 import { ArrowLeft, Trash2 } from '@lucide/vue';
+import ToggleButtons from '@/components/ToggleButtons.vue';
 import { Button } from '@/components/ui/button';
 import { useT } from '@/composables/useT';
 
@@ -119,6 +120,9 @@ function onFieldChange(field: string, value: unknown, form: FormState) {
                     <h2 class="mt-4 border-b pb-2 text-lg font-semibold">
                         {{ field.label }}
                     </h2>
+                </template>
+                <template #checkboxes="slotProps">
+                    <ToggleButtons v-bind="slotProps" />
                 </template>
             </Form>
         </div>

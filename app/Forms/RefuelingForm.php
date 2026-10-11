@@ -34,7 +34,7 @@ class RefuelingForm extends VehicleRecordForm
         $fuelTypes = $this->fuelTypeOptions();
 
         $previous = $vehicle
-            ? Refueling::query()->where('vehicle_id', $vehicle->id)->latest()->first()
+            ? Refueling::query()->where('vehicle_id', $vehicle->id)->newest()->first()
             : null;
 
         return [
@@ -103,9 +103,9 @@ class RefuelingForm extends VehicleRecordForm
             Heading::make(__('Circumstances')),
             $this->choice('tires', __('Tires'), $this->enumOptions(RefuelingTires::class))
                 ->default($previous?->tires),
-            $this->choices('climate_control', __('Climate control'), $this->enumOptions(RefuelingClimateControl::class))
+            $this->choices('climate_control', __('Climate control'), RefuelingClimateControl::class)
                 ->default($previous?->climate_control),
-            $this->choices('routes', __('Routes'), $this->enumOptions(RefuelingRoutes::class))
+            $this->choices('routes', __('Routes'), RefuelingRoutes::class)
                 ->default($previous?->routes),
             $this->choice('driving_style', __('Driving style'), $this->enumOptions(RefuelingDrivingStyle::class))
                 ->default($previous?->driving_style),

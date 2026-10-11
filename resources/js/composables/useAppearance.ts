@@ -28,6 +28,16 @@ export function updateTheme(value: Appearance): void {
     } else {
         document.documentElement.classList.toggle('dark', value === 'dark');
     }
+
+    // The status bar of the phone takes the color of the header (--card).
+    document
+        .querySelector('meta[name="theme-color"]')
+        ?.setAttribute(
+            'content',
+            document.documentElement.classList.contains('dark')
+                ? '#181a21'
+                : '#ffffff',
+        );
 }
 
 const setCookie = (name: string, value: string, days = 365) => {

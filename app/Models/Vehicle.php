@@ -80,6 +80,9 @@ class Vehicle extends Model
         'liquids_check_status',
     ];
 
+    /** The maintenance that restarts the maintenance interval. */
+    public const MAINTENANCE_TYPES = ['small_maintenance', 'maintenance', 'big_maintenance'];
+
     private static array $monthlyCostsCache = [];
 
     private array $historicalMinTemps = [];
@@ -147,16 +150,14 @@ class Vehicle extends Model
 
     public function getFuelStatusAttribute(): ?array
     {
-        if ($this->refuelings->isNotEmpty() && $this->refuelings->where('fuel_type', 'LIKE', '%E10%')->count() > 0) {
-            $latestRefueling = $this->refuelings->sortByDesc('date')->first();
+        $latestRefueling = $this->refuelings->sortBy([['date', 'desc'], ['created_at', 'desc']])->first();
 
-            if (! empty($latestRefueling) && str($latestRefueling->fuel_type)->contains('E10', true)) {
-                $diff = Carbon::parse($latestRefueling->date)->addMonths(2)->diffInDays(now());
+        if (! empty($latestRefueling) && str($latestRefueling->fuel_type)->contains('E10', true)) {
+            $diff = Carbon::parse($latestRefueling->date)->addMonths(2)->diffInDays(now());
 
-                return [
-                    'time' => (int) max(0, $diff - ($diff * 2)),
-                ];
-            }
+            return [
+                'time' => (int) max(0, $diff - ($diff * 2)),
+            ];
         }
 
         return [];
@@ -172,7 +173,7 @@ class Vehicle extends Model
         if ($this->refuelings->isNotEmpty()) {
             return [
                 'recordCount' => $this->refuelings()
-                    ->latest()
+                    ->newest()
                     ->limit(3)
                     ->get()
                     ->whereIn('fuel_type', $fuelTypes)
@@ -185,31 +186,54 @@ class Vehicle extends Model
         ];
     }
 
+    /**
+     * When the next maintenance is due: after the interval in time and, when the
+     * vehicle has one, after the interval in distance at the pace it is driven.
+     *
+     * @return array{maintenance: Maintenance, date: Carbon, distance: int|float|null, daysTillDistance: int|float|null}|null
+     */
+    public function nextMaintenance(): ?array
+    {
+        $latestMaintenance = $this->maintenances->whereIn('type_maintenance', self::MAINTENANCE_TYPES)->sortByDesc('date')->first();
+
+        if (empty($latestMaintenance)) {
+            return null;
+        }
+
+        $distance = null;
+        $daysTillDistance = null;
+
+        if (! empty($this->maintenance_interval_distance)) {
+            $distance = $this->maintenance_interval_distance + $latestMaintenance->mileage - $this->mileage_latest;
+            $monthlyDistance = $this->calculateAverageMonthlyDistance(vehicle: $this);
+            $daysTillDistance = (int) $monthlyDistance > 30.44 ? $distance / ($monthlyDistance / 30.44) : $distance;
+        }
+
+        return [
+            'maintenance' => $latestMaintenance,
+            'date' => Carbon::parse($latestMaintenance->date ?? now())->addMonths((int) ($this->maintenance_interval_time ?: 12)),
+            'distance' => $distance,
+            'daysTillDistance' => $daysTillDistance,
+        ];
+    }
+
     public function getMaintenanceStatusAttribute(): array
     {
-        $maintenanceTypes = ['small_maintenance', 'maintenance', 'big_maintenance'];
+        $next = $this->nextMaintenance();
 
-        $latestMaintenance = $this->maintenances->whereIn('type_maintenance', $maintenanceTypes)->sortByDesc('date')->first();
-
-        if (
-            empty($latestMaintenance)
-            || ! in_array($latestMaintenance->type_maintenance, $maintenanceTypes)
-            || empty($this->maintenance_interval_distance)
-        ) {
+        if ($next === null || $next['distance'] === null) {
             return [];
         }
 
-        if (! empty($latestMaintenance) && in_array($latestMaintenance->type_maintenance, $maintenanceTypes)) {
-            $maintenanceDate = Carbon::parse($latestMaintenance->date ?? now())->addMonths($this->maintenance_interval_time);
-            $maintenanceDiff = $maintenanceDate->diffInDays(now());
-            $timeDiffHumans = $maintenanceDate->isFuture() ? $maintenanceDate->diffForHumans() : __('Now');
+        $latestMaintenance = $next['maintenance'];
+        $maintenanceDate = $next['date'];
+        $maintenanceDiff = $maintenanceDate->diffInDays(now());
+        $timeDiffHumans = $maintenanceDate->isFuture() ? $maintenanceDate->diffForHumans() : __('Now');
 
-            $timeTillMaintenance = $maintenanceDiff - ($maintenanceDiff * 2);
+        $timeTillMaintenance = $maintenanceDiff - ($maintenanceDiff * 2);
 
-            $distanceTillMaintenance = $this->maintenance_interval_distance + $latestMaintenance->mileage - $this->mileage_latest;
-        }
-
-        $daysTillDistanceDeadline = (int) $this->calculateAverageMonthlyDistance() > 30.44 ? $distanceTillMaintenance / ($this->calculateAverageMonthlyDistance() / 30.44) : $distanceTillMaintenance;
+        $distanceTillMaintenance = $next['distance'];
+        $daysTillDistanceDeadline = $next['daysTillDistance'];
         $timeTillDistanceDeadlineHumans = now()->addDays($daysTillDistanceDeadline)->diffForHumans();
         $minDaysTillDeadline = min($daysTillDistanceDeadline, $timeTillMaintenance);
 
@@ -226,51 +250,39 @@ class Vehicle extends Model
             'data' => [
                 [
                     'deadline_date' => $maintenanceDate->format('d-m-Y').' ('.$timeDiffHumans.')',
-                    'deadline_distance' => __('Over').' '.$distanceTillMaintenance.'km ('.(! empty($latestMaintenance) ? $latestMaintenance->mileage + $this->maintenance_interval_distance.' km' : '').')',
+                    'deadline_distance' => __('Over').' '.$distanceTillMaintenance.'km ('.($latestMaintenance->mileage + $this->maintenance_interval_distance).' km)',
                     'deadline_distance_date' => now()->addDays($daysTillDistanceDeadline)->format('d-m-Y').' ('.$timeTillDistanceDeadlineHumans.')',
                 ],
             ],
         ];
     }
 
-    public function getApkStatusAttribute(): array
+    /**
+     * The day the MOT expires: as the RDW knows it, else a year after the last one.
+     */
+    public function apkExpiryDate(): ?Carbon
     {
-        $rdwData = $this->rdw_data;
-
-        if (! empty($rdwData['vervaldatum_apk_dt'])) {
-            $apkDate = Carbon::parse($rdwData['vervaldatum_apk_dt']);
-            $apkDiff = $apkDate->diffInDays(now());
-            $timeDiffHumans = $apkDate->isFuture() ? $apkDate->diffForHumans() : __('Now');
-
-            $timeTillApk = max(0, $apkDiff - ($apkDiff * 2));
-
-            return [
-                'time' => $timeTillApk,
-                'timeDiffHumans' => $timeDiffHumans,
-                'hasModal' => true,
-                'modalTitle' => __('MOT deadline'),
-                'modalHeading' => __('MOT deadline'),
-                'data' => [
-                    [
-                        'deadline_date' => $apkDate->format('d-m-Y').' ('.$timeDiffHumans.')',
-                    ],
-                ],
-            ];
+        if (! empty($this->rdw_data['vervaldatum_apk_dt'])) {
+            return Carbon::parse($this->rdw_data['vervaldatum_apk_dt']);
         }
 
-        if ($this->maintenances->where('apk', true)->isEmpty()) {
+        $latestApk = $this->maintenances->where('apk', true)->sortByDesc('date')->first();
+
+        return $latestApk ? Carbon::parse($latestApk->date ?? now())->addYear() : null;
+    }
+
+    public function getApkStatusAttribute(): array
+    {
+        $apkDate = $this->apkExpiryDate();
+
+        if ($apkDate === null) {
             return [];
         }
 
-        if ($this->maintenances->where('apk', true)->isNotEmpty()) {
-            $latestApk = $this->maintenances->where('apk', true)->sortByDesc('date')->first();
+        $apkDiff = $apkDate->diffInDays(now());
+        $timeDiffHumans = $apkDate->isFuture() ? $apkDate->diffForHumans() : __('Now');
 
-            $apkDate = Carbon::parse($latestApk->date ?? now())->addYear();
-            $apkDiff = $apkDate->diffInDays(now());
-            $timeDiffHumans = $apkDate->isFuture() ? $apkDate->diffForHumans() : __('Now');
-
-            $timeTillApk = max(0, $apkDiff - ($apkDiff * 2));
-        }
+        $timeTillApk = max(0, $apkDiff - ($apkDiff * 2));
 
         return [
             'time' => $timeTillApk,
@@ -354,42 +366,77 @@ class Vehicle extends Model
             ];
         }
 
-        if ($this->insurances->isEmpty()) {
+        // Insurances that have yet to start, or that have no end, have nothing to report.
+        $insurance = $this->insurances->where('start_date', '<=', today())->sortByDesc('start_date')->first();
+
+        if (empty($insurance?->end_date)) {
             return [];
         }
 
-        if ($this->insurances->isNotEmpty()) {
-            $insurance = $this->insurances->where('start_date', '<=', today())->sortByDesc('start_date')->first();
+        $timeTillInsuranceDiff = $insurance->end_date->diffInDays(now());
+        $timeTillInsuranceEndDate = max(0, $timeTillInsuranceDiff - ($timeTillInsuranceDiff * 2));
+        $timeDiffHumans = $insurance->end_date->isFuture() ? $insurance->end_date->diffForHumans() : __('Now');
 
-            $timeTillInsuranceDiff = $insurance->end_date->diffInDays(now());
-            $timeTillInsuranceEndDate = max(0, $timeTillInsuranceDiff - ($timeTillInsuranceDiff * 2));
-            $timeDiffHumans = $insurance->end_date->isFuture() ? $insurance->end_date->diffForHumans() : __('Now');
-
-            return [
-                'time' => $timeTillInsuranceEndDate,
-                'timeDiffHumans' => $timeDiffHumans,
-            ];
-        }
-
-        return [];
+        return [
+            'time' => $timeTillInsuranceEndDate,
+            'timeDiffHumans' => $timeDiffHumans,
+        ];
     }
 
     public function getTaxStatusAttribute(): array
     {
-        if ($this->taxes->isNotEmpty()) {
-            $tax = $this->taxes->where('start_date', '<=', today())->sortByDesc('start_date')->first();
+        $tax = $this->taxes->where('start_date', '<=', today())->sortByDesc('start_date')->first();
 
-            $timeTillTaxDiff = $tax->end_date->diffInDays(now());
-            $timeTillTaxEndDate = max(0, $timeTillTaxDiff - ($timeTillTaxDiff * 2));
-            $timeDiffHumans = $tax->end_date->isFuture() ? $tax->end_date->diffForHumans() : __('Now');
-
-            return [
-                'time' => $timeTillTaxEndDate,
-                'timeDiffHumans' => $timeDiffHumans,
-            ];
+        if (empty($tax?->end_date)) {
+            return [];
         }
 
-        return [];
+        $timeTillTaxDiff = $tax->end_date->diffInDays(now());
+        $timeTillTaxEndDate = max(0, $timeTillTaxDiff - ($timeTillTaxDiff * 2));
+        $timeDiffHumans = $tax->end_date->isFuture() ? $tax->end_date->diffForHumans() : __('Now');
+
+        return [
+            'time' => $timeTillTaxEndDate,
+            'timeDiffHumans' => $timeDiffHumans,
+        ];
+    }
+
+    /**
+     * Where the weather is looked up: the city of the owner, else wherever their IP address is.
+     *
+     * @return array<string, mixed>
+     */
+    private function weatherLocation(): array
+    {
+        $owner = $this->user;
+
+        if ($owner?->latitude !== null && $owner?->longitude !== null) {
+            return ['lat' => $owner->latitude, 'lon' => $owner->longitude];
+        }
+
+        return $this->getLocationDataByIp((string) request()->ip());
+    }
+
+    /**
+     * The weather is cached per vehicle, so drop it when it has to be looked up elsewhere.
+     */
+    public function forgetWeather(): void
+    {
+        Cache::forget('vehicle_'.$this->id.'_historical_min_temps');
+        Cache::store('database')->forget('vehicle_'.$this->id.'_historical_min_temps');
+    }
+
+    /**
+     * The country the fuel prices abroad are compared with: where the vehicle is
+     * registered, as long as the prices of that country are known.
+     *
+     * @param  list<string>  $countriesWithPrices
+     */
+    public function fuelPriceHomeCountry(array $countriesWithPrices): string
+    {
+        return in_array($this->country_registration, $countriesWithPrices, true)
+            ? $this->country_registration
+            : 'netherlands';
     }
 
     private function setHistoricalMinTemps(): void
@@ -398,14 +445,14 @@ class Vehicle extends Model
             return;
         }
 
-        $ipLocation = $this->getLocationDataByIp(request()->ip());
         $latestWash = (new Reconditioning)->latestWash($this->id);
+        $location = empty($latestWash) ? [] : $this->weatherLocation();
 
-        if (empty($latestWash) || empty($ipLocation)) {
+        if (empty($location)) {
             return;
         }
 
-        $this->historicalMinTemps = (new OpenMeteoService)->fetchHistoricalMinTempsInDateRange($ipLocation, $latestWash->date->format('Y-m-d'), now()->format('Y-m-d'));
+        $this->historicalMinTemps = (new OpenMeteoService)->fetchHistoricalMinTempsInDateRange($location, $latestWash->date->format('Y-m-d'), now()->format('Y-m-d'));
 
         Cache::store('database')->put('vehicle_'.$this->id.'_historical_min_temps', $this->historicalMinTemps, now()->addDay());
     }
@@ -431,7 +478,7 @@ class Vehicle extends Model
 
     private function getExteriorProtectionStatus(): ?Reconditioning
     {
-        return $this->reconditionings()->where('type', 'exterior_protection')->latest()->first();
+        return $this->reconditionings()->where('type', 'exterior_protection')->orderByDesc('date')->first();
     }
 
     public function getWashingStatusAttribute(): array
