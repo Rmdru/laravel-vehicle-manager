@@ -17,6 +17,7 @@ const props = defineProps<{
     sections: DetailSection[];
     logo?: string | null;
     image?: string | null;
+    imageSrcset?: string | null;
     licensePlate?: LicensePlateType;
 }>();
 
@@ -70,6 +71,8 @@ const visibleSections = computed(() =>
         <img
             v-if="image"
             :src="image"
+            :srcset="imageSrcset ?? undefined"
+            sizes="400px"
             alt=""
             class="max-h-72 w-fit rounded-xl"
         />

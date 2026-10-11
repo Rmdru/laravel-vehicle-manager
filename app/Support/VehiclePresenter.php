@@ -30,6 +30,7 @@ class VehiclePresenter
             'mileage' => $vehicle->mileage_latest ?? $vehicle->mileage_start,
             'powertrain' => $vehicle->powertrain,
             'imageUrl' => $vehicle->image_url ?: null,
+            'imageSrcset' => $vehicle->image_exists ? VehicleImage::srcset($vehicle) : null,
             'age' => $vehicle->construction_date?->age,
             'constructionDate' => $vehicle->construction_date?->format('d-m-Y'),
             'status' => $status->getLabel(),

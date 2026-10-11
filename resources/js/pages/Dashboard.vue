@@ -248,6 +248,8 @@ const label = (key: string) => {
             <img
                 v-if="vehicle.imageUrl"
                 :src="vehicle.imageUrl"
+                :srcset="vehicle.imageSrcset ?? undefined"
+                sizes="(min-width: 640px) 240px, 100vw"
                 alt=""
                 class="h-40 w-full rounded-lg object-cover sm:h-36 sm:w-60"
             />
@@ -372,7 +374,7 @@ const label = (key: string) => {
                         <button
                             v-if="notification.hasModal"
                             type="button"
-                            class="min-h-9 text-sm font-semibold underline"
+                            class="min-h-9 cursor-pointer text-sm font-semibold underline"
                             @click="details = notification"
                         >
                             {{ t('More information') }}

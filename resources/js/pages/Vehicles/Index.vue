@@ -73,6 +73,8 @@ function destroy(vehicle: VehicleCard) {
                 <img
                     v-if="vehicle.imageUrl"
                     :src="vehicle.imageUrl"
+                    :srcset="vehicle.imageSrcset ?? undefined"
+                    sizes="(min-width: 1280px) 400px, (min-width: 768px) 50vw, 100vw"
                     alt=""
                     class="aspect-video w-full object-cover"
                 />

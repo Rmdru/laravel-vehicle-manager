@@ -148,9 +148,34 @@ class VehicleTest extends TestCase
             'image' => UploadedFile::fake()->image('car.jpg', 4000, 3000),
         ]))->assertSessionHasNoErrors();
 
-        [$width, $height] = getimagesizefromstring(Storage::disk('private')->get("vehicles/{$vehicle->id}.webp"));
+        $size = fn (string $path) => array_slice(getimagesizefromstring(Storage::disk('private')->get($path)), 0, 2);
 
-        $this->assertSame([1600, 1200], [$width, $height]);
+        $this->assertSame([1600, 1200], $size("vehicles/{$vehicle->id}.webp"));
+        $this->assertSame([320, 240], $size("vehicles/{$vehicle->id}-320.webp"));
+
+        // The browser picks the width closest to the size the image is shown at.
+        $this->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('currentVehicle.imageSrcset', fn (string $srcset) => str_contains($srcset, 'width=320')
+                    && str_contains($srcset, ' 320w, ')
+                    && str_contains($srcset, ' 1280w, ')
+                    && str_ends_with($srcset, ' 1600w')));
+
+        $served = fn (array $query) => getimagesizefromstring($this->get(route('vehicle.image', [$vehicle, ...$query]))->streamedContent())[0];
+
+        $this->assertSame(640, $served(['width' => 640]));
+        $this->assertSame(1600, $served([]));
+        // A width the image is not stored at falls back to the largest.
+        $this->assertSame(1600, $served(['width' => 999]));
+
+        // Replacing it by a small image leaves no widths of the previous one behind.
+        $this->post(route('vehicles.update', $vehicle), $this->validData([
+            '_method' => 'PATCH',
+            'image' => UploadedFile::fake()->image('car.png', 300, 200),
+        ]))->assertSessionHasNoErrors();
+
+        Storage::disk('private')->assertMissing("vehicles/{$vehicle->id}-320.webp");
+        $this->assertSame([300, 200], $size("vehicles/{$vehicle->id}.webp"));
     }
 
     public function test_vehicles_of_other_users_are_not_accessible()

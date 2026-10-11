@@ -13,6 +13,7 @@ use App\Services\VehicleStatusService;
 use App\Support\CurrentVehicle;
 use App\Support\Html;
 use App\Support\StatusNotification;
+use App\Support\VehicleImage;
 use App\Support\VehiclePresenter;
 use App\Traits\Vehicles;
 use Carbon\Carbon;
@@ -28,11 +29,6 @@ use TranquilTools\FormBuilder\Fields\Hidden;
 
 class VehicleController extends Controller
 {
-    private const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-
-    /** Pixels of the longest side of a stored image, at most. */
-    private const IMAGE_MAX_SIZE = 1600;
-
     public function index(Request $request, VehicleStatusService $statusService): Response
     {
         $vehicles = $request->user()->vehicles()->orderByDesc('purchase_date')->get();
@@ -101,6 +97,7 @@ class VehicleController extends Controller
             'indexTitle' => __('My garage'),
             'editUrl' => route('vehicles.edit', $vehicle),
             'image' => $summary['imageUrl'],
+            'imageSrcset' => $summary['imageSrcset'],
             'licensePlate' => $summary['licensePlate'],
             'sections' => [
                 ['title' => __('Basic'), 'icon' => 'ic:round-directions-car-filled', 'items' => [
@@ -197,13 +194,13 @@ class VehicleController extends Controller
         return to_route('dashboard');
     }
 
-    public function image(Vehicle $vehicle): StreamedResponse
+    public function image(Request $request, Vehicle $vehicle): StreamedResponse
     {
         $this->authorizeOwner($vehicle);
 
         abort_unless($vehicle->image_exists, 404);
 
-        return Storage::disk('private')->response($vehicle->image_path);
+        return Storage::disk('private')->response(VehicleImage::path($vehicle, $request->integer('width') ?: null));
     }
 
     /**
@@ -303,65 +300,6 @@ class VehicleController extends Controller
             return;
         }
 
-        $disk = Storage::disk('private');
-
-        // A vehicle has a single image, named after its id.
-        foreach (self::IMAGE_EXTENSIONS as $extension) {
-            $disk->delete("vehicles/{$vehicle->id}.{$extension}");
-        }
-
-        $resized = $this->resizedImage($image);
-
-        if ($resized !== null) {
-            $disk->put("vehicles/{$vehicle->id}.webp", $resized);
-
-            return;
-        }
-
-        $extension = strtolower($image->extension() ?: $image->getClientOriginalExtension());
-
-        $image->storeAs('vehicles', "{$vehicle->id}.{$extension}", 'private');
-    }
-
-    /**
-     * The image as WebP, upright and no larger than it is ever shown. A photo
-     * straight from a phone is many times that, which browsers scale down
-     * coarsely. Nothing when the image cannot be read.
-     */
-    private function resizedImage(UploadedFile $image): ?string
-    {
-        if (! function_exists('imagewebp')) {
-            return null;
-        }
-
-        $source = @imagecreatefromstring((string) file_get_contents($image->getRealPath()));
-
-        if ($source === false) {
-            return null;
-        }
-
-        $width = imagesx($source);
-        $height = imagesy($source);
-        $scale = min(1, self::IMAGE_MAX_SIZE / max($width, $height));
-        $target = imagecreatetruecolor(max(1, (int) round($width * $scale)), max(1, (int) round($height * $scale)));
-
-        // Keep the transparency of a PNG or WebP.
-        imagealphablending($target, false);
-        imagesavealpha($target, true);
-        imagecopyresampled($target, $source, 0, 0, 0, 0, imagesx($target), imagesy($target), $width, $height);
-
-        // Phones store a photo as the sensor saw it and note how it was held.
-        $orientation = function_exists('exif_read_data') ? (@exif_read_data($image->getRealPath())['Orientation'] ?? 1) : 1;
-        $degrees = [3 => 180, 6 => -90, 8 => 90][$orientation] ?? 0;
-
-        if ($degrees !== 0) {
-            $target = imagerotate($target, $degrees, 0) ?: $target;
-            imagesavealpha($target, true);
-        }
-
-        ob_start();
-        imagewebp($target, null, 85);
-
-        return ob_get_clean() ?: null;
+        VehicleImage::store($vehicle, $image->getRealPath(), $image->extension() ?: $image->getClientOriginalExtension());
     }
 }

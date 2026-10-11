@@ -15,6 +15,8 @@ export type VehicleSummary = {
     mileage: number | null;
     powertrain: string;
     imageUrl: string | null;
+    // The image in the widths it is stored at, for the browser to pick from.
+    imageSrcset: string | null;
     age: number | null;
     constructionDate: string | null;
     status: string;
