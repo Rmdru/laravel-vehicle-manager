@@ -17,8 +17,8 @@ class ManifestController extends Controller
         return response()->json([
             'id' => '/',
             'name' => config('app.name'),
-            // Shown under the icon on the home screen, where there is little room.
-            'short_name' => __('Vehicles'),
+            // Shown under the icon on the home screen.
+            'short_name' => config('app.name'),
             'lang' => app()->getLocale(),
             'start_url' => '/',
             'scope' => '/',

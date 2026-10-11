@@ -11,7 +11,8 @@ class ManifestTest extends TestCase
         $this->get('/manifest.webmanifest')
             ->assertOk()
             ->assertHeader('Content-Type', 'application/manifest+json')
-            ->assertJsonPath('name', config('app.name'))
+            ->assertJsonPath('name', 'Vehicle manager')
+            ->assertJsonPath('short_name', 'Vehicle manager')
             ->assertJsonPath('display', 'standalone')
             ->assertJsonPath('icons.2.purpose', 'maskable');
     }
@@ -20,6 +21,6 @@ class ManifestTest extends TestCase
     {
         $this->withSession(['locale' => 'nl'])
             ->get('/manifest.webmanifest')
-            ->assertJsonPath('short_name', 'Voertuigen');
+            ->assertJsonPath('shortcuts.1.name', 'Tijdlijn');
     }
 }
