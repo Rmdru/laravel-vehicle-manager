@@ -175,6 +175,58 @@ class DashboardService
     }
 
     /**
+     * The fuel prices over time, per country that has prices in the period.
+     * Without a period: the past year. The chart opens on the country the vehicle
+     * is registered in.
+     *
+     * @return array{home: string|null, countries: list<array{key: string, name: string, isoCode: string|null, series: list<array{key: int, label: string, points: list<array{date: string, price: float}>}>}>}
+     */
+    public function fuelPricesChart(Vehicle $vehicle, ?string $start = null, ?string $end = null): array
+    {
+        $ranged = filled($start) && filled($end);
+        $from = $ranged ? Carbon::parse($start)->startOfDay() : now()->subYear()->startOfDay();
+        $until = $ranged ? Carbon::parse($end)->endOfDay() : now()->endOfDay();
+
+        // The key is what the color is tied to, so a fuel type keeps its color
+        // whatever the period or the country.
+        $known = FuelPrice::query()->distinct()->pluck('fuel_type');
+        $keys = collect(array_keys(trans('fuel_types')))->intersect($known)->values()->flip();
+        $labels = trans('fuel_types');
+        $countries = config('countries');
+
+        return [
+            'home' => $vehicle->country_registration,
+            'countries' => FuelPrice::query()
+                ->whereDate('date', '>=', $from)
+                ->whereDate('date', '<=', $until)
+                ->orderBy('date')
+                ->get(['country', 'fuel_type', 'date', 'price'])
+                ->groupBy('country')
+                ->sortKeys()
+                ->map(fn ($prices, string $country) => [
+                    'key' => $country,
+                    'name' => $countries[$country]['name'] ?? $country,
+                    'isoCode' => $countries[$country]['iso_code'] ?? null,
+                    'series' => $prices
+                        ->groupBy('fuel_type')
+                        ->map(fn ($prices, string $type) => [
+                            'key' => $keys[$type] ?? $keys->count(),
+                            'label' => $labels[$type] ?? $type,
+                            'points' => $prices
+                                ->map(fn (FuelPrice $price) => ['date' => $price->date->format('Y-m-d'), 'price' => (float) $price->price])
+                                ->values()
+                                ->all(),
+                        ])
+                        ->sortBy('key')
+                        ->values()
+                        ->all(),
+                ])
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     public function fuelUsageByType(Vehicle $vehicle, ?string $start = null, ?string $end = null): array

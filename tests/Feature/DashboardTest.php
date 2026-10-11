@@ -233,4 +233,36 @@ class DashboardTest extends TestCase
 
         $this->assertSame('netherlands', $home());
     }
+
+    public function test_the_fuel_prices_chart_has_the_countries_with_prices_in_the_period()
+    {
+        $this->signInWithVehicle();
+
+        FuelPrice::create(['date' => '2026-03-01', 'country' => 'netherlands', 'fuel_type' => 'Diesel', 'price' => 1.5]);
+        FuelPrice::create(['date' => '2026-03-08', 'country' => 'netherlands', 'fuel_type' => 'Diesel', 'price' => 1.6]);
+        FuelPrice::create(['date' => '2026-03-08', 'country' => 'netherlands', 'fuel_type' => 'Unleaded 95 (E10)', 'price' => 2.1]);
+        FuelPrice::create(['date' => '2025-03-01', 'country' => 'germany', 'fuel_type' => 'Diesel', 'price' => 1.4]);
+
+        $this->get(route('dashboard', ['dashboard_start' => '2026-03-01', 'dashboard_end' => '2026-03-31']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->loadDeferredProps('fuel', fn (Assert $reload) => $reload
+                    // Germany has no prices in March 2026.
+                    ->where('fuelPricesChart.home', 'netherlands')
+                    ->has('fuelPricesChart.countries', 1)
+                    ->where('fuelPricesChart.countries.0.key', 'netherlands')
+                    ->has('fuelPricesChart.countries.0.series', 2)
+                    // A fuel type has the same key, and so the same color, everywhere.
+                    ->where('fuelPricesChart.countries.0.series.0.key', 0)
+                    ->where('fuelPricesChart.countries.0.series.1.label', 'Diesel')
+                    ->where('fuelPricesChart.countries.0.series.1.key', 1)
+                    ->where('fuelPricesChart.countries.0.series.1.points', [
+                        ['date' => '2026-03-01', 'price' => 1.5],
+                        ['date' => '2026-03-08', 'price' => 1.6],
+                    ])
+                    ->etc()));
+
+        $this->get(route('dashboard', ['dashboard_start' => '2024-01-01', 'dashboard_end' => '2024-01-31']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->loadDeferredProps('fuel', fn (Assert $reload) => $reload->has('fuelPricesChart.countries', 0)->etc()));
+    }
 }

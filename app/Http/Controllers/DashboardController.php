@@ -45,6 +45,7 @@ class DashboardController extends Controller
             'statuses' => Inertia::defer(fn () => $dashboard->statuses($vehicle), 'status'),
             'stats' => Inertia::defer(fn () => $dashboard->stats($vehicle, $start, $end), 'statistics'),
             'fuelPricesAbroad' => Inertia::defer(fn () => $dashboard->fuelPricesAbroad($vehicle), 'fuel'),
+            'fuelPricesChart' => Inertia::defer(fn () => $dashboard->fuelPricesChart($vehicle, $start, $end), 'fuel'),
             'fuelUsageByType' => Inertia::defer(fn () => $dashboard->fuelUsageByType($vehicle, $start, $end), 'fuel'),
             'cheapestGasStations' => Inertia::defer(fn () => $dashboard->cheapestGasStations($vehicle, $start, $end), 'fuel'),
             'averageMonthlyCosts' => Inertia::defer(fn () => $dashboard->averageMonthlyCostsByType($vehicle, $start, $end, $costTypes), 'costs'),

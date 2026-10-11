@@ -11,6 +11,7 @@ import CountryFlag from '@/components/CountryFlag.vue';
 import FilterChips from '@/components/FilterChips.vue';
 import type { FilterChip } from '@/components/FilterChips.vue';
 import FilterSheet from '@/components/FilterSheet.vue';
+import FuelPricesChart from '@/components/FuelPricesChart.vue';
 import LicensePlate from '@/components/LicensePlate.vue';
 import PeriodFilter from '@/components/PeriodFilter.vue';
 import SectionCard from '@/components/SectionCard.vue';
@@ -77,6 +78,19 @@ const props = defineProps<{
             prices: Record<string, FuelPrice>;
         }[];
     };
+    fuelPricesChart?: {
+        home: string | null;
+        countries: {
+            key: string;
+            name: string;
+            isoCode: string | null;
+            series: {
+                key: number;
+                label: string;
+                points: { date: string; price: number }[];
+            }[];
+        }[];
+    };
     fuelUsageByType?: {
         fuelType: string;
         consumption: string;
@@ -119,6 +133,7 @@ const vehicle = computed(() => usePage().props.currentVehicle!);
 const filteredProps = [
     'filters',
     'stats',
+    'fuelPricesChart',
     'fuelUsageByType',
     'cheapestGasStations',
     'averageMonthlyCosts',
@@ -875,6 +890,28 @@ const label = (key: string) => {
                         <p v-else class="p-4 text-sm text-muted-foreground">
                             {{ t('No fuel price data available.') }}
                         </p>
+                    </Deferred>
+                </SectionCard>
+
+                <!-- Left out altogether when no fuel prices are known for the period. -->
+                <SectionCard
+                    v-if="
+                        fuelPricesChart === undefined ||
+                        fuelPricesChart.countries.length
+                    "
+                    class="xl:col-span-2"
+                    :title="t('Fuel prices')"
+                    :badge="periodLabel || undefined"
+                >
+                    <Deferred data="fuelPricesChart">
+                        <template #fallback>
+                            <Skeleton class="h-72 w-full" />
+                        </template>
+                        <FuelPricesChart
+                            v-if="fuelPricesChart?.countries.length"
+                            :countries="fuelPricesChart.countries"
+                            :home="fuelPricesChart.home"
+                        />
                     </Deferred>
                 </SectionCard>
             </template>

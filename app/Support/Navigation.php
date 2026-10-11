@@ -58,7 +58,7 @@ class Navigation
             'Add a vehicle', 'Add refueling', 'Add small check', 'All', 'Apply', 'Average monthly costs', 'Average per month',
             'Average consumption', 'Average price', 'Average speed', 'Back', 'Cancel',
             'Cheapest gas stations', 'Close', 'Construction date', 'Cost types', 'Country', 'Create', 'Dashboard', 'Date', 'Date from',
-            'Date range:', 'Date until', 'Delete', 'Duplicate', 'Edit', 'Filters', 'Fuel prices abroad', 'Fuel type',
+            'Date range:', 'Date until', 'Delete', 'Duplicate', 'Edit', 'Filters', 'Fuel prices', 'Fuel prices abroad', 'Fuel type',
             'Fuel usage by fuel type', 'Gas station', 'Item', 'Language', 'Latest:', 'Log out', 'Lowest price',
             'Mileage', 'Month', 'Month ago', 'Monthly costs', 'More information', 'Most recent costs',
             'My garage', 'Needs attention', 'No costs this month', 'No details available', 'No fuel price data available.',
