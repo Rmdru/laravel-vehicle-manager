@@ -22,9 +22,9 @@ class FinesTable extends VehicleRecordTable
         $table
             ->defaultSort('-date')
             ->withGlobalSearch(columns: ['fact', 'description', 'location', 'road'])
-            ->column('icon', '', canBeHidden: false, as: fn ($value, Fine $fine) => new HtmlString(Html::rowIcon($fine->icon, 'maki-police')))
+            ->column('icon', '', canBeHidden: false, as: fn ($value, Fine $fine) => new HtmlString(Html::rowIcon($fine->icon, 'maki:police')))
             ->column('fact', __('Fact'), sortable: true, as: fn ($value, Fine $fine) => new HtmlString(
-                '<div class="font-medium">'.Html::iconText('gmdi-gavel-r', $fine->fact).'</div>'
+                '<div class="font-medium">'.Html::iconText('ic:round-gavel', $fine->fact).'</div>'
                 .(filled($fine->description) ? '<div class="text-xs text-muted-foreground">'.e(str($fine->description)->limit(80)).'</div>' : '')
             ))
             ->column('country', __('Country'), sortable: true, as: fn ($value) => new HtmlString(Html::flag($value)))
@@ -32,11 +32,11 @@ class FinesTable extends VehicleRecordTable
                 Html::roadBadges($fine->country, $fine->road_type, $fine->road)
                 .(filled($fine->road_distance_marker) ? ' <span class="text-xs text-muted-foreground">@ '.e($fine->road_distance_marker).' km</span>' : '')
             ))
-            ->column('location', __('Location'), sortable: true, as: fn ($value) => $this->withIcon('gmdi-location-on-r', $value))
-            ->column('date', __('Date'), sortable: true, as: fn ($value, Fine $fine) => $this->withIcon('gmdi-calendar-month-r', $this->date($fine->date)))
-            ->column('price', __('Price'), sortable: true, as: fn ($value) => $this->withIcon('mdi-hand-coin-outline', $this->money($value)))
+            ->column('location', __('Location'), sortable: true, as: fn ($value) => $this->text($value))
+            ->column('date', __('Date'), sortable: true, as: fn ($value, Fine $fine) => $this->text($this->date($fine->date)))
+            ->column('price', __('Price'), sortable: true, as: fn ($value) => $this->amount($this->money($value)))
             ->column('payed', __('Payed'), sortable: true, as: fn ($value, Fine $fine) => new HtmlString(
-                $fine->payed ? Html::badge(__('Payed'), 'success', 'gmdi-check-r') : Html::badge(__('Pending payment'), 'danger', 'gmdi-timer-s')
+                $fine->payed ? Html::badge(__('Payed'), 'success', 'ic:round-check') : Html::badge(__('Pending payment'), 'danger', 'ic:sharp-timer')
             ))
             ->column('payment_method', __('Payment method'), sortable: true, hidden: true, as: fn ($value) => $this->enumBadge(FinePaymentMethod::class, $value))
             ->column('type', __('Type'), sortable: true, as: fn ($value) => $this->enumBadge(FineType::class, $value))

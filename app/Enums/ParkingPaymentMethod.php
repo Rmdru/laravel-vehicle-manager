@@ -27,10 +27,10 @@ enum ParkingPaymentMethod: string implements HasIcon, HasLabel
     public function getIcon(): string
     {
         return match ($this) {
-            self::Cash => 'mdi-hand-coin-outline',
-            self::BankCard => 'gmdi-credit-card',
-            self::App => 'mdi-cellphone-wireless',
-            self::Online => 'gmdi-qr-code',
+            self::Cash => 'mdi:hand-coin-outline',
+            self::BankCard => 'ic:baseline-credit-card',
+            self::App => 'mdi:cellphone-wireless',
+            self::Online => 'ic:baseline-qr-code',
         };
     }
 }

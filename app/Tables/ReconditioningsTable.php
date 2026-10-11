@@ -18,11 +18,11 @@ class ReconditioningsTable extends VehicleRecordTable
         $table
             ->defaultSort('-date')
             ->withGlobalSearch(columns: ['location', 'description'])
-            ->column('date', __('Date'), sortable: true, as: fn ($value, Reconditioning $reconditioning) => $this->withIcon('gmdi-calendar-month-r', $this->date($reconditioning->date)))
+            ->column('date', __('Date'), sortable: true, as: fn ($value, Reconditioning $reconditioning) => $this->text($this->date($reconditioning->date)))
             ->column('type', __('Type'), sortable: true, as: fn ($value) => $this->enumBadge(ReconditioningType::class, $value))
             ->column('executor', __('Executor'), sortable: true, as: fn ($value) => $this->enumBadge(ReconditioningExecutor::class, $value))
-            ->column('price', __('Price'), sortable: true, as: fn ($value) => $this->withIcon('mdi-hand-coin-outline', $this->money($value)))
-            ->column('location', __('Location'), sortable: true, as: fn ($value) => $this->withIcon('gmdi-location-on-r', $value))
+            ->column('price', __('Price'), sortable: true, as: fn ($value) => $this->amount($this->money($value)))
+            ->column('location', __('Location'), sortable: true, as: fn ($value) => $this->text($value))
             ->column('description', __('Description'), as: fn ($value) => (string) str((string) $value)->limit(80))
             ->paginate(25);
 

@@ -7,6 +7,7 @@ namespace App\Console\Commands;
 use App\Pipelines\ImportFuelPrices\Belgium;
 use App\Pipelines\ImportFuelPrices\CalculateFuelDetourAggregates;
 use App\Pipelines\ImportFuelPrices\Germany;
+use App\Pipelines\ImportFuelPrices\Luxembourg;
 use App\Pipelines\ImportFuelPrices\Netherlands;
 use App\Pipelines\ImportFuelPrices\Store;
 use Illuminate\Console\Command;
@@ -29,6 +30,7 @@ class ImportFuelPrices extends Command
                 ->through([
                     Netherlands::class,
                     Belgium::class,
+                    Luxembourg::class,
                     Germany::class,
                     Store::class,
                     CalculateFuelDetourAggregates::class,

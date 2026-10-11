@@ -1,0 +1,63 @@
+<script setup lang="ts">
+import { Link, usePage } from '@inertiajs/vue3';
+import { Plus } from '@lucide/vue';
+import { computed } from 'vue';
+import AppIcon from '@/components/AppIcon.vue';
+import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuGroup,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { useT } from '@/composables/useT';
+
+const { t } = useT();
+
+// Everything in the navigation that has records to add; the overview pages
+// (dashboard, timeline) do not.
+const groups = computed(() => usePage().props.navigation.slice(1));
+</script>
+
+<template>
+    <DropdownMenu v-if="groups.length">
+        <DropdownMenuTrigger as-child>
+            <Button variant="outline" data-test="quick-add">
+                <Plus class="size-4" />
+                <span class="max-sm:sr-only">{{ t('Create') }}</span>
+            </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+            align="end"
+            class="max-h-[70vh] w-72 overflow-y-auto"
+        >
+            <template v-for="(group, index) in groups" :key="group.label">
+                <DropdownMenuSeparator v-if="index > 0" />
+                <DropdownMenuLabel class="text-xs text-muted-foreground">
+                    {{ group.label }}
+                </DropdownMenuLabel>
+                <DropdownMenuGroup>
+                    <DropdownMenuItem
+                        v-for="item in group.items"
+                        :key="item.href"
+                        as-child
+                    >
+                        <Link
+                            :href="`${item.href}/create`"
+                            class="min-h-10 cursor-pointer"
+                        >
+                            <AppIcon
+                                :name="item.icon"
+                                class="size-4 text-muted-foreground"
+                            />
+                            {{ item.title }}
+                        </Link>
+                    </DropdownMenuItem>
+                </DropdownMenuGroup>
+            </template>
+        </DropdownMenuContent>
+    </DropdownMenu>
+</template>

@@ -88,26 +88,26 @@ class MaintenanceController extends VehicleRecordController
             'sections' => [
                 ['title' => __('Maintenance'), 'items' => [
                     ['label' => __('Vehicle'), 'value' => $this->vehicle()->full_name, 'logo' => VehiclePresenter::summary($this->vehicle())['brandLogo']],
-                    ['label' => __('Date'), 'value' => $maintenance->date?->isoFormat('ll'), 'icon' => 'gmdi-calendar-month-r'],
-                    ['label' => __('Garage'), 'value' => $maintenance->garage ?: __('Unknown'), 'icon' => 'mdi-garage'],
-                    ['label' => __('Mileage'), 'value' => filled($maintenance->mileage) ? $maintenance->mileage.' km' : null, 'icon' => 'gmdi-route'],
+                    ['label' => __('Date'), 'value' => $maintenance->date?->isoFormat('ll'), 'icon' => 'ic:round-calendar-month'],
+                    ['label' => __('Garage'), 'value' => $maintenance->garage ?: __('Unknown'), 'icon' => 'mdi:garage'],
+                    ['label' => __('Mileage'), 'value' => filled($maintenance->mileage) ? $maintenance->mileage.' km' : null, 'icon' => 'ic:baseline-route'],
                 ]],
                 ['title' => __('Tasks'), 'items' => [
                     ['label' => __('Type maintenance'), 'html' => Html::badge($type?->getLabel() ?? __('No maintenance'), icon: match ($type) {
-                        MaintenanceTypeMaintenance::Maintenance => 'mdi-car-wrench',
-                        MaintenanceTypeMaintenance::SmallMaintenance => 'mdi-oil',
-                        MaintenanceTypeMaintenance::BigMaintenance => 'mdi-engine',
-                        default => 'gmdi-close-r',
+                        MaintenanceTypeMaintenance::Maintenance => 'mdi:car-wrench',
+                        MaintenanceTypeMaintenance::SmallMaintenance => 'mdi:oil',
+                        MaintenanceTypeMaintenance::BigMaintenance => 'mdi:engine',
+                        default => 'ic:round-close',
                     })],
-                    ['label' => __('MOT'), 'html' => Html::badge($maintenance->apk ? __('MOT') : __('No MOT'), icon: $maintenance->apk ? 'gmdi-security' : 'gmdi-close-r')],
-                    ['label' => __('MOT date'), 'value' => $maintenance->apk_date?->isoFormat('ll') ?? __('Unknown'), 'icon' => 'gmdi-security'],
-                    ['label' => __('Airco check'), 'html' => Html::badge($maintenance->airco_check ? __('Airco check') : __('No airco check'), icon: $maintenance->airco_check ? 'mdi-air-conditioner' : 'gmdi-close-r')],
-                    ['label' => __('Description'), 'value' => $maintenance->description ?: __('None'), 'icon' => 'gmdi-assignment-turned-in-o'],
-                    ['label' => __('Total price'), 'value' => filled($maintenance->total_price) ? $money($maintenance->total_price) : __('Unknown'), 'icon' => 'mdi-hand-coin-outline'],
+                    ['label' => __('MOT'), 'html' => Html::badge($maintenance->apk ? __('MOT') : __('No MOT'), icon: $maintenance->apk ? 'ic:baseline-security' : 'ic:round-close')],
+                    ['label' => __('MOT date'), 'value' => $maintenance->apk_date?->isoFormat('ll') ?? __('Unknown'), 'icon' => 'ic:baseline-security'],
+                    ['label' => __('Airco check'), 'html' => Html::badge($maintenance->airco_check ? __('Airco check') : __('No airco check'), icon: $maintenance->airco_check ? 'mdi:air-conditioner' : 'ic:round-close')],
+                    ['label' => __('Description'), 'value' => $maintenance->description ?: __('None'), 'icon' => 'ic:outline-assignment-turned-in'],
+                    ['label' => __('Total price'), 'value' => filled($maintenance->total_price) ? $money($maintenance->total_price) : __('Unknown'), 'icon' => 'mdi:hand-coin-outline'],
                     ['label' => __('Payment method'), 'value' => $maintenance->payment_method?->getLabel() ?? __('None')],
                     ...collect($maintenance->tasks ?? [])
                         ->filter(fn ($task) => filled($task['task'] ?? null))
-                        ->map(fn ($task) => ['label' => $task['task'], 'value' => $money($task['price'] ?? 0), 'icon' => ($task['icon'] ?? null) ?: 'mdi-car-wrench'])
+                        ->map(fn ($task) => ['label' => $task['task'], 'value' => $money($task['price'] ?? 0), 'icon' => ($task['icon'] ?? null) ?: 'mdi:car-wrench'])
                         ->values()
                         ->all(),
                 ]],

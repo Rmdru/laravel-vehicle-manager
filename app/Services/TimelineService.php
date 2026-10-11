@@ -12,9 +12,15 @@ use App\Enums\ParkingType;
 use App\Enums\ReconditioningExecutor;
 use App\Enums\ReconditioningType;
 use App\Enums\ServiceType;
+use App\Models\Accident;
+use App\Models\EnvironmentalSticker;
 use App\Models\Insurance;
 use App\Models\Maintenance;
+use App\Models\Product;
+use App\Models\Reconditioning;
+use App\Models\Tax;
 use App\Models\Vehicle;
+use App\Models\Vignette;
 use App\Support\Roads;
 use Carbon\Carbon;
 use DateTimeInterface;
@@ -27,6 +33,18 @@ use Illuminate\Support\Collection;
 class TimelineService
 {
     private const MAINTENANCE_TYPES = ['small_maintenance', 'maintenance', 'big_maintenance'];
+
+    /** The navigation group a record belongs to, which the timeline colors it by. */
+    private const GROUPS = [
+        Maintenance::class => 'maintenance',
+        Reconditioning::class => 'maintenance',
+        Accident::class => 'maintenance',
+        Product::class => 'maintenance',
+        Insurance::class => 'fixed',
+        Tax::class => 'fixed',
+        Vignette::class => 'fixed',
+        EnvironmentalSticker::class => 'fixed',
+    ];
 
     /**
      * @return list<array{month: string, items: list<array<string, mixed>>}>
@@ -46,12 +64,12 @@ class TimelineService
         $items = collect();
 
         foreach ($vehicle->maintenances as $maintenance) {
-            $items->push($this->item($maintenance, __('Maintenance'), empty($maintenance->type_maintenance) && $maintenance->apk ? 'gmdi-security' : 'mdi-car-wrench', 'maintenances', $maintenance->date, [
+            $items->push($this->item($maintenance, __('Maintenance'), empty($maintenance->type_maintenance) && $maintenance->apk ? 'ic:baseline-security' : 'mdi:car-wrench', 'maintenances', $maintenance->date, [
                 'price' => $maintenance->total_price,
                 'location' => $maintenance->garage,
                 'badges' => array_values(array_filter([
-                    $this->badge(MaintenanceTypeMaintenance::tryFrom((string) $maintenance->type_maintenance)?->getLabel(), icon: 'mdi-car-wrench'),
-                    $maintenance->apk ? $this->badge(__('MOT'), icon: 'gmdi-security') : null,
+                    $this->badge(MaintenanceTypeMaintenance::tryFrom((string) $maintenance->type_maintenance)?->getLabel(), icon: 'mdi:car-wrench'),
+                    $maintenance->apk ? $this->badge(__('MOT'), icon: 'ic:baseline-security') : null,
                 ])),
             ]));
         }
@@ -59,7 +77,7 @@ class TimelineService
         foreach ($vehicle->refuelings as $refueling) {
             $brand = (string) str($refueling->gas_station)->lower()->explode(' ')->first();
 
-            $items->push($this->item($refueling, __('Refueling'), 'gmdi-local-gas-station-r', 'refuelings', $refueling->date, [
+            $items->push($this->item($refueling, __('Refueling'), 'ic:round-local-gas-station', 'refuelings', $refueling->date, [
                 'logo' => $logos[$brand] ?? $logos['default'],
                 'price' => round((float) $refueling->total_price, 2),
                 'mileage' => $refueling->mileage_end && $refueling->mileage_begin ? $refueling->mileage_end - $refueling->mileage_begin : null,
@@ -79,7 +97,7 @@ class TimelineService
                     return;
                 }
 
-                $items->push($this->item($insurance, __('Insurance'), 'mdi-shield-car', 'insurances', $this->invoiceDate($month, $insurance->invoice_day), [
+                $items->push($this->item($insurance, __('Insurance'), 'mdi:shield-car', 'insurances', $this->invoiceDate($month, $insurance->invoice_day), [
                     'price' => $insurance->price,
                     'badges' => [$this->badge($insuranceTypes[$insurance->type]['name'] ?? null, icon: $insuranceTypes[$insurance->type]['icon'] ?? null)],
                 ]));
@@ -87,14 +105,14 @@ class TimelineService
 
         foreach ($vehicle->taxes as $tax) {
             foreach ($tax->months as $month) {
-                $items->push($this->item($tax, __('Road tax'), 'mdi-highway', 'taxes', $this->invoiceDate($month, $tax->invoice_day), [
+                $items->push($this->item($tax, __('Road tax'), 'mdi:highway', 'taxes', $this->invoiceDate($month, $tax->invoice_day), [
                     'price' => $tax->price,
                 ]));
             }
         }
 
         foreach ($vehicle->parkings as $parking) {
-            $items->push($this->item($parking, __('Parking'), 'fas-parking', 'parking', $parking->end_time, [
+            $items->push($this->item($parking, __('Parking'), 'fa7-solid:square-parking', 'parking', $parking->end_time, [
                 'price' => $parking->price,
                 'location' => $parking->location,
                 'badges' => [$this->enumBadge(ParkingType::tryFrom((string) $parking->type))],
@@ -104,7 +122,7 @@ class TimelineService
         foreach ($vehicle->tolls as $toll) {
             $hasRoad = filled($toll->road_type) && filled($toll->road) && filled($toll->country);
 
-            $items->push($this->item($toll, __('Toll'), 'maki-toll', 'toll', $toll->date, [
+            $items->push($this->item($toll, __('Toll'), 'mdi:boom-gate', 'toll', $toll->date, [
                 'price' => $toll->price,
                 'location' => filled($toll->end_location) ? $toll->start_location.' - '.$toll->end_location : $toll->start_location,
                 'country' => $hasRoad ? $toll->country : null,
@@ -113,17 +131,17 @@ class TimelineService
         }
 
         foreach ($vehicle->fines as $fine) {
-            $items->push($this->item($fine, __('Fine'), 'maki-police', 'fines', $fine->date, [
+            $items->push($this->item($fine, __('Fine'), 'maki:police', 'fines', $fine->date, [
                 'price' => $fine->price,
                 'location' => $fine->location,
-                'badges' => [$fine->payed ? $this->badge(__('Payed'), 'success', 'gmdi-check-r') : $this->badge(__('Pending payment'), 'danger', 'gmdi-timer-s')],
+                'badges' => [$fine->payed ? $this->badge(__('Payed'), 'success', 'ic:round-check') : $this->badge(__('Pending payment'), 'danger', 'ic:sharp-timer')],
             ]));
         }
 
         foreach ($vehicle->reconditionings as $reconditioning) {
             $heading = ReconditioningType::tryFrom((string) $reconditioning->type)?->getLabel() ?? __('Reconditioning');
 
-            $items->push($this->item($reconditioning, $heading, 'mdi-car-wash', 'reconditionings', $reconditioning->date, [
+            $items->push($this->item($reconditioning, $heading, 'mdi:car-wash', 'reconditionings', $reconditioning->date, [
                 'price' => $reconditioning->price,
                 'location' => $reconditioning->location,
                 'badges' => [$this->badge(ReconditioningExecutor::tryFrom((string) $reconditioning->executor)?->getLabel())],
@@ -131,28 +149,28 @@ class TimelineService
         }
 
         foreach ($vehicle->vignettes as $vignette) {
-            $items->push($this->item($vignette, __('Vignette'), 'mdi-sticker-text', 'vignettes', $vignette->start_date, [
+            $items->push($this->item($vignette, __('Vignette'), 'mdi:sticker-text', 'vignettes', $vignette->start_date, [
                 'price' => $vignette->price,
                 'country' => $vignette->country,
             ]));
         }
 
         foreach ($vehicle->environmentalStickers as $sticker) {
-            $items->push($this->item($sticker, __('Environmental sticker'), 'fas-leaf', 'environmental-stickers', $sticker->start_date, [
+            $items->push($this->item($sticker, __('Environmental sticker'), 'fa7-solid:leaf', 'environmental-stickers', $sticker->start_date, [
                 'price' => $sticker->price,
                 'country' => $sticker->country,
             ]));
         }
 
         foreach ($vehicle->ferries as $ferry) {
-            $items->push($this->item($ferry, __('Transport train & ferry service'), 'mdi-ferry', 'ferries', $ferry->start_date, [
+            $items->push($this->item($ferry, __('Transport train & ferry service'), 'mdi:train-car-flatbed-car', 'ferries', $ferry->start_date, [
                 'price' => $ferry->price,
                 'location' => $ferry->start_location.' - '.$ferry->end_location,
             ]));
         }
 
         foreach ($vehicle->products as $product) {
-            $items->push($this->item($product, (string) $product->name, 'mdi-oil', 'products', $product->date, [
+            $items->push($this->item($product, (string) $product->name, 'mdi:oil', 'products', $product->date, [
                 'price' => $product->price,
             ]));
         }
@@ -160,14 +178,14 @@ class TimelineService
         foreach ($vehicle->services as $service) {
             $heading = ServiceType::tryFrom((string) $service->type)?->getLabel() ?? __('Service');
 
-            $items->push($this->item($service, $heading, ServiceType::tryFrom((string) $service->type)?->getIcon() ?? 'mdi-tow-truck', 'services', $service->date, [
+            $items->push($this->item($service, $heading, ServiceType::tryFrom((string) $service->type)?->getIcon() ?? 'mdi:tow-truck', 'services', $service->date, [
                 'price' => $service->price,
                 'location' => $service->name,
             ]));
         }
 
         foreach ($vehicle->accidents as $accident) {
-            $items->push($this->item($accident, __('Accident'), 'fas-car-crash', 'accidents', $accident->datetime, [
+            $items->push($this->item($accident, __('Accident'), 'fa7-solid:car-burst', 'accidents', $accident->datetime, [
                 'price' => $accident->total_price,
                 'location' => $accident->location,
                 'badges' => [$this->enumBadge(AccidentType::tryFrom((string) $accident->type))],
@@ -204,9 +222,9 @@ class TimelineService
             };
 
             if ($next?->isFuture()) {
-                $items->push($this->item($lastMaintenance, __('Maintenance'), 'mdi-car-wrench', null, $next, [
+                $items->push($this->item($lastMaintenance, __('Maintenance'), 'mdi:car-wrench', null, $next, [
                     'location' => $lastMaintenance->garage,
-                    'badges' => [$this->badge(MaintenanceTypeMaintenance::from($lastMaintenance->type_maintenance)->getLabel(), icon: 'mdi-car-wrench')],
+                    'badges' => [$this->badge(MaintenanceTypeMaintenance::from($lastMaintenance->type_maintenance)->getLabel(), icon: 'mdi:car-wrench')],
                 ]));
             }
         }
@@ -219,7 +237,7 @@ class TimelineService
                 $date = $insurance?->getNextInvoiceDate($insurance->start_date, $insurance->end_date, $insurance->invoice_day);
 
                 if ($date) {
-                    $items->push($this->item($insurance, __('Insurance'), 'mdi-shield-car', null, $date, [
+                    $items->push($this->item($insurance, __('Insurance'), 'mdi:shield-car', null, $date, [
                         'price' => $insurance->price,
                         'badges' => [$this->badge($insuranceTypes[$insurance->type]['name'] ?? null, icon: $insuranceTypes[$insurance->type]['icon'] ?? null)],
                     ]));
@@ -230,7 +248,7 @@ class TimelineService
             $date = $tax->getNextInvoiceDate($tax->start_date, $tax->end_date, $tax->invoice_day);
 
             if ($date) {
-                $items->push($this->item($tax, __('Road tax'), 'mdi-highway', null, $date, ['price' => $tax->price]));
+                $items->push($this->item($tax, __('Road tax'), 'mdi:highway', null, $date, ['price' => $tax->price]));
             }
         }
 
@@ -250,6 +268,7 @@ class TimelineService
             'key' => $record->getKey().'-'.($date?->format('Ymd') ?? ''),
             'heading' => $heading,
             'icon' => $icon,
+            'group' => self::GROUPS[$record::class] ?? 'road',
             'logo' => $extra['logo'] ?? null,
             'flag' => $country ? ['isoCode' => $country['iso_code'], 'name' => $country['name']] : null,
             'date' => $date?->isoFormat('ll'),

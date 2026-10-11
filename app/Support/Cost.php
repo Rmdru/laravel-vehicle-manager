@@ -36,7 +36,7 @@ class Cost
                 'dateColumn' => 'date',
                 'itemField' => 'CONCAT(amount, " '.$powertrain['unit_short'].'")',
                 'link' => 'refuelings',
-                'icon' => 'gmdi-local-gas-station-r',
+                'icon' => 'ic:round-local-gas-station',
             ],
             'Maintenance' => [
                 'model' => Maintenance::class,
@@ -44,7 +44,7 @@ class Cost
                 'dateColumn' => 'date',
                 'itemField' => 'description',
                 'link' => 'maintenances',
-                'icon' => 'mdi-car-wrench',
+                'icon' => 'mdi:car-wrench',
             ],
             'Reconditioning' => [
                 'model' => Reconditioning::class,
@@ -52,7 +52,7 @@ class Cost
                 'dateColumn' => 'date',
                 'itemField' => 'REPLACE(type, "_", " ")',
                 'link' => 'reconditionings',
-                'icon' => 'mdi-car-wash',
+                'icon' => 'mdi:car-wash',
             ],
             'Insurance' => [
                 'model' => Insurance::class,
@@ -62,7 +62,7 @@ class Cost
                 'link' => 'insurances',
                 'monthly' => true,
                 'invoiceDates' => 'DATE_FORMAT(CONCAT(YEAR(CURDATE()), "-", MONTH(CURDATE()), "-", invoice_day), "%Y-%m-%d")',
-                'icon' => 'mdi-shield-car',
+                'icon' => 'mdi:shield-car',
             ],
             'Tax' => [
                 'model' => Tax::class,
@@ -71,7 +71,7 @@ class Cost
                 'link' => 'taxes',
                 'monthly' => true,
                 'invoiceDates' => 'DATE_FORMAT(CONCAT(YEAR(CURDATE()), "-", MONTH(CURDATE()), "-", invoice_day), "%Y-%m-%d")',
-                'icon' => 'mdi-highway',
+                'icon' => 'mdi:highway',
             ],
             'Parking' => [
                 'model' => Parking::class,
@@ -79,7 +79,7 @@ class Cost
                 'dateColumn' => 'end_time',
                 'itemField' => 'location',
                 'link' => 'parking',
-                'icon' => 'fas-parking',
+                'icon' => 'fa7-solid:square-parking',
             ],
             'Toll' => [
                 'model' => Toll::class,
@@ -91,7 +91,7 @@ class Cost
                     ELSE start_location 
                 END",
                 'link' => 'toll',
-                'icon' => 'maki-toll',
+                'icon' => 'mdi:boom-gate',
             ],
             'Fine' => [
                 'model' => Fine::class,
@@ -99,7 +99,7 @@ class Cost
                 'dateColumn' => 'date',
                 'itemField' => 'fact',
                 'link' => 'fines',
-                'icon' => 'maki-police',
+                'icon' => 'maki:police',
             ],
             'Vignette' => [
                 'model' => Vignette::class,
@@ -107,7 +107,7 @@ class Cost
                 'dateColumn' => 'start_date',
                 'itemField' => 'country',
                 'link' => 'vignettes',
-                'icon' => 'mdi-sticker-text',
+                'icon' => 'mdi:sticker-text',
             ],
             'Environmental sticker' => [
                 'model' => EnvironmentalSticker::class,
@@ -115,7 +115,7 @@ class Cost
                 'dateColumn' => 'start_date',
                 'itemField' => 'country',
                 'link' => 'environmental-stickers',
-                'icon' => 'fas-leaf',
+                'icon' => 'fa7-solid:leaf',
             ],
             'Transport trains & ferry services' => [
                 'model' => Ferry::class,
@@ -123,7 +123,7 @@ class Cost
                 'dateColumn' => 'start_date',
                 'itemField' => "CONCAT(start_location, ' - ', end_location)",
                 'link' => 'ferries',
-                'icon' => 'mdi-train-car-flatbed-car',
+                'icon' => 'mdi:train-car-flatbed-car',
             ],
             'Product' => [
                 'model' => Product::class,
@@ -131,7 +131,7 @@ class Cost
                 'dateColumn' => 'date',
                 'itemField' => 'name',
                 'link' => 'products',
-                'icon' => 'mdi-oil',
+                'icon' => 'mdi:oil',
             ],
             'Service' => [
                 'model' => Service::class,
@@ -139,7 +139,7 @@ class Cost
                 'dateColumn' => 'date',
                 'itemField' => 'REPLACE(type, "_", " ")',
                 'link' => 'services',
-                'icon' => 'mdi-tow-truck',
+                'icon' => 'mdi:tow-truck',
             ],
             'Accident' => [
                 'model' => Accident::class,
@@ -147,7 +147,7 @@ class Cost
                 'dateColumn' => 'datetime',
                 'itemField' => 'REPLACE(type, "_", " ")',
                 'link' => 'accidents',
-                'icon' => 'fas-car-crash',
+                'icon' => 'fa7-solid:car-burst',
             ],
         ];
     }

@@ -37,14 +37,14 @@ enum ServiceType: string implements HasIcon, HasLabel
     public function getIcon(): string
     {
         return match ($this) {
-            self::TirePressure => 'gmdi-tire-repair-r',
-            self::RoadsideAssistance => 'gmdi-phone',
-            self::Salvage => 'mdi-tow-truck',
-            self::Coffee => 'mdi-coffee',
-            self::Restaurant => 'gmdi-restaurant-menu-r',
-            self::Shop => 'gmdi-store',
-            self::Toilet => 'fas-restroom',
-            self::Hotel => 'gmdi-local-hotel-r',
+            self::TirePressure => 'ic:round-tire-repair',
+            self::RoadsideAssistance => 'ic:baseline-phone',
+            self::Salvage => 'mdi:tow-truck',
+            self::Coffee => 'mdi:coffee',
+            self::Restaurant => 'ic:round-restaurant-menu',
+            self::Shop => 'ic:baseline-store',
+            self::Toilet => 'fa7-solid:restroom',
+            self::Hotel => 'ic:round-local-hotel',
             self::Other => '',
         };
     }

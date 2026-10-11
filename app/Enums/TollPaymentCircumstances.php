@@ -23,8 +23,8 @@ enum TollPaymentCircumstances: string implements HasIcon, HasLabel
     public function getIcon(): string
     {
         return match ($this) {
-            self::TollGate => 'maki-toll',
-            self::Camera => 'mdi-cctv',
+            self::TollGate => 'mdi:boom-gate',
+            self::Camera => 'mdi:cctv',
         };
     }
 }

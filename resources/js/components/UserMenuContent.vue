@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link, router } from '@inertiajs/vue3';
 import { Languages, LogOut, Settings } from '@lucide/vue';
+import AppIcon from '@/components/AppIcon.vue';
 import {
     DropdownMenuGroup,
     DropdownMenuItem,
@@ -28,10 +29,9 @@ defineProps<Props>();
 const { t } = useT();
 
 // The country whose flag stands for a language.
-const flagCodes: Record<string, string> = { en: 'GB' };
+const flagCodes: Record<string, string> = { en: 'gb' };
 
-const flagUrl = (locale: string) =>
-    `https://flagsapi.com/${flagCodes[locale] ?? locale.toUpperCase()}/flat/64.png`;
+const flag = (locale: string) => `circle-flags:${flagCodes[locale] ?? locale}`;
 
 const setLocale = (locale: string) => {
     router.post('/locale', { locale }, { preserveScroll: true });
@@ -54,7 +54,9 @@ const setLocale = (locale: string) => {
         </DropdownMenuItem>
     </DropdownMenuGroup>
     <DropdownMenuSeparator />
-    <DropdownMenuLabel class="flex items-center gap-2 text-xs text-muted-foreground">
+    <DropdownMenuLabel
+        class="flex items-center gap-2 text-xs text-muted-foreground"
+    >
         <Languages class="size-4" />
         {{ t('Language') }}
     </DropdownMenuLabel>
@@ -67,11 +69,9 @@ const setLocale = (locale: string) => {
             :key="locale"
             :value="locale"
         >
-            <img
-                :src="flagUrl(String(locale))"
-                alt=""
-                class="h-5 w-5 shrink-0"
-                loading="lazy"
+            <AppIcon
+                :name="flag(String(locale))"
+                class="size-5 shrink-0 rounded-full"
             />
             {{ label }}
         </DropdownMenuRadioItem>

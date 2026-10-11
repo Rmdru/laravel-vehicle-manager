@@ -25,9 +25,9 @@ enum MaintenancePaymentMethod: string implements HasIcon, HasLabel
     public function getIcon(): string
     {
         return match ($this) {
-            self::Cash => 'mdi-hand-coin-outline',
-            self::BankCard => 'gmdi-credit-card',
-            self::BankTransfer => 'mdi-bank-transfer',
+            self::Cash => 'mdi:hand-coin-outline',
+            self::BankCard => 'ic:baseline-credit-card',
+            self::BankTransfer => 'mdi:bank-transfer',
         };
     }
 }

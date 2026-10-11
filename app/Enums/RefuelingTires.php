@@ -25,8 +25,8 @@ enum RefuelingTires: string implements HasIcon, HasLabel
     public function getIcon(): string
     {
         return match ($this) {
-            self::AllSeason => 'gmdi-sunny-snowing',
-            self::Summer => 'gmdi-wb-sunny-o',
+            self::AllSeason => 'material-symbols:sunny-snowing',
+            self::Summer => 'ic:outline-wb-sunny',
             self::Winter => 'forkawesome-snowflake-o',
         };
     }

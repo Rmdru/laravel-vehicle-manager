@@ -20,7 +20,7 @@ const groups = computed(() =>
 </script>
 
 <template>
-    <Sidebar collapsible="icon" variant="inset">
+    <Sidebar collapsible="icon">
         <SidebarHeader>
             <VehicleSwitcher />
         </SidebarHeader>

@@ -65,13 +65,30 @@ class DashboardTest extends TestCase
                     ->has('fuelUsageByType')
                     ->where('cheapestGasStations.0.gasStation', 'Shell Utrecht')
                     ->where('cheapestGasStations.0.visits', 3)
-                    ->has('averageMonthlyCosts', 14)
+                    ->has('averageMonthlyCosts', 1)
+                    ->where('averageMonthlyCosts.0.label', 'Fuel')
                     ->where('costsChart.series.0.key', 0)
                     ->has('latestCosts', 3)
                     ->etc()));
     }
 
-    public function test_the_costs_chart_folds_the_less_common_cost_types_into_other()
+    public function test_the_notifications_are_ordered_by_urgency()
+    {
+        $this->signInWithVehicle();
+
+        $this->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->loadDeferredProps('status', fn (Assert $reload) => $reload
+                    ->where('notifications', function ($notifications) {
+                        $priorities = collect($notifications)->pluck('priority');
+
+                        return $priorities->isNotEmpty()
+                            && $priorities->all() === $priorities->sort()->values()->all();
+                    })
+                    ->etc()));
+    }
+
+    public function test_the_costs_chart_has_a_series_for_every_cost_type_with_costs()
     {
         $vehicle = $this->signInWithVehicle();
 
@@ -81,9 +98,12 @@ class DashboardTest extends TestCase
         $this->get(route('dashboard'))
             ->assertInertia(fn (Assert $page) => $page
                 ->loadDeferredProps('costs', fn (Assert $reload) => $reload
-                    ->has('costsChart.series', 1)
-                    ->where('costsChart.series.0.key', 7)
-                    ->where('costsChart.series.0.label', 'Other')
+                    ->has('costsChart.series', 2)
+                    ->where('costsChart.series.0.label', 'Product')
+                    ->where('costsChart.series.1.label', 'Service')
+                    ->has('averageMonthlyCosts', 2)
+                    ->where('averageMonthlyCosts.0.label', 'Product')
+                    ->where('averageMonthlyCosts.0.share', 100)
                     ->etc()));
     }
 

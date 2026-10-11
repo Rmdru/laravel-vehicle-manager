@@ -38,7 +38,7 @@ class VehicleStatusService
                 type: 'success',
                 text: __('No information available'),
                 key: 'no-info',
-                icon: 'fas-smile'
+                icon: 'fa7-solid:face-smile'
             );
 
             return $notifications;
@@ -63,7 +63,7 @@ class VehicleStatusService
                 type: 'success',
                 text: collect(StatusNotificationOk::cases())->map(fn ($case) => $case->getLabel())->random(),
                 key: 'ok',
-                icon: 'fas-smile'
+                icon: 'fa7-solid:face-smile'
             );
         }
 

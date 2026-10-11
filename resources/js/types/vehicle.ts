@@ -9,12 +9,16 @@ export type VehicleSummary = {
     id: string;
     name: string;
     brand: string;
-    // Name of a logo in resources/icons/brands, when the brand has one.
+    // Iconify name of the brand's logo, when the brand has one.
     brandLogo: string | null;
     licensePlate: LicensePlate;
     mileage: number | null;
     powertrain: string;
     imageUrl: string | null;
+    age: number | null;
+    status: string;
+    statusIcon: string | null;
+    statusColor: string;
 };
 
 export type VehicleOption = {

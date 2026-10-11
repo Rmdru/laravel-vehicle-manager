@@ -11,10 +11,10 @@ class Html
 {
     private const BADGE_COLORS = [
         'gray' => 'bg-muted text-muted-foreground',
-        'success' => 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
-        'danger' => 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-        'warning' => 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-        'info' => 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
+        'success' => 'bg-success-muted text-success',
+        'danger' => 'bg-danger-muted text-danger',
+        'warning' => 'bg-warning-muted text-warning',
+        'info' => 'bg-info-muted text-info',
     ];
 
     /** @var array<string, string|null> */
@@ -22,15 +22,16 @@ class Html
 
     /**
      * An icon from resources/icons as inline SVG, or nothing when it does not exist.
+     * The name is the Iconify one, e.g. "mdi:car-wrench"; add icons with `php artisan icons:add`.
      */
     public static function icon(?string $name, string $class = 'size-4 shrink-0'): string
     {
-        if (blank($name) || ! preg_match('/^[a-z0-9-]+$/', $name)) {
+        if (blank($name) || ! preg_match('/^[a-z0-9-]+:[a-z0-9-]+$/', $name)) {
             return '';
         }
 
         if (! array_key_exists($name, self::$icons)) {
-            $path = resource_path('icons/'.$name.'.svg');
+            $path = resource_path('icons/'.str_replace(':', '/', $name).'.svg');
             $svg = is_file($path) ? (string) file_get_contents($path) : null;
 
             // Sizing and styling are left to the classes of whoever renders it.
@@ -67,7 +68,7 @@ class Html
      */
     public static function rowIcon(?string $name, string $fallback): string
     {
-        $class = 'size-10 text-gray-500';
+        $class = 'size-9 text-muted-foreground';
 
         return self::icon($name, $class) ?: self::icon($fallback, $class);
     }
@@ -92,9 +93,9 @@ class Html
 
         $name = e($config['name']);
 
-        return '<span class="inline-flex items-center gap-2">'
-            .'<img src="https://flagsapi.com/'.e($config['iso_code']).'/flat/64.png" alt="'.$name.'" title="'.$name.'" class="h-8" loading="lazy" />'
-            .($showName ? $name : '')
+        return '<span class="inline-flex items-center gap-2" title="'.$name.'">'
+            .self::icon('circle-flags:'.strtolower($config['iso_code']), 'size-6 shrink-0 rounded-full')
+            .($showName ? $name : '<span class="sr-only">'.$name.'</span>')
             .'</span>';
     }
 
@@ -110,7 +111,7 @@ class Html
 
     public static function logo(string $url): string
     {
-        return '<span class="flex h-12 w-16 items-center justify-center rounded border border-gray-200 bg-white p-1.5">'
+        return '<span class="flex h-12 w-16 items-center justify-center rounded-lg border bg-white p-1.5">'
             .'<img src="'.e($url).'" alt="" class="max-h-full max-w-full" loading="lazy" />'
             .'</span>';
     }

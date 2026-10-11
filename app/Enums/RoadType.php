@@ -30,10 +30,10 @@ enum RoadType: string implements HasColor, HasIcon, HasLabel
     public function getIcon(): ?string
     {
         return match ($this) {
-            self::Highway => 'mdi-highway',
-            self::Secondary => 'mdi-tunnel',
-            self::Ring => 'mdi-reload',
-            self::Provincial => 'fas-road',
+            self::Highway => 'mdi:highway',
+            self::Secondary => 'mdi:tunnel',
+            self::Ring => 'mdi:reload',
+            self::Provincial => 'fa7-solid:road',
             default => null,
         };
     }

@@ -31,12 +31,12 @@ enum AccidentSituation: string implements HasIcon, HasLabel
     public function getIcon(): ?string
     {
         return match ($this) {
-            self::Injury => 'mdi-ambulance',
-            self::Fire => 'fas-fire-extinguisher',
-            self::Entrapment => 'gmdi-content-cut-r',
-            self::VehicleNotRollable => 'mdi-tow-truck',
-            self::VehicleInWater => 'fas-hammer',
-            self::Deceased => 'mdi-skull-crossbones',
+            self::Injury => 'mdi:ambulance',
+            self::Fire => 'fa7-solid:fire-extinguisher',
+            self::Entrapment => 'ic:round-content-cut',
+            self::VehicleNotRollable => 'mdi:tow-truck',
+            self::VehicleInWater => 'fa7-solid:hammer',
+            self::Deceased => 'mdi:skull-crossbones',
         };
     }
 }

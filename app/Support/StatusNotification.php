@@ -20,7 +20,7 @@ class StatusNotification
                     'warning' => __('Insurance expires within 2 weeks!'),
                     'info' => __('Insurance expires within 1 month!'),
                 ],
-                'icon' => 'mdi-shield-car',
+                'icon' => 'mdi:shield-car',
             ],
             'tax_reminder' => [
                 'statusKey' => 'tax_status',
@@ -31,7 +31,7 @@ class StatusNotification
                 'messages' => [
                     'info' => __('New tax period within 1 month!'),
                 ],
-                'icon' => 'mdi-highway',
+                'icon' => 'mdi:highway',
             ],
             'apk' => [
                 'statusKey' => 'apk_status',
@@ -44,7 +44,7 @@ class StatusNotification
                     'warning' => __('MOT expires within 1 month!'),
                     'info' => __('MOT expires within 2 months!'),
                 ],
-                'icon' => 'gmdi-security',
+                'icon' => 'ic:baseline-security',
             ],
             'recall' => [
                 'statusKey' => 'recall_status',
@@ -55,7 +55,7 @@ class StatusNotification
                 'messages' => [
                     'critical' => __('Open recall! Please contact the dealer or manufactor as soon as possible!'),
                 ],
-                'icon' => 'mdi-head-sync',
+                'icon' => 'mdi:head-sync',
             ],
             'maintenance' => [
                 'statusKey' => 'maintenance_status',
@@ -68,7 +68,7 @@ class StatusNotification
                     'critical' => __('Maintenance required now'),
                     'warning' => __('Maintenance required soon'),
                 ],
-                'icon' => 'mdi-car-wrench',
+                'icon' => 'mdi:car-wrench',
             ],
             'airco_check' => [
                 'statusKey' => 'airco_check_status',
@@ -80,7 +80,7 @@ class StatusNotification
                     'critical' => __('Airco check required!'),
                     'warning' => __('Airco check required soon!'),
                 ],
-                'icon' => 'mdi-air-conditioner',
+                'icon' => 'mdi:air-conditioner',
             ],
             'old_fuel' => [
                 'statusKey' => 'fuel_status',
@@ -92,7 +92,7 @@ class StatusNotification
                     'critical' => __('Fuel is too old!'),
                     'warning' => __('Fuel is getting old!'),
                 ],
-                'icon' => 'gmdi-local-gas-station-r',
+                'icon' => 'ic:round-local-gas-station',
             ],
             'periodic_super_plus' => [
                 'statusKey' => 'periodic_super_plus',
@@ -103,7 +103,7 @@ class StatusNotification
                 'messages' => [
                     'info' => __('Next time fill up with Super Plus (E5) fuel!'),
                 ],
-                'icon' => 'gmdi-local-gas-station-r',
+                'icon' => 'ic:round-local-gas-station',
             ],
             'washing_carwash' => [
                 'statusKey' => 'carwash_status',
@@ -115,7 +115,7 @@ class StatusNotification
                     'warning' => __('Carwash required!'),
                     'info' => __('Carwash required soon!'),
                 ],
-                'icon' => 'mdi-car-wash',
+                'icon' => 'mdi:car-wash',
             ],
             'self_washing' => [
                 'statusKey' => 'self_washing_status',
@@ -127,7 +127,7 @@ class StatusNotification
                     'warning' => __('Self washing required!'),
                     'info' => __('Self washing required soon!'),
                 ],
-                'icon' => 'mdi-car-wash',
+                'icon' => 'mdi:car-wash',
             ],
             'self_washing_protection' => [
                 'statusKey' => 'self_washing_protection_status',
@@ -139,7 +139,7 @@ class StatusNotification
                     'warning' => __('Self washing with exterior protection required!'),
                     'info' => __('Self washing with exterior protection required soon!'),
                 ],
-                'icon' => 'mdi-spray',
+                'icon' => 'mdi:spray',
             ],
             'tire_pressure_check' => [
                 'statusKey' => 'tire_pressure_check_status',
@@ -151,7 +151,7 @@ class StatusNotification
                     'warning' => __('Check tire pressure!'),
                     'info' => __('Check tire pressure soon!'),
                 ],
-                'icon' => 'mdi-car-tire-alert',
+                'icon' => 'mdi:car-tire-alert',
             ],
             'liquids_check' => [
                 'statusKey' => 'liquids_check_status',
@@ -163,7 +163,7 @@ class StatusNotification
                     'warning' => __('Check liquids!'),
                     'info' => __('Check liquids soon!'),
                 ],
-                'icon' => 'mdi-oil',
+                'icon' => 'mdi:oil',
             ],
         ];
     }
@@ -176,7 +176,7 @@ class StatusNotification
                 'textColor' => 'text-red-500',
                 'borderColor' => 'border-red-500',
                 'filamentColor' => 'danger',
-                'icon' => 'gmdi-warning-r',
+                'icon' => 'ic:round-warning',
                 'badgeText' => __('Attention required'),
             ],
             'warning' => [
@@ -184,7 +184,7 @@ class StatusNotification
                 'textColor' => 'text-orange-400',
                 'borderColor' => 'border-orange-500',
                 'filamentColor' => 'warning',
-                'icon' => 'gmdi-error-r',
+                'icon' => 'ic:round-error',
                 'badgeText' => __('Attention recommended'),
             ],
             'info' => [
@@ -192,7 +192,7 @@ class StatusNotification
                 'textColor' => 'text-blue-400',
                 'borderColor' => 'border-blue-400',
                 'filamentColor' => 'info',
-                'icon' => 'gmdi-info-r',
+                'icon' => 'ic:round-info',
                 'badgeText' => __('Notification'),
             ],
             'success' => [
@@ -200,7 +200,7 @@ class StatusNotification
                 'textColor' => 'text-green-500',
                 'borderColor' => 'border-green-500',
                 'filamentColor' => 'success',
-                'icon' => 'gmdi-check-r',
+                'icon' => 'ic:round-check',
                 'badgeText' => __('OK'),
             ],
         ];

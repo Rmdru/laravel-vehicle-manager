@@ -6,19 +6,9 @@ type Series = { key: number; label: string; data: number[] };
 const props = defineProps<{ labels: string[]; series: Series[] }>();
 
 // One fixed color per series key (see DashboardService::costsChart), so a cost
-// type always has the same color. The last key is "Other" and stays neutral.
-const palette = [
-    'var(--chart-series-1)',
-    'var(--chart-series-2)',
-    'var(--chart-series-3)',
-    'var(--chart-series-4)',
-    'var(--chart-series-5)',
-    'var(--chart-series-6)',
-    'var(--chart-series-7)',
-    'var(--chart-series-other)',
-];
-
-const color = (series: Series) => palette[series.key] ?? palette[7];
+// type always has the same color: the key is its position among the cost types.
+const color = (series: Series) =>
+    `var(--chart-series-${(series.key % 14) + 1})`;
 const money = (value: number) =>
     new Intl.NumberFormat('nl-NL', {
         style: 'currency',
@@ -27,7 +17,10 @@ const money = (value: number) =>
 
 const totals = computed(() =>
     props.labels.map((_, month) =>
-        props.series.reduce((sum, series) => sum + (series.data[month] ?? 0), 0),
+        props.series.reduce(
+            (sum, series) => sum + (series.data[month] ?? 0),
+            0,
+        ),
     ),
 );
 
@@ -38,14 +31,18 @@ const max = computed(() => {
 
     return Math.ceil(highest / step) * step;
 });
-const ticks = computed(() => [1, 0.75, 0.5, 0.25, 0].map((part) => max.value * part));
+const ticks = computed(() =>
+    [1, 0.75, 0.5, 0.25, 0].map((part) => max.value * part),
+);
 
 const hovered = ref<number | null>(null);
 </script>
 
 <template>
     <div v-if="series.length" class="flex flex-col gap-4">
-        <ul class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+        <ul
+            class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground"
+        >
             <li
                 v-for="item in series"
                 :key="item.key"

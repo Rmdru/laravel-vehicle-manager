@@ -32,15 +32,13 @@ const vehicles = computed(() => page.props.vehicles);
             <DropdownMenu>
                 <DropdownMenuTrigger as-child>
                     <SidebarMenuButton size="lg" data-test="vehicle-switcher">
+                        <BrandLogo
+                            :name="current?.brandLogo"
+                            class="size-8 shrink-0"
+                        />
                         <div
-                            class="flex aspect-square size-8 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground"
+                            class="grid flex-1 text-left text-sm leading-tight"
                         >
-                            <BrandLogo
-                                :name="current?.brandLogo"
-                                class="size-5 text-white dark:text-black"
-                            />
-                        </div>
-                        <div class="grid flex-1 text-left text-sm leading-tight">
                             <span class="truncate font-semibold">{{
                                 current?.name ?? page.props.name
                             }}</span>
@@ -73,7 +71,7 @@ const vehicles = computed(() => page.props.vehicles);
                     <DropdownMenuSeparator />
                     <DropdownMenuItem as-child>
                         <Link href="/vehicles" class="cursor-pointer">
-                            <AppIcon name="mdi-garage" class="size-4" />
+                            <AppIcon name="mdi:garage" class="size-4" />
                             {{ t('My garage') }}
                         </Link>
                     </DropdownMenuItem>

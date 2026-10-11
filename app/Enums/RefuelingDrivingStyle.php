@@ -25,9 +25,9 @@ enum RefuelingDrivingStyle: string implements HasIcon, HasLabel
     public function getIcon(): string
     {
         return match ($this) {
-            self::Slow => 'mdi-speedometer-slow',
-            self::Average => 'mdi-speedometer-medium',
-            self::Fast => 'mdi-speedometer',
+            self::Slow => 'mdi:speedometer-slow',
+            self::Average => 'mdi:speedometer-medium',
+            self::Fast => 'mdi:speedometer',
         };
     }
 

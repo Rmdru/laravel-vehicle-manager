@@ -11,10 +11,7 @@ import type { VehicleSummary } from '@/types';
 
 type VehicleCard = VehicleSummary & {
     mileageStart: number | null;
-    age: number | null;
     constructionDate: string | null;
-    status: string;
-    statusIcon: string | null;
     showUrl: string;
     editUrl: string;
     selectUrl: string;
@@ -42,10 +39,12 @@ function destroy(vehicle: VehicleCard) {
 <template>
     <Head :title="t('My garage')" />
 
-    <div class="flex h-full flex-1 flex-col gap-4 p-4">
+    <div class="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 p-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
             <div>
-                <h1 class="text-2xl font-semibold">{{ t('My garage') }}</h1>
+                <h1 class="text-2xl font-bold tracking-tight">
+                    {{ t('My garage') }}
+                </h1>
                 <p class="text-sm text-muted-foreground">
                     {{
                         t(
@@ -66,9 +65,10 @@ function destroy(vehicle: VehicleCard) {
             <article
                 v-for="vehicle in vehicles"
                 :key="vehicle.id"
-                class="flex flex-col overflow-hidden rounded-xl border border-sidebar-border/70"
+                class="flex flex-col overflow-hidden rounded-xl border bg-card"
                 :class="{
-                    'ring-2 ring-ring': vehicle.id === $page.props.currentVehicle?.id,
+                    'ring-2 ring-ring':
+                        vehicle.id === $page.props.currentVehicle?.id,
                 }"
             >
                 <img
@@ -82,7 +82,7 @@ function destroy(vehicle: VehicleCard) {
                         <h2 class="flex items-center gap-2 font-semibold">
                             <BrandLogo
                                 :name="vehicle.brandLogo"
-                                class="size-5 shrink-0"
+                                class="size-8 shrink-0"
                             />
                             {{ vehicle.name }}
                         </h2>
@@ -96,7 +96,7 @@ function destroy(vehicle: VehicleCard) {
                             class="flex items-center gap-1"
                             :title="`${t('Purchased with:')} ${vehicle.mileageStart ?? '?'} km`"
                         >
-                            <AppIcon name="gmdi-route" class="size-4" />
+                            <AppIcon name="ic:baseline-route" class="size-4" />
                             {{ vehicle.mileage }} km
                         </span>
                         <span
@@ -104,12 +104,15 @@ function destroy(vehicle: VehicleCard) {
                             class="flex items-center gap-1"
                             :title="vehicle.constructionDate ?? ''"
                         >
-                            <AppIcon name="fas-birthday-cake" class="size-4" />
+                            <AppIcon
+                                name="fa7-solid:cake-candles"
+                                class="size-4"
+                            />
                             {{ vehicle.age }} {{ t('years old') }}
                         </span>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                        <ColorBadge>
+                        <ColorBadge :color="vehicle.statusColor">
                             <AppIcon
                                 v-if="vehicle.statusIcon"
                                 :name="vehicle.statusIcon"

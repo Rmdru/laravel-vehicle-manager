@@ -20,11 +20,11 @@ class AccidentsTable extends VehicleRecordTable
         $table
             ->defaultSort('-datetime')
             ->withGlobalSearch(columns: ['location', 'description'])
-            ->column('datetime', __('Date and time'), sortable: true, as: fn ($value, Accident $accident) => $this->withIcon('gmdi-calendar-month-r', $this->date($accident->datetime, 'DD-MM-YYYY HH:mm')))
-            ->column('location', __('Location'), sortable: true, as: fn ($value) => $this->withIcon('gmdi-location-on-r', $value))
+            ->column('datetime', __('Date and time'), sortable: true, as: fn ($value, Accident $accident) => $this->text($this->date($accident->datetime, 'DD-MM-YYYY HH:mm')))
+            ->column('location', __('Location'), sortable: true, as: fn ($value) => $this->text($value))
             ->column('type', __('Type'), sortable: true, as: fn ($value) => $this->enumBadge(AccidentType::class, $value))
             ->column('situation', __('Situation'), as: fn ($value, Accident $accident) => $this->enumBadge(AccidentSituation::class, $accident->situation))
-            ->column('total_price', __('Total price'), sortable: true, as: fn ($value) => $this->withIcon('mdi-hand-coin-outline', $this->money($value)))
+            ->column('total_price', __('Total price'), sortable: true, as: fn ($value) => $this->amount($this->money($value)))
             ->paginate(25);
 
         $this->enumFilter($table, 'type', __('Type'), AccidentType::class);

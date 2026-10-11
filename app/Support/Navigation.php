@@ -7,7 +7,7 @@ namespace App\Support;
 class Navigation
 {
     /**
-     * The sidebar navigation. Icons are file names in resources/icons.
+     * The sidebar navigation. Icons are Iconify names of files in resources/icons.
      *
      * @return list<array{label: string, items: list<array{title: string, href: string, icon: string}>}>
      */
@@ -20,35 +20,29 @@ class Navigation
         ];
 
         return [
-            ['label' => __('Statistics'), 'items' => [
-                $item(__('Dashboard'), 'dashboard', 'gmdi-bar-chart-r'),
-                $item(__('Timeline'), 'timeline', 'gmdi-timeline-r'),
+            ['label' => __('Overview'), 'items' => [
+                $item(__('Dashboard'), 'dashboard', 'ic:round-bar-chart'),
+                $item(__('Timeline'), 'timeline', 'ic:round-timeline'),
             ]],
-            ['label' => __('Garage'), 'items' => [
-                $item(__('Maintenance & repairs'), 'maintenances.index', 'mdi-car-wrench'),
-                $item(__('Reconditioning & washing'), 'reconditionings.index', 'mdi-car-wash'),
-                $item(__('Accidents & damage'), 'accidents.index', 'fas-car-crash'),
-                $item(__('Products & accessory'), 'products.index', 'mdi-oil'),
+            ['label' => __('Maintenance'), 'items' => [
+                $item(__('Maintenance & repairs'), 'maintenances.index', 'mdi:car-wrench'),
+                $item(__('Reconditioning & washing'), 'reconditionings.index', 'mdi:car-wash'),
+                $item(__('Accidents & damage'), 'accidents.index', 'fa7-solid:car-burst'),
+                $item(__('Products & accessory'), 'products.index', 'mdi:oil'),
             ]],
-            ['label' => __('Fuel'), 'items' => [
-                $item(__('Refuelings'), 'refuelings.index', 'gmdi-local-gas-station'),
+            ['label' => __('On the road'), 'items' => [
+                $item(__('Refuelings'), 'refuelings.index', 'ic:round-local-gas-station'),
+                $item(__('Parking'), 'parking.index', 'fa7-solid:square-parking'),
+                $item(__('Toll'), 'toll.index', 'mdi:boom-gate'),
+                $item(__('Fines'), 'fines.index', 'maki:police'),
+                $item(__('Services'), 'services.index', 'mdi:tow-truck'),
+                $item(__('Transport trains & ferry services'), 'ferries.index', 'mdi:train-car-flatbed-car'),
             ]],
-            ['label' => __('Insurance'), 'items' => [
-                $item(__('Insurances'), 'insurances.index', 'mdi-shield-car'),
-            ]],
-            ['label' => __('Tax'), 'items' => [
-                $item(__('Road taxes'), 'taxes.index', 'mdi-highway'),
-                $item(__('Parking'), 'parking.index', 'fas-parking'),
-                $item(__('Toll'), 'toll.index', 'maki-toll'),
-                $item(__('Fines'), 'fines.index', 'maki-police'),
-                $item(__('Vignettes'), 'vignettes.index', 'mdi-sticker-text'),
-                $item(__('Environmental stickers'), 'environmental-stickers.index', 'fas-leaf'),
-            ]],
-            ['label' => __('Services'), 'items' => [
-                $item(__('Services'), 'services.index', 'mdi-tow-truck'),
-            ]],
-            ['label' => __('Additional transportation methods'), 'items' => [
-                $item(__('Transport trains & ferry services'), 'ferries.index', 'mdi-train-car-flatbed-car'),
+            ['label' => __('Fixed costs'), 'items' => [
+                $item(__('Insurances'), 'insurances.index', 'mdi:shield-car'),
+                $item(__('Road taxes'), 'taxes.index', 'mdi:highway'),
+                $item(__('Vignettes'), 'vignettes.index', 'mdi:sticker-text'),
+                $item(__('Environmental stickers'), 'environmental-stickers.index', 'fa7-solid:leaf'),
             ]],
         ];
     }
@@ -61,13 +55,13 @@ class Navigation
     public static function translations(): array
     {
         $keys = [
-            'Add a vehicle', 'Add small check', 'All', 'Apply', 'Average monthly costs', 'Average per month',
+            'Add a vehicle', 'Add refueling', 'Add small check', 'All', 'Apply', 'Average monthly costs', 'Average per month',
             'Average consumption', 'Average price', 'Average speed', 'Back', 'Cancel',
             'Cheapest gas stations', 'Close', 'Cost types', 'Country', 'Create', 'Dashboard', 'Date', 'Date from',
             'Date range:', 'Date until', 'Delete', 'Duplicate', 'Edit', 'Filters', 'Fuel prices abroad', 'Fuel type',
             'Fuel usage by fuel type', 'Gas station', 'Item', 'Language', 'Latest:', 'Log out', 'Lowest price',
             'Mileage', 'Month', 'Month ago', 'Monthly costs', 'More information', 'Most recent costs',
-            'My garage', 'No costs this month', 'No details available', 'No fuel price data available.',
+            'My garage', 'Needs attention', 'No costs this month', 'No details available', 'No fuel price data available.',
             'No refuelings found', 'No statuses available to show.', 'Nothing to show', 'Notifications',
             'Number of refuelings', 'Period', 'Predictions', 'Price', 'Purchased with:', 'Refresh fuel prices', 'Reset',
             'Save', 'Select', 'Settings', 'Show', 'Statistics', 'Status', 'Timeline', 'Total refueled', 'Type',

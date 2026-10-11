@@ -23,8 +23,8 @@ enum TollType: string implements HasIcon, HasLabel
     public function getIcon(): string
     {
         return match ($this) {
-            self::Location => 'gmdi-location-on-r',
-            self::Section => 'gmdi-route-r',
+            self::Location => 'ic:round-location-on',
+            self::Section => 'ic:round-route',
         };
     }
 }

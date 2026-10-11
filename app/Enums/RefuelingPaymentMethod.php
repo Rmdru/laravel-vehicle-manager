@@ -29,11 +29,11 @@ enum RefuelingPaymentMethod: string implements HasIcon, HasLabel
     public function getIcon(): string
     {
         return match ($this) {
-            self::Cash => 'mdi-hand-coin-outline',
-            self::BankCard => 'gmdi-credit-card',
-            self::LoyalityProgram => 'mdi-gift',
-            self::FuelCard => 'gmdi-local-gas-station-r',
-            self::App => 'mdi-cellphone-wireless',
+            self::Cash => 'mdi:hand-coin-outline',
+            self::BankCard => 'ic:baseline-credit-card',
+            self::LoyalityProgram => 'mdi:gift',
+            self::FuelCard => 'ic:round-local-gas-station',
+            self::App => 'mdi:cellphone-wireless',
         };
     }
 }

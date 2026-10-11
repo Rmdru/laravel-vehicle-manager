@@ -22,11 +22,11 @@ class InsurancesTable extends VehicleRecordTable
         $table
             ->defaultSort('-start_date')
             ->withGlobalSearch(columns: ['insurance_company'])
-            ->column('start_date', __('Start date'), sortable: true, as: fn ($value, Insurance $insurance) => $this->withIcon('gmdi-calendar-month-r', $this->period($insurance->start_date, $insurance->end_date)))
+            ->column('start_date', __('Start date'), sortable: true, as: fn ($value, Insurance $insurance) => $this->text($this->period($insurance->start_date, $insurance->end_date)))
             ->column('type', __('Type'), sortable: true, as: fn ($value) => new HtmlString(Html::badge($types[$value]['name'] ?? __('Unknown'), icon: $types[$value]['icon'] ?? null)))
-            ->column('insurance_company', __('Insurance company'), sortable: true, as: fn ($value) => $this->withIcon('mdi-office-building', $value))
-            ->column('price', __('Price per month'), sortable: true, as: fn ($value) => $this->withIcon('mdi-hand-coin-outline', $this->money($value)))
-            ->column('invoice_day', __('Invoice day'), sortable: true, as: fn ($value) => $this->withIcon('gmdi-calendar-month-r', $value.' '.__('th of the month')))
+            ->column('insurance_company', __('Insurance company'), sortable: true, as: fn ($value) => $this->text($value))
+            ->column('price', __('Price per month'), sortable: true, as: fn ($value) => $this->amount($this->money($value)))
+            ->column('invoice_day', __('Invoice day'), sortable: true, as: fn ($value) => $this->text($value.' '.__('th of the month')))
             ->paginate(25);
 
         $this->optionsFilter($table, 'type', __('Type'), collect($types)->map(fn (array $type) => (string) $type['name'])->all());

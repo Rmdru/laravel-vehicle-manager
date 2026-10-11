@@ -100,26 +100,26 @@ class VehicleController extends Controller
             'image' => $summary['imageUrl'],
             'licensePlate' => $summary['licensePlate'],
             'sections' => [
-                ['title' => __('Basic'), 'icon' => 'gmdi-directions-car-filled-r', 'items' => [
+                ['title' => __('Basic'), 'icon' => 'ic:round-directions-car-filled', 'items' => [
                     ['label' => __('Brand'), 'value' => $summary['brand'], 'logo' => $summary['brandLogo']],
-                    ['label' => __('Model'), 'value' => $vehicle->model, 'icon' => 'gmdi-directions-car-filled-r'],
-                    ['label' => __('Version'), 'value' => $vehicle->version, 'icon' => 'gmdi-star'],
-                    ['label' => __('Engine'), 'value' => $vehicle->engine ?: $unknown, 'icon' => 'mdi-engine'],
-                    ['label' => __('Powertrain'), 'value' => trans('powertrains')[$vehicle->powertrain]['name'] ?? $unknown, 'icon' => 'gmdi-local-gas-station'],
+                    ['label' => __('Model'), 'value' => $vehicle->model, 'icon' => 'ic:round-directions-car-filled'],
+                    ['label' => __('Version'), 'value' => $vehicle->version, 'icon' => 'ic:baseline-star'],
+                    ['label' => __('Engine'), 'value' => $vehicle->engine ?: $unknown, 'icon' => 'mdi:engine'],
+                    ['label' => __('Powertrain'), 'value' => trans('powertrains')[$vehicle->powertrain]['name'] ?? $unknown, 'icon' => 'ic:baseline-local-gas-station'],
                     ['label' => __('Compatible fuel types'), 'html' => collect($vehicle->fuel_types)
                         ->map(fn ($type) => Html::badge($fuelTypes[$type] ?? (string) $type))
                         ->implode(' ')],
                 ]],
                 ['title' => __('Ownership'), 'items' => [
                     ['label' => __('Country of registration'), 'html' => Html::flag($vehicle->country_registration, showName: true)],
-                    ['label' => __('Mileage on purchase'), 'value' => filled($vehicle->mileage_start) ? $vehicle->mileage_start.' km' : $unknown, 'icon' => 'gmdi-route'],
-                    ['label' => __('Mileage'), 'value' => filled($summary['mileage']) ? $summary['mileage'].' km' : $unknown, 'icon' => 'gmdi-route'],
-                    ['label' => __('Purchase date'), 'value' => $vehicle->purchase_date?->isoFormat('ll') ?? $unknown, 'icon' => 'gmdi-calendar-month-r'],
-                    ['label' => __('Construction date'), 'value' => $vehicle->construction_date?->isoFormat('ll') ?? $unknown, 'icon' => 'fas-industry'],
-                    ['label' => __('Purchase price'), 'value' => filled($vehicle->purchase_price) ? '€ '.number_format((float) $vehicle->purchase_price, 2, ',', '.') : $unknown, 'icon' => 'gmdi-local-offer-r'],
+                    ['label' => __('Mileage on purchase'), 'value' => filled($vehicle->mileage_start) ? $vehicle->mileage_start.' km' : $unknown, 'icon' => 'ic:baseline-route'],
+                    ['label' => __('Mileage'), 'value' => filled($summary['mileage']) ? $summary['mileage'].' km' : $unknown, 'icon' => 'ic:baseline-route'],
+                    ['label' => __('Purchase date'), 'value' => $vehicle->purchase_date?->isoFormat('ll') ?? $unknown, 'icon' => 'ic:round-calendar-month'],
+                    ['label' => __('Construction date'), 'value' => $vehicle->construction_date?->isoFormat('ll') ?? $unknown, 'icon' => 'fa7-solid:industry'],
+                    ['label' => __('Purchase price'), 'value' => filled($vehicle->purchase_price) ? '€ '.number_format((float) $vehicle->purchase_price, 2, ',', '.') : $unknown, 'icon' => 'ic:round-local-offer'],
                     ['label' => __('Status'), 'html' => Html::badge($status->getLabel(), icon: $status->getIcon())],
                 ]],
-                ['title' => __('Specifications'), 'icon' => 'mdi-engine', 'items' => collect($vehicle->specifications ?? [])
+                ['title' => __('Specifications'), 'icon' => 'mdi:engine', 'items' => collect($vehicle->specifications ?? [])
                     ->filter(fn ($specification) => filled($specification['name'] ?? null))
                     ->map(fn ($specification) => [
                         'label' => (string) $specification['name'],

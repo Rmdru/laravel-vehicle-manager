@@ -51,19 +51,19 @@ class RefuelingsTable extends VehicleRecordTable
 
                 return new HtmlString(Html::logo($logos[$brand] ?? $logos['default']));
             })
-            ->column('date', __('Date'), sortable: true, as: fn ($value, Refueling $refueling) => $this->withIcon('gmdi-calendar-month-r', $this->date($refueling->date)))
-            ->column('gas_station', __('Gas station'), sortable: true, as: fn ($value) => $this->withIcon('gmdi-location-on-s', $value))
-            ->column('total_price', __('Total price'), sortable: true, as: fn ($value) => $this->withIcon('mdi-hand-coin-outline', $this->money($value)))
+            ->column('date', __('Date'), sortable: true, as: fn ($value, Refueling $refueling) => $this->text($this->date($refueling->date)))
+            ->column('gas_station', __('Gas station'), sortable: true, as: fn ($value) => $this->text($value))
+            ->column('total_price', __('Total price'), sortable: true, as: fn ($value) => $this->amount($this->money($value)))
             ->column('fuel_consumption', __('Fuel consumption'), sortable: true, as: function ($value) use ($average, $unit) {
                 [$color, $icon] = match (true) {
-                    $value > $average => ['danger', 'gmdi-trending-up-r'],
-                    $value < $average => ['success', 'gmdi-trending-down-r'],
-                    default => ['warning', 'mdi-approximately-equal'],
+                    $value > $average => ['danger', 'ic:round-trending-up'],
+                    $value < $average => ['success', 'ic:round-trending-down'],
+                    default => ['warning', 'mdi:approximately-equal'],
                 };
 
                 return new HtmlString(Html::badge(number_format((float) $value, 2, ',', '.').' '.$unit, $color, $icon));
             })
-            ->column('fuel_type', __('Fuel type'), sortable: true, as: fn ($value) => new HtmlString(Html::badge($fuelTypes[$value] ?? (string) $value, icon: 'gmdi-local-gas-station-r')))
+            ->column('fuel_type', __('Fuel type'), sortable: true, as: fn ($value) => new HtmlString(Html::badge($fuelTypes[$value] ?? (string) $value, icon: 'ic:round-local-gas-station')))
             ->paginate(25);
 
         $this->optionsFilter($table, 'fuel_type', __('Fuel type'), $fuelTypes);

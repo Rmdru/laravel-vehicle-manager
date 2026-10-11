@@ -29,11 +29,11 @@ enum TollPaymentMethod: string implements HasIcon, HasLabel
     public function getIcon(): ?string
     {
         return match ($this) {
-            self::Cash => 'mdi-hand-coin-outline',
-            self::BankCard => 'gmdi-credit-card',
-            self::Online => 'gmdi-qr-code',
-            self::TollBadge => 'mdi-car-connected',
-            self::App => 'mdi-cellphone-wireless',
+            self::Cash => 'mdi:hand-coin-outline',
+            self::BankCard => 'ic:baseline-credit-card',
+            self::Online => 'ic:baseline-qr-code',
+            self::TollBadge => 'mdi:car-connected',
+            self::App => 'mdi:cellphone-wireless',
         };
     }
 }

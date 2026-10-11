@@ -29,10 +29,10 @@ enum RefuelingClimateControl: string implements HasIcon, HasLabel
     public function getIcon(): string
     {
         return match ($this) {
-            self::Automatically => 'fas-temperature-high',
-            self::Airco => 'mdi-air-conditioner',
-            self::Heater => 'mdi-heat-wave',
-            self::Demisting => 'mdi-wiper',
+            self::Automatically => 'fa7-solid:temperature-high',
+            self::Airco => 'mdi:air-conditioner',
+            self::Heater => 'mdi:heat-wave',
+            self::Demisting => 'mdi:wiper',
             self::Defrost => 'forkawesome-snowflake-o',
         };
     }

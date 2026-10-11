@@ -20,9 +20,6 @@ class DashboardService
 {
     use VehicleStats;
 
-    /** Number of series in the costs chart, the last one being "Other". */
-    private const CHART_SERIES = 8;
-
     /** Rows in the list of most recent costs, at most. */
     private const LATEST_COSTS = 100;
 
@@ -39,11 +36,17 @@ class DashboardService
     }
 
     /**
+     * The notifications of the vehicle, ordered by urgency.
+     *
      * @return list<array<string, mixed>>
      */
     public function notifications(Vehicle $vehicle): array
     {
-        return array_values($this->statusService->getNotifications($vehicle));
+        // Most urgent first: critical, then warnings, then information.
+        return collect($this->statusService->getNotifications($vehicle))
+            ->sortBy('priority')
+            ->values()
+            ->all();
     }
 
     /**
@@ -68,7 +71,7 @@ class DashboardService
                 'title' => __('Maintenance'),
                 'primary' => $distanceFirst ? $byDistance : $byTime,
                 'secondary' => $distanceFirst ? $byTime : $byDistance,
-                'icon' => 'mdi-car-wrench',
+                'icon' => 'mdi:car-wrench',
             ];
         }
 
@@ -79,7 +82,7 @@ class DashboardService
                 'title' => __('MOT'),
                 'primary' => str($apk['timeDiffHumans'])->ucfirst()->toString(),
                 'secondary' => '',
-                'icon' => 'gmdi-security',
+                'icon' => 'ic:baseline-security',
             ];
         }
 
@@ -102,14 +105,14 @@ class DashboardService
         };
 
         return array_values(array_filter([
-            $this->stat(__('Average monthly costs'), 'mdi-hand-coin-outline', round($this->calculateAverageMonthlyCosts(), 2), round($this->calculateAverageMonthlyCosts(true), 2), prefix: '€'),
-            $this->stat(__('Average costs per kilometer'), 'uni-euro-circle-o', $this->calculateCostsPerKilometer(), $this->calculateCostsPerKilometer(true), prefix: '€', suffix: '/km'),
-            $this->stat(__('Average fuel usage'), 'mdi-engine', $this->calculateAverageFuelConsumption(), $this->calculateAverageFuelConsumption(true), suffix: $unit),
-            $this->stat(__('Average on-board computer deviation'), 'mdi-content-save', $this->calculateAvgOnboardComputerDeviation(), $this->calculateAvgOnboardComputerDeviation(true), suffix: $unit, hideWhenEmpty: true),
-            $this->stat(__('Average range'), 'gmdi-route-r', $this->calculateAverageRange(), $this->calculateAverageRange(true), suffix: 'km', higherIsBetter: true),
-            $this->stat(__('Average monthly distance'), 'mdi-map-marker-distance', $this->calculateAverageMonthlyDistance(), $this->calculateAverageMonthlyDistance(true), suffix: 'km', higherIsBetter: true),
-            $this->stat(__('Average speed'), 'mdi-speedometer', $this->calculateAvgSpeed(), $this->calculateAvgSpeed(true), suffix: 'km/h', higherIsBetter: true, hideWhenEmpty: true),
-            $this->stat($ratioTitle, 'gmdi-local-gas-station-r', $this->calculateRatioPremiumFuel(), $this->calculateRatioPremiumFuel(true), suffix: '%', higherIsBetter: true, hideWhenEmpty: true),
+            $this->stat(__('Average monthly costs'), 'mdi:hand-coin-outline', round($this->calculateAverageMonthlyCosts(), 2), round($this->calculateAverageMonthlyCosts(true), 2), prefix: '€'),
+            $this->stat(__('Average costs per kilometer'), 'uil:euro-circle', $this->calculateCostsPerKilometer(), $this->calculateCostsPerKilometer(true), prefix: '€', suffix: '/km'),
+            $this->stat(__('Average fuel usage'), 'mdi:engine', $this->calculateAverageFuelConsumption(), $this->calculateAverageFuelConsumption(true), suffix: $unit),
+            $this->stat(__('Average on-board computer deviation'), 'mdi:plus-minus-variant', $this->calculateAvgOnboardComputerDeviation(), $this->calculateAvgOnboardComputerDeviation(true), suffix: $unit, hideWhenEmpty: true),
+            $this->stat(__('Average range'), 'ic:round-route', $this->calculateAverageRange(), $this->calculateAverageRange(true), suffix: 'km', higherIsBetter: true),
+            $this->stat(__('Average monthly distance'), 'mdi:map-marker-distance', $this->calculateAverageMonthlyDistance(), $this->calculateAverageMonthlyDistance(true), suffix: 'km', higherIsBetter: true),
+            $this->stat(__('Average speed'), 'mdi:speedometer', $this->calculateAvgSpeed(), $this->calculateAvgSpeed(true), suffix: 'km/h', higherIsBetter: true, hideWhenEmpty: true),
+            $this->stat($ratioTitle, 'ic:round-local-gas-station', $this->calculateRatioPremiumFuel(), $this->calculateRatioPremiumFuel(true), suffix: '%', higherIsBetter: true, hideWhenEmpty: true),
         ]));
     }
 
@@ -233,19 +236,30 @@ class DashboardService
     }
 
     /**
+     * The cost types costs were made for, the most expensive first.
+     *
      * @param  list<string>  $only  Cost types to limit the result to; all when empty.
-     * @return list<array{label: string, amount: string, icon: string}>
+     * @return list<array{key: int, label: string, amount: string, share: float, icon: string}>
      */
     public function averageMonthlyCostsByType(Vehicle $vehicle, ?string $start, ?string $end, array $only = []): array
     {
         $types = Cost::types($vehicle);
+        $keys = array_flip(array_keys($types));
 
-        return collect($vehicle->calculateAverageMonthlyCostsByType((string) $start, (string) $end))
-            ->filter(fn (float $amount, string $type) => $this->includesCostType($only, $type))
+        $averages = collect($vehicle->calculateAverageMonthlyCostsByType((string) $start, (string) $end))
+            ->filter(fn (float $amount, string $type) => $amount > 0 && $this->includesCostType($only, $type))
+            ->sortDesc();
+
+        $highest = (float) $averages->max();
+
+        return $averages
             ->map(fn (float $amount, string $type) => [
+                // Ties the type to its color in the costs chart.
+                'key' => $keys[$type] ?? 0,
                 'label' => __($type),
                 'amount' => '€ '.number_format($amount, 2, ',', '.'),
-                'icon' => $types[$type]['icon'] ?? 'mdi-help-circle-outline',
+                'share' => round($amount / $highest * 100, 1),
+                'icon' => $types[$type]['icon'] ?? 'mdi:help-circle-outline',
             ])
             ->values()
             ->all();
@@ -262,16 +276,15 @@ class DashboardService
             ? $vehicle->calculateMonthlyCosts(now()->subYear()->toDateString(), now()->toDateString())
             : $vehicle->calculateMonthlyCosts($start, $end);
 
-        // The chart has a fixed color per series: the first cost types each get
-        // their own, the remaining ones are folded into "Other". The key is what
-        // the color is tied to, so a type keeps its color whatever else has costs.
+        // Every cost type with costs is a series of its own. The key is what the
+        // color is tied to, so a type keeps its color whatever else has costs.
         $series = collect(array_keys(Cost::types($vehicle)))
-            ->groupBy(fn (string $type, int $index) => min($index, self::CHART_SERIES - 1))
-            ->map(fn ($types, int $key) => [
+            ->filter(fn (string $type) => $this->includesCostType($only, $type))
+            ->map(fn (string $type, int $key) => [
                 'key' => $key,
-                'label' => $key === self::CHART_SERIES - 1 ? __('Other') : __($types->first()),
+                'label' => __($type),
                 'data' => collect($costs['monthlyCosts'])
-                    ->map(fn (array $month) => round((float) $types->sum(fn (string $type) => $this->includesCostType($only, $type) ? ($month[$type] ?? 0) : 0), 2))
+                    ->map(fn (array $month) => round((float) ($month[$type] ?? 0), 2))
                     ->values()
                     ->all(),
             ])

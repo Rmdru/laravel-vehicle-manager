@@ -7,10 +7,7 @@ import BrandLogo from '@/components/BrandLogo.vue';
 import LicensePlate from '@/components/LicensePlate.vue';
 import { Button } from '@/components/ui/button';
 import { useT } from '@/composables/useT';
-import type {
-    DetailSection,
-    LicensePlate as LicensePlateType,
-} from '@/types';
+import type { DetailSection, LicensePlate as LicensePlateType } from '@/types';
 
 const props = defineProps<{
     title: string;
@@ -56,7 +53,9 @@ const visibleSections = computed(() =>
                     {{ indexTitle }}
                 </Link>
                 <div class="flex items-center gap-3">
-                    <h1 class="text-2xl font-semibold">{{ title }}</h1>
+                    <h1 class="text-2xl font-bold tracking-tight">
+                        {{ title }}
+                    </h1>
                     <LicensePlate v-if="licensePlate" :plate="licensePlate" />
                 </div>
             </div>
@@ -76,7 +75,7 @@ const visibleSections = computed(() =>
         />
         <span
             v-if="logo"
-            class="flex h-20 w-28 items-center justify-center rounded border border-gray-200 bg-white p-2"
+            class="flex h-20 w-28 items-center justify-center rounded-lg border bg-white p-2"
         >
             <img :src="logo" alt="" class="max-h-full max-w-full" />
         </span>
@@ -84,10 +83,10 @@ const visibleSections = computed(() =>
         <section
             v-for="section in visibleSections"
             :key="section.title"
-            class="rounded-xl border border-sidebar-border/70"
+            class="overflow-hidden rounded-xl border bg-card"
         >
             <h2
-                class="flex items-center gap-2 border-b border-sidebar-border/70 px-4 py-3 font-semibold"
+                class="flex items-center gap-2 border-b px-4 py-3 font-semibold"
             >
                 <AppIcon
                     v-if="section.icon"
@@ -103,18 +102,20 @@ const visibleSections = computed(() =>
                     </dt>
                     <!-- eslint-disable-next-line vue/no-v-html -->
                     <dd v-if="item.html" v-html="item.html" />
-                    <dd v-else class="flex items-start gap-1.5">
+                    <dd v-else class="flex items-center gap-1.5">
                         <BrandLogo
                             v-if="item.logo !== undefined"
                             :name="item.logo"
-                            class="mt-0.5 size-5 shrink-0"
+                            class="size-7 shrink-0"
                         />
                         <AppIcon
                             v-else-if="item.icon"
                             :name="item.icon"
                             class="mt-0.5 size-5 shrink-0 text-muted-foreground"
                         />
-                        <span class="whitespace-pre-line">{{ item.value }}</span>
+                        <span class="whitespace-pre-line">{{
+                            item.value
+                        }}</span>
                     </dd>
                 </div>
             </dl>

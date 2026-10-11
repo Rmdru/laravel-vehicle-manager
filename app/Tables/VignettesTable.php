@@ -22,10 +22,10 @@ class VignettesTable extends VehicleRecordTable
             ->defaultSort('-start_date')
             ->withGlobalSearch(columns: ['areas', 'comments'])
             ->column('country', __('Country'), sortable: true, as: fn ($value) => new HtmlString(Html::flag($value, showName: true)))
-            ->column('start_date', __('Start date'), sortable: true, as: fn ($value, Model $record) => $this->withIcon('gmdi-calendar-month-r', $this->period($record->start_date, $record->end_date, openEnd: __('forever'))))
-            ->column('price', __('Price'), sortable: true, as: fn ($value) => $this->withIcon('mdi-hand-coin-outline', $this->money($value)))
-            ->column('areas', __('Areas'), as: fn ($value) => $this->withIcon('mdi-map-marker-radius', (string) str((string) $value)->limit(80)))
-            ->column('comments', __('Comments'), as: fn ($value) => $this->withIcon('gmdi-text-fields-r', (string) str((string) $value)->limit(80)))
+            ->column('start_date', __('Start date'), sortable: true, as: fn ($value, Model $record) => $this->text($this->period($record->start_date, $record->end_date, openEnd: __('forever'))))
+            ->column('price', __('Price'), sortable: true, as: fn ($value) => $this->amount($this->money($value)))
+            ->column('areas', __('Areas'), as: fn ($value) => $this->text((string) str((string) $value)->limit(80)))
+            ->column('comments', __('Comments'), as: fn ($value) => $this->text((string) str((string) $value)->limit(80)))
             ->paginate(25);
 
         $this->countryFilter($table);

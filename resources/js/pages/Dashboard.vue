@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Deferred, Head, Link, router, usePage } from '@inertiajs/vue3';
+import { Plus, RefreshCw } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import AppIcon from '@/components/AppIcon.vue';
 import BrandLogo from '@/components/BrandLogo.vue';
@@ -52,8 +53,20 @@ const props = defineProps<{
     usesFuel: boolean;
     refreshFuelPricesUrl: string;
     notifications?: Notification[];
-    statuses?: { title: string; primary: string; secondary: string; icon: string }[];
-    stats?: { title: string; icon: string; value: string; latest: string; trend: number; color: string }[];
+    statuses?: {
+        title: string;
+        primary: string;
+        secondary: string;
+        icon: string;
+    }[];
+    stats?: {
+        title: string;
+        icon: string;
+        value: string;
+        latest: string;
+        trend: number;
+        color: string;
+    }[];
     fuelPricesAbroad?: {
         fuelTypes: Record<string, string>;
         countries: {
@@ -64,11 +77,39 @@ const props = defineProps<{
             prices: Record<string, FuelPrice>;
         }[];
     };
-    fuelUsageByType?: { fuelType: string; consumption: string; speed: string; amount: string; count: number }[];
-    cheapestGasStations?: { gasStation: string; visits: number; averagePrice: string; lowestPrice: string }[];
-    averageMonthlyCosts?: { label: string; amount: string; icon: string }[];
-    costsChart?: { labels: string[]; series: { key: number; label: string; data: number[] }[] };
-    latestCosts?: { key: string; type: string; item: string; price: string; date: string; icon: string; url: string }[];
+    fuelUsageByType?: {
+        fuelType: string;
+        consumption: string;
+        speed: string;
+        amount: string;
+        count: number;
+    }[];
+    cheapestGasStations?: {
+        gasStation: string;
+        visits: number;
+        averagePrice: string;
+        lowestPrice: string;
+    }[];
+    averageMonthlyCosts?: {
+        key: number;
+        label: string;
+        amount: string;
+        share: number;
+        icon: string;
+    }[];
+    costsChart?: {
+        labels: string[];
+        series: { key: number; label: string; data: number[] }[];
+    };
+    latestCosts?: {
+        key: string;
+        type: string;
+        item: string;
+        price: string;
+        date: string;
+        icon: string;
+        url: string;
+    }[];
 }>();
 
 const { t } = useT();
@@ -91,7 +132,11 @@ const refreshing = ref(false);
 
 // Shown on the sections the date range applies to.
 const periodLabel = computed(() =>
-    formatPeriod(usePage().props.locale, props.filters.start, props.filters.end),
+    formatPeriod(
+        usePage().props.locale,
+        props.filters.start,
+        props.filters.end,
+    ),
 );
 
 const chips = computed<FilterChip[]>(() => [
@@ -102,7 +147,11 @@ const chips = computed<FilterChip[]>(() => [
     })),
 ]);
 
-function applyFilters(filters: { start?: string | null; end?: string | null; costTypes?: string[] }) {
+function applyFilters(filters: {
+    start?: string | null;
+    end?: string | null;
+    costTypes?: string[];
+}) {
     const { start, end, costTypes } = { ...props.filters, ...filters };
 
     router.get(
@@ -139,15 +188,48 @@ function removeChip(key: string) {
     }
 }
 
-const resetFilters = () => applyFilters({ start: null, end: null, costTypes: [] });
+const resetFilters = () =>
+    applyFilters({ start: null, end: null, costTypes: [] });
 
 function refreshFuelPrices() {
     refreshing.value = true;
-    router.post(props.refreshFuelPricesUrl, {}, {
-        preserveScroll: true,
-        onFinish: () => (refreshing.value = false),
-    });
+    router.post(
+        props.refreshFuelPricesUrl,
+        {},
+        {
+            preserveScroll: true,
+            onFinish: () => (refreshing.value = false),
+        },
+    );
 }
+
+// Notifications that ask for something to be done, as opposed to "all is well".
+const attention = computed(
+    () =>
+        props.notifications?.filter((item) => item.type !== 'success').length ??
+        0,
+);
+
+const tones: Record<string, string> = {
+    critical: 'text-danger',
+    warning: 'text-warning',
+    info: 'text-info',
+    success: 'text-success',
+};
+
+const trends: Record<string, string> = {
+    success: 'text-success',
+    danger: 'text-danger',
+    gray: 'text-muted-foreground',
+};
+
+const mileage = computed(() =>
+    vehicle.value.mileage === null
+        ? null
+        : new Intl.NumberFormat(usePage().props.locale).format(
+              vehicle.value.mileage,
+          ),
+);
 
 const label = (key: string) => {
     const text = key.replaceAll('_', ' ');
@@ -159,375 +241,684 @@ const label = (key: string) => {
 <template>
     <Head :title="t('Dashboard')" />
 
-    <div class="flex h-full flex-1 flex-col gap-4 p-4">
-        <img
-            v-if="vehicle.imageUrl"
-            :src="vehicle.imageUrl"
-            alt=""
-            class="w-96 max-w-full rounded-xl"
-        />
-
-        <div class="flex flex-wrap items-center gap-4">
-            <div class="flex items-center gap-2 text-lg font-semibold">
-                <BrandLogo
-                    :name="vehicle.brandLogo"
-                    class="size-7 shrink-0"
-                />
-                {{ vehicle.name }}
-            </div>
-            <LicensePlate :plate="vehicle.licensePlate" />
-            <ColorBadge v-if="vehicle.mileage !== null">
-                {{ vehicle.mileage }} km
-            </ColorBadge>
-            <div class="sm:ml-auto">
-                <FilterSheet
-                    :active="chips.length"
-                    :description="periodLabel"
-                    @reset="resetFilters"
-                >
-                    <PeriodFilter
-                        :start="filters.start"
-                        :end="filters.end"
-                        complete
-                        @apply="applyPeriod"
+    <div class="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 p-4">
+        <section
+            class="flex flex-wrap gap-5 rounded-xl border bg-card p-4 md:p-5"
+        >
+            <img
+                v-if="vehicle.imageUrl"
+                :src="vehicle.imageUrl"
+                alt=""
+                class="h-40 w-full rounded-lg object-cover sm:h-36 sm:w-60"
+            />
+            <div
+                class="flex min-w-0 flex-1 basis-64 flex-col justify-center gap-3"
+            >
+                <div class="flex items-center gap-3">
+                    <BrandLogo
+                        :name="vehicle.brandLogo"
+                        class="size-11 shrink-0"
                     />
-                    <fieldset class="grid gap-2">
-                        <legend class="mb-2 text-sm font-medium">
-                            {{ t('Cost types') }}
-                        </legend>
-                        <label
-                            v-for="(label, type) in costTypeOptions"
-                            :key="type"
-                            class="flex items-center gap-2 text-sm"
+                    <h1 class="text-2xl leading-tight font-bold tracking-tight">
+                        {{ vehicle.name }}
+                    </h1>
+                </div>
+                <div class="flex flex-wrap items-center gap-2.5">
+                    <LicensePlate
+                        :plate="vehicle.licensePlate"
+                        class="text-lg"
+                    />
+                    <ColorBadge :color="vehicle.statusColor">
+                        <AppIcon
+                            v-if="vehicle.statusIcon"
+                            :name="vehicle.statusIcon"
+                            class="size-3.5"
+                        />
+                        {{ vehicle.status }}
+                    </ColorBadge>
+                </div>
+                <div
+                    class="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground"
+                >
+                    <span v-if="mileage !== null">
+                        <strong
+                            class="font-semibold text-foreground tabular-nums"
+                            >{{ mileage }} km</strong
                         >
-                            <Checkbox
-                                :model-value="filters.costTypes.includes(String(type))"
-                                @update:model-value="(checked) => toggleCostType(String(type), checked === true)"
-                            />
-                            {{ label }}
-                        </label>
-                    </fieldset>
-                </FilterSheet>
+                        {{ t('Mileage').toLowerCase() }}
+                    </span>
+                    <span v-if="vehicle.age !== null">
+                        <strong class="font-semibold text-foreground">{{
+                            vehicle.age
+                        }}</strong>
+                        {{ t('years old') }}
+                    </span>
+                </div>
             </div>
-        </div>
-
-        <FilterChips :chips="chips" @remove="removeChip" @reset="resetFilters" />
-
-        <SectionCard :title="t('Notifications')" icon="gmdi-notifications-active-r" persist-key="notifications">
-            <Deferred data="notifications">
-                <template #fallback><Skeleton class="h-10 w-full" /></template>
-                <div class="flex flex-col gap-3">
+            <Deferred data="statuses">
+                <template #fallback>
+                    <Skeleton class="h-24 flex-1 basis-72" />
+                </template>
+                <div
+                    v-if="statuses?.length"
+                    class="grid flex-1 basis-72 content-center gap-3 sm:grid-cols-2"
+                >
                     <div
+                        v-for="status in statuses"
+                        :key="status.title"
+                        class="rounded-lg border p-3.5"
+                    >
+                        <div
+                            class="flex items-center gap-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase"
+                        >
+                            <AppIcon :name="status.icon" class="size-4" />
+                            {{ status.title }}
+                        </div>
+                        <div class="mt-1 text-lg leading-snug font-semibold">
+                            {{ status.primary }}
+                        </div>
+                        <div class="text-sm text-muted-foreground">
+                            {{ status.secondary }}
+                        </div>
+                    </div>
+                </div>
+            </Deferred>
+        </section>
+
+        <SectionCard :title="t('Needs attention')" flush>
+            <template v-if="attention" #actions>
+                <span
+                    class="mr-2 rounded-full bg-danger-muted px-2.5 py-0.5 text-xs font-semibold text-danger tabular-nums"
+                >
+                    {{ attention }}
+                </span>
+            </template>
+            <Deferred data="notifications">
+                <template #fallback>
+                    <div class="p-4"><Skeleton class="h-10 w-full" /></div>
+                </template>
+                <ul class="divide-y">
+                    <li
                         v-for="notification in notifications"
                         :key="notification.key"
-                        :class="[
-                            'flex items-center gap-2 rounded-lg border p-2 font-medium',
-                            notification.textColor,
-                            notification.borderColor,
-                        ]"
+                        class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3"
                     >
-                        <AppIcon :name="notification.typeIcon" class="size-6 shrink-0" />
-                        <AppIcon
-                            v-if="notification.icon"
-                            :name="notification.icon"
-                            class="size-6 shrink-0"
-                        />
-                        <span>{{ notification.text }}</span>
+                        <span
+                            :class="[
+                                'flex items-center gap-2',
+                                tones[notification.type],
+                            ]"
+                        >
+                            <AppIcon
+                                :name="notification.typeIcon"
+                                class="size-6 shrink-0"
+                            />
+                            <AppIcon
+                                v-if="notification.icon"
+                                :name="notification.icon"
+                                class="size-6 shrink-0"
+                            />
+                        </span>
+                        <span class="min-w-0 flex-1 basis-56 font-medium">
+                            {{ notification.text }}
+                        </span>
                         <button
                             v-if="notification.hasModal"
                             type="button"
-                            class="underline"
+                            class="min-h-9 text-sm font-semibold underline"
                             @click="details = notification"
                         >
                             {{ t('More information') }}
                         </button>
-                    </div>
-                </div>
+                    </li>
+                </ul>
             </Deferred>
         </SectionCard>
 
-        <SectionCard :title="t('Status')" icon="mdi-list-status" persist-key="status">
-            <Deferred data="statuses">
-                <template #fallback><Skeleton class="h-20 w-full" /></template>
-                <div v-if="statuses?.length" class="grid gap-4 md:grid-cols-3">
-                    <div
-                        v-for="status in statuses"
-                        :key="status.title"
-                        class="rounded-lg border p-4"
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-2">
+            <h2 class="flex flex-wrap items-center gap-2 text-lg font-semibold">
+                {{ t('Statistics') }}
+                <span
+                    v-if="periodLabel"
+                    class="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                >
+                    {{ periodLabel }}
+                </span>
+            </h2>
+            <FilterSheet
+                :active="chips.length"
+                :description="periodLabel"
+                @reset="resetFilters"
+            >
+                <PeriodFilter
+                    :start="filters.start"
+                    :end="filters.end"
+                    complete
+                    @apply="applyPeriod"
+                />
+                <fieldset class="grid gap-2">
+                    <legend class="mb-2 text-sm font-medium">
+                        {{ t('Cost types') }}
+                    </legend>
+                    <label
+                        v-for="(label, type) in costTypeOptions"
+                        :key="type"
+                        class="flex items-center gap-2 text-sm"
                     >
-                        <div class="flex items-center gap-2 text-sm text-muted-foreground">
-                            <AppIcon :name="status.icon" class="size-4" />
-                            {{ status.title }}
-                        </div>
-                        <div class="mt-1 text-xl font-semibold">{{ status.primary }}</div>
-                        <div class="text-sm text-muted-foreground">{{ status.secondary }}</div>
+                        <Checkbox
+                            :model-value="
+                                filters.costTypes.includes(String(type))
+                            "
+                            @update:model-value="
+                                (checked) =>
+                                    toggleCostType(
+                                        String(type),
+                                        checked === true,
+                                    )
+                            "
+                        />
+                        {{ label }}
+                    </label>
+                </fieldset>
+            </FilterSheet>
+        </div>
+
+        <FilterChips
+            :chips="chips"
+            @remove="removeChip"
+            @reset="resetFilters"
+        />
+
+        <Deferred data="stats">
+            <template #fallback><Skeleton class="h-56 w-full" /></template>
+            <div
+                class="grid grid-cols-2 gap-3 lg:grid-cols-4"
+                :class="{ 'opacity-60': filtering }"
+            >
+                <div
+                    v-for="stat in stats"
+                    :key="stat.title"
+                    class="flex flex-col gap-1.5 rounded-xl border bg-card p-4"
+                >
+                    <div
+                        class="flex items-start gap-2 text-sm text-muted-foreground"
+                    >
+                        <AppIcon
+                            :name="stat.icon"
+                            class="mt-0.5 size-4 shrink-0"
+                        />
+                        {{ stat.title }}
+                    </div>
+                    <div
+                        class="mt-auto text-xl font-bold tracking-tight tabular-nums sm:text-2xl"
+                    >
+                        {{ stat.value }}
+                    </div>
+                    <div
+                        :class="[
+                            'flex items-center gap-1 text-sm font-medium tabular-nums',
+                            trends[stat.color],
+                        ]"
+                    >
+                        <AppIcon
+                            :name="
+                                stat.trend > 0
+                                    ? 'ic:round-trending-up'
+                                    : stat.trend < 0
+                                      ? 'ic:round-trending-down'
+                                      : 'mdi:approximately-equal'
+                            "
+                            class="size-4 shrink-0"
+                        />
+                        {{ t('Latest:') }} {{ stat.latest }}
                     </div>
                 </div>
-                <p v-else class="text-sm text-muted-foreground">
-                    {{ t('No statuses available to show.') }}
-                </p>
-            </Deferred>
-        </SectionCard>
+            </div>
+        </Deferred>
 
-        <SectionCard :title="t('Statistics')" icon="gmdi-show-chart-r" persist-key="statistics" :badge="periodLabel" :class="{ 'opacity-60': filtering }">
-            <Deferred data="stats">
-                <template #fallback><Skeleton class="h-40 w-full" /></template>
-                <div class="grid gap-4 md:grid-cols-3">
-                    <div
-                        v-for="stat in stats"
-                        :key="stat.title"
-                        class="rounded-lg border p-4"
+        <div
+            class="grid items-start gap-4 lg:grid-cols-3"
+            :class="{ 'opacity-60': filtering }"
+        >
+            <SectionCard :title="t('Monthly costs')" class="lg:col-span-2">
+                <Deferred data="costsChart">
+                    <template #fallback
+                        ><Skeleton class="h-72 w-full"
+                    /></template>
+                    <CostsChart
+                        v-if="costsChart?.series.length"
+                        :labels="costsChart.labels"
+                        :series="costsChart.series"
+                    />
+                    <p v-else class="text-sm text-muted-foreground">
+                        {{ t('Nothing to show') }}
+                    </p>
+                </Deferred>
+            </SectionCard>
+
+            <SectionCard :title="t('Average monthly costs')">
+                <Deferred data="averageMonthlyCosts">
+                    <template #fallback
+                        ><Skeleton class="h-40 w-full"
+                    /></template>
+                    <ul
+                        v-if="averageMonthlyCosts?.length"
+                        class="flex flex-col gap-3.5"
                     >
-                        <div class="flex items-center gap-2 text-sm text-muted-foreground">
-                            <AppIcon :name="stat.icon" class="size-4" />
-                            {{ stat.title }}
-                        </div>
-                        <div class="mt-1 text-2xl font-semibold tabular-nums">{{ stat.value }}</div>
-                        <div
-                            :class="[
-                                'mt-1 flex items-center gap-1 text-sm',
-                                {
-                                    success: 'text-green-700 dark:text-green-400',
-                                    danger: 'text-red-700 dark:text-red-400',
-                                    gray: 'text-muted-foreground',
-                                }[stat.color],
-                            ]"
+                        <li
+                            v-for="cost in averageMonthlyCosts"
+                            :key="cost.label"
+                            class="flex flex-col gap-1.5"
                         >
-                            <AppIcon
-                                :name="
-                                    stat.trend > 0
-                                        ? 'gmdi-trending-up-r'
-                                        : stat.trend < 0
-                                          ? 'gmdi-trending-down-r'
-                                          : 'mdi-approximately-equal'
-                                "
-                                class="size-4"
-                            />
-                            {{ t('Latest:') }} {{ stat.latest }}
-                        </div>
-                    </div>
-                </div>
-            </Deferred>
-        </SectionCard>
+                            <div class="flex items-center gap-2 text-sm">
+                                <AppIcon
+                                    :name="cost.icon"
+                                    class="size-4 shrink-0 text-muted-foreground"
+                                />
+                                <span class="min-w-0 flex-1">{{
+                                    cost.label
+                                }}</span>
+                                <span class="font-semibold tabular-nums">
+                                    {{ cost.amount }}
+                                </span>
+                            </div>
+                            <div
+                                class="h-1.5 overflow-hidden rounded-full bg-muted"
+                                aria-hidden="true"
+                            >
+                                <div
+                                    class="h-full rounded-full"
+                                    :style="{
+                                        width: `${Math.max(cost.share, 1.5)}%`,
+                                        background: `var(--chart-series-${(cost.key % 14) + 1})`,
+                                    }"
+                                />
+                            </div>
+                        </li>
+                    </ul>
+                    <p v-else class="text-sm text-muted-foreground">
+                        {{ t('Nothing to show') }}
+                    </p>
+                </Deferred>
+            </SectionCard>
+        </div>
 
-        <template v-if="usesFuel">
-            <SectionCard :title="t('Fuel prices abroad')" icon="gmdi-local-gas-station-r" persist-key="fuel-prices-abroad">
-                <div class="mb-4 flex justify-end">
-                    <Button :disabled="refreshing" @click="refreshFuelPrices">
-                        <AppIcon name="gmdi-sync-o" :class="['size-4', refreshing ? 'animate-spin' : '']" />
-                        {{ t('Refresh fuel prices') }}
-                    </Button>
-                </div>
-                <Deferred data="fuelPricesAbroad">
-                    <template #fallback><Skeleton class="h-32 w-full" /></template>
-                    <div v-if="fuelPricesAbroad?.countries.length" class="overflow-x-auto">
-                        <table class="w-full text-sm">
+        <div
+            class="grid items-start gap-4 xl:grid-cols-2"
+            :class="{ 'opacity-60': filtering }"
+        >
+            <SectionCard :title="t('Most recent costs')" flush>
+                <Deferred data="latestCosts">
+                    <template #fallback>
+                        <div class="p-4"><Skeleton class="h-24 w-full" /></div>
+                    </template>
+                    <ul
+                        v-if="latestCosts?.length"
+                        class="max-h-112 divide-y overflow-y-auto"
+                    >
+                        <li v-for="cost in latestCosts" :key="cost.key">
+                            <Link
+                                :href="cost.url"
+                                class="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-muted/60"
+                            >
+                                <span
+                                    class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted"
+                                >
+                                    <AppIcon :name="cost.icon" class="size-5" />
+                                </span>
+                                <span class="flex min-w-0 flex-1 flex-col">
+                                    <span class="truncate font-semibold">
+                                        {{ cost.item || cost.type }}
+                                    </span>
+                                    <span class="text-xs text-muted-foreground">
+                                        {{ cost.type }} · {{ cost.date }}
+                                    </span>
+                                </span>
+                                <span
+                                    class="font-semibold whitespace-nowrap tabular-nums"
+                                >
+                                    {{ cost.price }}
+                                </span>
+                            </Link>
+                        </li>
+                    </ul>
+                    <p v-else class="p-4 text-sm text-muted-foreground">
+                        {{ t('No costs this month') }}
+                    </p>
+                </Deferred>
+            </SectionCard>
+
+            <SectionCard :title="t('Cheapest gas stations')" flush>
+                <Deferred data="cheapestGasStations">
+                    <template #fallback>
+                        <div class="p-4"><Skeleton class="h-24 w-full" /></div>
+                    </template>
+                    <div
+                        v-if="cheapestGasStations?.length"
+                        class="overflow-x-auto"
+                    >
+                        <table class="w-full text-sm tabular-nums">
                             <thead>
-                                <tr class="text-left text-muted-foreground">
-                                    <th class="p-2 font-medium">{{ t('Country') }}</th>
+                                <tr
+                                    class="text-right text-xs text-muted-foreground"
+                                >
                                     <th
-                                        v-for="(name, type) in fuelPricesAbroad.fuelTypes"
-                                        :key="type"
-                                        class="p-2 font-medium"
+                                        class="px-4 py-2.5 text-left font-semibold"
                                     >
-                                        {{ name }}
+                                        {{ t('Gas station') }}
+                                    </th>
+                                    <th class="px-3 py-2.5 font-semibold">
+                                        {{ t('Visit count') }}
+                                    </th>
+                                    <th class="px-3 py-2.5 font-semibold">
+                                        {{ t('Average price') }}
+                                    </th>
+                                    <th class="py-2.5 pr-4 pl-3 font-semibold">
+                                        {{ t('Lowest price') }}
                                     </th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr
-                                    v-for="country in fuelPricesAbroad.countries"
-                                    :key="country.key"
-                                    class="border-t"
+                                    v-for="row in cheapestGasStations"
+                                    :key="row.gasStation"
+                                    class="border-t text-right"
                                 >
-                                    <td class="p-2 font-semibold whitespace-nowrap">
-                                        <CountryFlag
-                                            v-if="country.isoCode"
-                                            :iso-code="country.isoCode"
-                                            :name="country.name"
-                                            show-name
-                                        />
+                                    <td class="px-4 py-3 text-left font-medium">
+                                        {{ row.gasStation }}
+                                    </td>
+                                    <td class="px-3 py-3">{{ row.visits }}</td>
+                                    <td class="px-3 py-3 whitespace-nowrap">
+                                        {{ row.averagePrice }}
                                     </td>
                                     <td
-                                        v-for="(name, type) in fuelPricesAbroad.fuelTypes"
-                                        :key="type"
-                                        class="p-2 tabular-nums"
+                                        class="py-3 pr-4 pl-3 font-semibold whitespace-nowrap"
                                     >
-                                        <div
-                                            v-if="country.prices[type]"
-                                            :title="
-                                                country.isHome
-                                                    ? country.prices[type].date
-                                                    : `${t('Break-even full: :km km', { km: country.prices[type].detourAll })} (${country.prices[type].date})`
-                                            "
-                                        >
-                                            € {{ country.prices[type].price }}/l
-                                            <div
-                                                v-if="!country.isHome"
-                                                class="text-xs text-muted-foreground"
-                                            >
-                                                {{ t('Break-even fuel: :km km', { km: country.prices[type].detourFuel }) }}
-                                            </div>
-                                        </div>
-                                        <span v-else class="text-muted-foreground">-</span>
+                                        {{ row.lowestPrice }}
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
-                    <p v-else class="text-sm text-muted-foreground">
-                        {{ t('No fuel price data available.') }}
+                    <p v-else class="p-4 text-sm text-muted-foreground">
+                        {{ t('No refuelings found') }}
                     </p>
                 </Deferred>
             </SectionCard>
 
-            <SectionCard :title="t('Fuel usage by fuel type')" icon="gmdi-local-gas-station-r" persist-key="fuel-usage-by-type" :badge="periodLabel" :class="{ 'opacity-60': filtering }">
-                <Deferred data="fuelUsageByType">
-                    <template #fallback><Skeleton class="h-24 w-full" /></template>
-                    <div v-if="fuelUsageByType?.length" class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <thead>
-                                <tr class="text-left text-muted-foreground">
-                                    <th class="p-2 font-medium">{{ t('Fuel type') }}</th>
-                                    <th class="p-2 font-medium">{{ t('Average consumption') }}</th>
-                                    <th class="p-2 font-medium">{{ t('Average speed') }}</th>
-                                    <th class="p-2 font-medium">{{ t('Total refueled') }}</th>
-                                    <th class="p-2 font-medium">{{ t('Number of refuelings') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="row in fuelUsageByType" :key="row.fuelType" class="border-t tabular-nums">
-                                    <td class="p-2">{{ row.fuelType }}</td>
-                                    <td class="p-2">{{ row.consumption }}</td>
-                                    <td class="p-2">{{ row.speed }}</td>
-                                    <td class="p-2">{{ row.amount }}</td>
-                                    <td class="p-2">{{ row.count }}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <p v-else class="text-sm text-muted-foreground">{{ t('No refuelings found') }}</p>
-                </Deferred>
-            </SectionCard>
-        </template>
+            <template v-if="usesFuel">
+                <SectionCard :title="t('Fuel usage by fuel type')" flush>
+                    <Deferred data="fuelUsageByType">
+                        <template #fallback>
+                            <div class="p-4">
+                                <Skeleton class="h-24 w-full" />
+                            </div>
+                        </template>
+                        <div
+                            v-if="fuelUsageByType?.length"
+                            class="divide-y md:hidden"
+                        >
+                            <dl
+                                v-for="row in fuelUsageByType"
+                                :key="row.fuelType"
+                                class="grid grid-cols-2 gap-x-4 gap-y-2 p-4 text-sm tabular-nums"
+                            >
+                                <dt class="col-span-2 font-semibold">
+                                    {{ row.fuelType }}
+                                </dt>
+                                <div>
+                                    <dt class="text-xs text-muted-foreground">
+                                        {{ t('Average consumption') }}
+                                    </dt>
+                                    <dd class="font-semibold">
+                                        {{ row.consumption }}
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt class="text-xs text-muted-foreground">
+                                        {{ t('Average speed') }}
+                                    </dt>
+                                    <dd>{{ row.speed }}</dd>
+                                </div>
+                                <div>
+                                    <dt class="text-xs text-muted-foreground">
+                                        {{ t('Total refueled') }}
+                                    </dt>
+                                    <dd>{{ row.amount }}</dd>
+                                </div>
+                                <div>
+                                    <dt class="text-xs text-muted-foreground">
+                                        {{ t('Number of refuelings') }}
+                                    </dt>
+                                    <dd>{{ row.count }}</dd>
+                                </div>
+                            </dl>
+                        </div>
+                        <div
+                            v-if="fuelUsageByType?.length"
+                            class="hidden overflow-x-auto md:block"
+                        >
+                            <table class="w-full text-sm tabular-nums">
+                                <thead>
+                                    <tr
+                                        class="text-right text-xs text-muted-foreground"
+                                    >
+                                        <th
+                                            class="px-4 py-2.5 text-left font-semibold"
+                                        >
+                                            {{ t('Fuel type') }}
+                                        </th>
+                                        <th class="px-3 py-2.5 font-semibold">
+                                            {{ t('Average consumption') }}
+                                        </th>
+                                        <th class="px-3 py-2.5 font-semibold">
+                                            {{ t('Average speed') }}
+                                        </th>
+                                        <th class="px-3 py-2.5 font-semibold">
+                                            {{ t('Total refueled') }}
+                                        </th>
+                                        <th
+                                            class="py-2.5 pr-4 pl-3 font-semibold"
+                                        >
+                                            {{ t('Number of refuelings') }}
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr
+                                        v-for="row in fuelUsageByType"
+                                        :key="row.fuelType"
+                                        class="border-t text-right"
+                                    >
+                                        <td
+                                            class="px-4 py-3 text-left font-medium"
+                                        >
+                                            {{ row.fuelType }}
+                                        </td>
+                                        <td
+                                            class="px-3 py-3 font-semibold whitespace-nowrap"
+                                        >
+                                            {{ row.consumption }}
+                                        </td>
+                                        <td class="px-3 py-3 whitespace-nowrap">
+                                            {{ row.speed }}
+                                        </td>
+                                        <td class="px-3 py-3 whitespace-nowrap">
+                                            {{ row.amount }}
+                                        </td>
+                                        <td class="py-3 pr-4 pl-3">
+                                            {{ row.count }}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p v-else class="p-4 text-sm text-muted-foreground">
+                            {{ t('No refuelings found') }}
+                        </p>
+                    </Deferred>
+                </SectionCard>
 
-        <SectionCard :title="t('Cheapest gas stations')" icon="gmdi-local-gas-station-r" persist-key="cheapest-gas-stations" :badge="periodLabel" :class="{ 'opacity-60': filtering }">
-            <Deferred data="cheapestGasStations">
-                <template #fallback><Skeleton class="h-24 w-full" /></template>
-                <div v-if="cheapestGasStations?.length" class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="text-left text-muted-foreground">
-                                <th class="p-2 font-medium">{{ t('Gas station') }}</th>
-                                <th class="p-2 font-medium">{{ t('Visit count') }}</th>
-                                <th class="p-2 font-medium">{{ t('Average price') }}</th>
-                                <th class="p-2 font-medium">{{ t('Lowest price') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="row in cheapestGasStations" :key="row.gasStation" class="border-t tabular-nums">
-                                <td class="p-2">{{ row.gasStation }}</td>
-                                <td class="p-2">{{ row.visits }}</td>
-                                <td class="p-2">{{ row.averagePrice }}</td>
-                                <td class="p-2">{{ row.lowestPrice }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <p v-else class="text-sm text-muted-foreground">{{ t('No refuelings found') }}</p>
-            </Deferred>
-        </SectionCard>
+                <SectionCard
+                    class="xl:col-span-2"
+                    :title="t('Fuel prices abroad')"
+                    collapsible
+                    persist-key="fuel-prices-abroad"
+                    flush
+                >
+                    <template #actions>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            :disabled="refreshing"
+                            :aria-label="t('Refresh fuel prices')"
+                            :title="t('Refresh fuel prices')"
+                            @click="refreshFuelPrices"
+                        >
+                            <RefreshCw
+                                :class="[
+                                    'size-4',
+                                    refreshing ? 'animate-spin' : '',
+                                ]"
+                            />
+                        </Button>
+                    </template>
+                    <Deferred data="fuelPricesAbroad">
+                        <template #fallback>
+                            <div class="p-4">
+                                <Skeleton class="h-32 w-full" />
+                            </div>
+                        </template>
+                        <!-- A block per country instead of a wide table: nothing to scroll sideways. -->
+                        <div
+                            v-if="fuelPricesAbroad?.countries.length"
+                            class="-mr-px -mb-px grid sm:grid-cols-2 xl:grid-cols-4"
+                        >
+                            <div
+                                v-for="country in fuelPricesAbroad.countries"
+                                :key="country.key"
+                                class="border-r border-b p-4"
+                            >
+                                <div class="mb-3 font-semibold">
+                                    <CountryFlag
+                                        v-if="country.isoCode"
+                                        :iso-code="country.isoCode"
+                                        :name="country.name"
+                                        show-name
+                                    />
+                                </div>
+                                <dl class="space-y-2 text-sm">
+                                    <div
+                                        v-for="(
+                                            name, type
+                                        ) in fuelPricesAbroad.fuelTypes"
+                                        :key="type"
+                                        class="flex justify-between gap-4"
+                                    >
+                                        <dt>{{ name }}</dt>
+                                        <dd
+                                            v-if="country.prices[type]"
+                                            class="text-right tabular-nums"
+                                            :title="country.prices[type].date"
+                                        >
+                                            <div class="font-semibold">
+                                                €
+                                                {{
+                                                    country.prices[type].price
+                                                }}/l
+                                            </div>
+                                            <div
+                                                v-if="!country.isHome"
+                                                class="text-xs text-muted-foreground"
+                                            >
+                                                {{
+                                                    t(
+                                                        'Break-even fuel: :km km',
+                                                        {
+                                                            km: country.prices[
+                                                                type
+                                                            ].detourFuel,
+                                                        },
+                                                    )
+                                                }}<br />
+                                                {{
+                                                    t(
+                                                        'Break-even full: :km km',
+                                                        {
+                                                            km: country.prices[
+                                                                type
+                                                            ].detourAll,
+                                                        },
+                                                    )
+                                                }}
+                                            </div>
+                                        </dd>
+                                        <dd
+                                            v-else
+                                            class="text-muted-foreground"
+                                        >
+                                            -
+                                        </dd>
+                                    </div>
+                                </dl>
+                            </div>
+                        </div>
+                        <p v-else class="p-4 text-sm text-muted-foreground">
+                            {{ t('No fuel price data available.') }}
+                        </p>
+                    </Deferred>
+                </SectionCard>
+            </template>
+        </div>
 
-        <SectionCard :title="t('Average monthly costs')" icon="mdi-hand-coin-outline" persist-key="average-monthly-costs" :badge="periodLabel" :class="{ 'opacity-60': filtering }">
-            <Deferred data="averageMonthlyCosts">
-                <template #fallback><Skeleton class="h-40 w-full" /></template>
-                <table class="w-full text-sm">
-                    <thead>
-                        <tr class="text-muted-foreground">
-                            <th class="p-2 text-left font-medium">{{ t('Type') }}</th>
-                            <th class="p-2 text-right font-medium">{{ t('Average per month') }}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="cost in averageMonthlyCosts" :key="cost.label" class="border-t">
-                            <td class="flex items-center gap-3 p-2">
-                                <AppIcon :name="cost.icon" class="size-4 text-muted-foreground" />
-                                {{ cost.label }}
-                            </td>
-                            <td class="p-2 text-right tabular-nums">{{ cost.amount }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </Deferred>
-        </SectionCard>
-
-        <SectionCard :title="t('Monthly costs')" icon="gmdi-bar-chart-r" persist-key="monthly-costs" :badge="periodLabel" :class="{ 'opacity-60': filtering }">
-            <Deferred data="costsChart">
-                <template #fallback><Skeleton class="h-72 w-full" /></template>
-                <CostsChart
-                    v-if="costsChart?.series.length"
-                    :labels="costsChart.labels"
-                    :series="costsChart.series"
-                />
-                <p v-else class="text-sm text-muted-foreground">{{ t('Nothing to show') }}</p>
-            </Deferred>
-        </SectionCard>
-
-        <SectionCard :title="t('Most recent costs')" icon="mdi-hand-coin-outline" persist-key="most-recent-costs" :badge="periodLabel" :class="{ 'opacity-60': filtering }">
-            <Deferred data="latestCosts">
-                <template #fallback><Skeleton class="h-24 w-full" /></template>
-                <div v-if="latestCosts?.length" class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="text-left text-muted-foreground">
-                                <th class="p-2 font-medium">{{ t('Type') }}</th>
-                                <th class="p-2 font-medium">{{ t('Item') }}</th>
-                                <th class="p-2 font-medium">{{ t('Price') }}</th>
-                                <th class="p-2 font-medium">{{ t('Date') }}</th>
-                                <th class="p-2" />
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="cost in latestCosts" :key="cost.key" class="border-t">
-                                <td class="flex items-center gap-3 p-2">
-                                    <AppIcon :name="cost.icon" class="size-4 text-muted-foreground" />
-                                    {{ cost.type }}
-                                </td>
-                                <td class="p-2">{{ cost.item }}</td>
-                                <td class="p-2 tabular-nums">{{ cost.price }}</td>
-                                <td class="p-2">{{ cost.date }}</td>
-                                <td class="p-2 text-right">
-                                    <Link :href="cost.url" class="inline-flex items-center gap-1 hover:underline">
-                                        <AppIcon name="gmdi-remove-red-eye-r" class="size-4" />
-                                        {{ t('Show') }}
-                                    </Link>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <p v-else class="text-sm text-muted-foreground">{{ t('No costs this month') }}</p>
-            </Deferred>
-        </SectionCard>
+        <!-- At the pump the phone is in one hand: adding a refueling is one tap away. -->
+        <div
+            class="sticky bottom-0 z-10 -mx-4 -mb-4 border-t bg-card p-3 md:hidden"
+        >
+            <Button as-child size="lg" class="w-full">
+                <Link href="/refuelings/create">
+                    <Plus class="size-4" />
+                    {{ t('Add refueling') }}
+                </Link>
+            </Button>
+        </div>
 
         <Dialog :open="details !== null" @update:open="details = null">
             <DialogContent class="max-h-[80vh] overflow-y-auto sm:max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>{{ details?.modalTitle ?? details?.text }}</DialogTitle>
+                    <DialogTitle>{{
+                        details?.modalTitle ?? details?.text
+                    }}</DialogTitle>
                 </DialogHeader>
                 <table
                     v-for="(item, index) in details?.data ?? []"
                     :key="index"
                     class="w-full rounded border text-left text-sm"
                 >
-                    <tr v-for="(value, key) in item" :key="key" class="border-b last:border-0">
-                        <th scope="row" class="px-3 py-2 align-top font-semibold">{{ label(String(key)) }}:</th>
+                    <tr
+                        v-for="(value, key) in item"
+                        :key="key"
+                        class="border-b last:border-0"
+                    >
+                        <th
+                            scope="row"
+                            class="px-3 py-2 align-top font-semibold"
+                        >
+                            {{ label(String(key)) }}:
+                        </th>
                         <td class="px-3 py-2 text-muted-foreground">
-                            {{ typeof value === 'object' ? JSON.stringify(value) : value }}
+                            {{
+                                typeof value === 'object'
+                                    ? JSON.stringify(value)
+                                    : value
+                            }}
                         </td>
                     </tr>
                 </table>
-                <p v-if="!details?.data.length" class="text-sm text-muted-foreground">
+                <p
+                    v-if="!details?.data.length"
+                    class="text-sm text-muted-foreground"
+                >
                     {{ t('No details available') }}
                 </p>
             </DialogContent>

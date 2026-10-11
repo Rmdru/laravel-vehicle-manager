@@ -29,12 +29,12 @@ enum FineType: string implements HasIcon, HasLabel
     public function getIcon(): ?string
     {
         return match ($this) {
-            self::Camera => 'mdi-cctv',
-            self::Officer => 'maki-police',
-            self::TrafficStop => 'mdi-car-emergency',
-            self::Automated => 'gmdi-timer-s',
-            self::TrafficControl => 'mdi-map-marker-radius',
-            self::BorderControl => 'fas-road-barrier',
+            self::Camera => 'mdi:cctv',
+            self::Officer => 'maki:police',
+            self::TrafficStop => 'mdi:car-emergency',
+            self::Automated => 'ic:sharp-timer',
+            self::TrafficControl => 'mdi:map-marker-radius',
+            self::BorderControl => 'fa7-solid:road-barrier',
         };
     }
 }

@@ -31,12 +31,12 @@ enum FineSanction: string implements HasIcon, HasLabel
     public function getIcon(): string
     {
         return match ($this) {
-            self::WokStatus => 'mdi-shield-alert',
-            self::VehicleSeized => 'mdi-tow-truck',
-            self::DrivingBan => 'mdi-car-clock',
-            self::EmgCourse => 'gmdi-school-r',
-            self::DriversLicenseConfiscated => 'mdi-credit-card-lock',
-            self::Arrested => 'mdi-handcuffs',
+            self::WokStatus => 'mdi:shield-alert',
+            self::VehicleSeized => 'mdi:tow-truck',
+            self::DrivingBan => 'mdi:car-clock',
+            self::EmgCourse => 'ic:round-school',
+            self::DriversLicenseConfiscated => 'mdi:credit-card-lock',
+            self::Arrested => 'mdi:handcuffs',
         };
     }
 }

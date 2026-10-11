@@ -17,8 +17,8 @@ class ProductsTable extends VehicleRecordTable
             ->defaultSort('-date')
             ->withGlobalSearch(columns: ['name'])
             ->column('name', __('Name'), sortable: true)
-            ->column('price', __('Price'), sortable: true, as: fn ($value) => $this->withIcon('mdi-hand-coin-outline', $this->money($value)))
-            ->column('date', __('Date'), sortable: true, as: fn ($value, Product $product) => $this->withIcon('gmdi-calendar-month-r', $this->date($product->date)))
+            ->column('price', __('Price'), sortable: true, as: fn ($value) => $this->amount($this->money($value)))
+            ->column('date', __('Date'), sortable: true, as: fn ($value, Product $product) => $this->text($this->date($product->date)))
             ->paginate(25);
     }
 }

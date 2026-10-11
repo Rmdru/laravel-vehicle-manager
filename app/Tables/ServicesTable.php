@@ -19,9 +19,9 @@ class ServicesTable extends VehicleRecordTable
             ->withGlobalSearch(columns: ['name', 'comments'])
             ->column('type', __('Type'), sortable: true, as: fn ($value) => $this->enumBadge(ServiceType::class, $value))
             ->column('name', __('Name'), sortable: true)
-            ->column('price', __('Price'), sortable: true, as: fn ($value) => $this->withIcon('mdi-hand-coin-outline', $this->money($value)))
-            ->column('date', __('Date'), sortable: true, as: fn ($value, Service $service) => $this->withIcon('gmdi-calendar-month-r', $this->date($service->date)))
-            ->column('comments', __('Comments'), as: fn ($value) => $this->withIcon('gmdi-text-fields-r', (string) str((string) $value)->limit(80)))
+            ->column('price', __('Price'), sortable: true, as: fn ($value) => $this->amount($this->money($value)))
+            ->column('date', __('Date'), sortable: true, as: fn ($value, Service $service) => $this->text($this->date($service->date)))
+            ->column('comments', __('Comments'), as: fn ($value) => $this->text((string) str((string) $value)->limit(80)))
             ->paginate(25);
 
         $this->enumFilter($table, 'type', __('Type'), ServiceType::class);

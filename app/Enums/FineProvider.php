@@ -29,11 +29,11 @@ enum FineProvider: string implements HasIcon, HasLabel
     public function getIcon(): ?string
     {
         return match ($this) {
-            self::Police => 'maki-police',
-            self::LocalPolice => 'gmdi-local-police',
-            self::RoadOperator => 'mdi-highway',
-            self::Rdw => 'gmdi-emoji-transportation-r',
-            self::OtherGovernment => 'gmdi-account-balance-r',
+            self::Police => 'maki:police',
+            self::LocalPolice => 'ic:baseline-local-police',
+            self::RoadOperator => 'mdi:highway',
+            self::Rdw => 'ic:round-emoji-transportation',
+            self::OtherGovernment => 'ic:round-account-balance',
             default => '',
         };
     }

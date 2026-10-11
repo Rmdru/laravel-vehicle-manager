@@ -29,11 +29,11 @@ enum ParkingType: string implements HasIcon, HasLabel
     public function getIcon(): string
     {
         return match ($this) {
-            self::Street => 'maki-parking-paid',
-            self::Lot => 'fas-parking',
-            self::Garage => 'maki-parking-garage',
-            self::ParkAndRide => 'gmdi-train',
-            self::Company => 'mdi-office-building',
+            self::Street => 'maki:parking-paid',
+            self::Lot => 'fa7-solid:square-parking',
+            self::Garage => 'maki:parking-garage',
+            self::ParkAndRide => 'ic:baseline-train',
+            self::Company => 'mdi:office-building',
         };
     }
 }

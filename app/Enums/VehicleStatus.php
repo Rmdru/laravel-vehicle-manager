@@ -37,15 +37,27 @@ enum VehicleStatus: string implements HasIcon, HasLabel
     public function getIcon(): string
     {
         return match ($this) {
-            self::Drivable => 'mdi-speedometer',
-            self::Suspended => 'mdi-garage',
-            self::Wok => 'mdi-shield-off',
-            self::Apk => 'mdi-shield-alert',
-            self::Seized => 'maki-police',
-            self::Stolen => 'mdi-lock-open-alert',
-            self::Sold => 'gmdi-local-offer',
-            self::NotRollable => 'fas-car-crash',
-            self::Destroyed => 'mdi-fire',
+            self::Drivable => 'mdi:speedometer',
+            self::Suspended => 'mdi:garage',
+            self::Wok => 'mdi:shield-off',
+            self::Apk => 'mdi:shield-alert',
+            self::Seized => 'maki:police',
+            self::Stolen => 'mdi:lock-open-alert',
+            self::Sold => 'ic:baseline-local-offer',
+            self::NotRollable => 'fa7-solid:car-burst',
+            self::Destroyed => 'mdi:fire',
+        };
+    }
+
+    /**
+     * The badge color that tells whether the vehicle can be driven.
+     */
+    public function getColor(): string
+    {
+        return match ($this) {
+            self::Drivable => 'success',
+            self::Suspended, self::Sold => 'gray',
+            default => 'danger',
         };
     }
 }

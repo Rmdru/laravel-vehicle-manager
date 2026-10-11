@@ -34,9 +34,18 @@ function calculateRefueling(field: string, form: FormState) {
     const unitPrice = Number(form.unit_price);
     const totalPrice = Number(form.total_price);
 
-    if (['amount', 'unit_price'].includes(field) && amount > 0 && unitPrice > 0) {
+    if (
+        ['amount', 'unit_price'].includes(field) &&
+        amount > 0 &&
+        unitPrice > 0
+    ) {
         form.total_price = Math.round(amount * unitPrice * 100) / 100;
-    } else if (field === 'total_price' && !amount && unitPrice > 0 && totalPrice > 0) {
+    } else if (
+        field === 'total_price' &&
+        !amount &&
+        unitPrice > 0 &&
+        totalPrice > 0
+    ) {
         form.amount = Math.round((totalPrice / unitPrice) * 100) / 100;
     }
 }
@@ -87,7 +96,7 @@ function onFieldChange(field: string, value: unknown, form: FormState) {
                     <ArrowLeft class="size-4" />
                     {{ indexTitle }}
                 </Link>
-                <h1 class="text-2xl font-semibold">{{ title }}</h1>
+                <h1 class="text-2xl font-bold tracking-tight">{{ title }}</h1>
             </div>
             <Button
                 v-if="destroyUrl"
@@ -100,19 +109,18 @@ function onFieldChange(field: string, value: unknown, form: FormState) {
             </Button>
         </div>
 
-        <p
-            v-if="intro"
-            class="rounded-lg border border-blue-400 p-3 text-sm text-blue-500"
-        >
+        <p v-if="intro" class="rounded-lg bg-info-muted p-3 text-sm text-info">
             {{ intro }}
         </p>
 
-        <Form :schema="form" :columns="2" :on-field-change="onFieldChange">
-            <template #heading="{ field }">
-                <h2 class="mt-4 border-b pb-2 text-lg font-semibold">
-                    {{ field.label }}
-                </h2>
-            </template>
-        </Form>
+        <div class="rounded-xl border bg-card p-4 md:p-6">
+            <Form :schema="form" :columns="2" :on-field-change="onFieldChange">
+                <template #heading="{ field }">
+                    <h2 class="mt-4 border-b pb-2 text-lg font-semibold">
+                        {{ field.label }}
+                    </h2>
+                </template>
+            </Form>
+        </div>
     </div>
 </template>

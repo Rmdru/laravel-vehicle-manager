@@ -73,43 +73,43 @@ class RefuelingController extends VehicleRecordController
             'editUrl' => route('refuelings.edit', $refueling->id),
             'logo' => $logos[$brand] ?? $logos['default'],
             'sections' => [
-                ['title' => __('Refueling'), 'icon' => 'gmdi-local-gas-station-r', 'items' => [
-                    ['label' => __('Gas station'), 'value' => $refueling->gas_station, 'icon' => 'gmdi-location-on-r'],
-                    ['label' => __('Service by attendant'), 'html' => $refueling->service_by_attendant ? Html::badge(__('Service by attendant'), 'success', 'gmdi-star') : null],
+                ['title' => __('Refueling'), 'icon' => 'ic:round-local-gas-station', 'items' => [
+                    ['label' => __('Gas station'), 'value' => $refueling->gas_station, 'icon' => 'ic:round-location-on'],
+                    ['label' => __('Service by attendant'), 'html' => $refueling->service_by_attendant ? Html::badge(__('Service by attendant'), 'success', 'ic:baseline-star') : null],
                     ['label' => __('Country'), 'html' => Html::flag($refueling->country, showName: true) ?: null],
-                    ['label' => __('Date'), 'value' => $refueling->date?->isoFormat('ll'), 'icon' => 'gmdi-calendar-month-r'],
+                    ['label' => __('Date'), 'value' => $refueling->date?->isoFormat('ll'), 'icon' => 'ic:round-calendar-month'],
                 ]],
-                ['title' => __('Fuel'), 'icon' => 'mdi-fuel', 'items' => [
-                    ['label' => __('Fuel type'), 'value' => trans('fuel_types')[$refueling->fuel_type] ?? $refueling->fuel_type, 'icon' => 'gmdi-local-gas-station-r'],
-                    ['label' => __('Amount'), 'value' => $number($refueling->amount).' '.$unit, 'icon' => str($refueling->fuel_type)->contains('electric', true) ? 'mdi-battery-charging' : 'mdi-fuel'],
-                    ['label' => __('Tank percentage after refueling'), 'value' => filled($refueling->percentage) ? $number($refueling->percentage, 0).'%' : null, 'icon' => 'mdi-water-percent'],
-                    ['label' => __('Unit price'), 'value' => '€ '.$number($refueling->unit_price, 3).'/'.$unit, 'icon' => 'gmdi-local-offer'],
-                    ['label' => __('Total price'), 'value' => '€ '.$number($refueling->total_price), 'icon' => 'mdi-hand-coin-outline'],
-                    ['label' => __('Costs per kilometer'), 'value' => '€ '.$number($refueling->costs_per_kilometer).'/km', 'icon' => 'uni-euro-circle-o'],
+                ['title' => __('Fuel'), 'icon' => 'mdi:fuel', 'items' => [
+                    ['label' => __('Fuel type'), 'value' => trans('fuel_types')[$refueling->fuel_type] ?? $refueling->fuel_type, 'icon' => 'ic:round-local-gas-station'],
+                    ['label' => __('Amount'), 'value' => $number($refueling->amount).' '.$unit, 'icon' => str($refueling->fuel_type)->contains('electric', true) ? 'mdi:battery-charging' : 'mdi:fuel'],
+                    ['label' => __('Tank percentage after refueling'), 'value' => filled($refueling->percentage) ? $number($refueling->percentage, 0).'%' : null, 'icon' => 'mdi:water-percent'],
+                    ['label' => __('Unit price'), 'value' => '€ '.$number($refueling->unit_price, 3).'/'.$unit, 'icon' => 'ic:baseline-local-offer'],
+                    ['label' => __('Total price'), 'value' => '€ '.$number($refueling->total_price), 'icon' => 'mdi:hand-coin-outline'],
+                    ['label' => __('Costs per kilometer'), 'value' => '€ '.$number($refueling->costs_per_kilometer).'/km', 'icon' => 'uil:euro-circle'],
                 ]],
-                ['title' => __('Car'), 'icon' => 'gmdi-directions-car-r', 'items' => [
-                    ['label' => __('Mileage'), 'value' => $refueling->mileage_begin.' km - '.$refueling->mileage_end.' km ('.($refueling->mileage_end - $refueling->mileage_begin).' km)', 'icon' => 'gmdi-route-r'],
+                ['title' => __('Car'), 'icon' => 'ic:round-directions-car', 'items' => [
+                    ['label' => __('Mileage'), 'value' => $refueling->mileage_begin.' km - '.$refueling->mileage_end.' km ('.($refueling->mileage_end - $refueling->mileage_begin).' km)', 'icon' => 'ic:round-route'],
                     ['label' => __('Fuel consumption'), 'html' => Html::badge(
                         $number($refueling->fuel_consumption).' '.$consumptionUnit,
                         $this->comparisonColor((float) $refueling->fuel_consumption, (float) $averages?->consumption, lowerIsBetter: true),
                         $this->comparisonIcon((float) $refueling->fuel_consumption, (float) $averages?->consumption),
                     )],
-                    ['label' => __('Fuel consumption onboard computer'), 'value' => filled($refueling->fuel_consumption_onboard_computer) ? $number($refueling->fuel_consumption_onboard_computer).' '.$consumptionUnit : null, 'icon' => 'mdi-content-save'],
+                    ['label' => __('Fuel consumption onboard computer'), 'value' => filled($refueling->fuel_consumption_onboard_computer) ? $number($refueling->fuel_consumption_onboard_computer).' '.$consumptionUnit : null, 'icon' => 'mdi:content-save'],
                     ['label' => __('Average speed'), 'html' => filled($refueling->avg_speed) ? Html::badge(
                         $number($refueling->avg_speed, 1).' km/h',
                         $this->comparisonColor((float) $refueling->avg_speed, (float) $averages?->speed, lowerIsBetter: false),
                         $this->comparisonIcon((float) $refueling->avg_speed, (float) $averages?->speed),
                     ) : null],
-                    ['label' => __('Charge time'), 'value' => $refueling->charge_time?->format('H:i'), 'icon' => 'mdi-timer-sand'],
+                    ['label' => __('Charge time'), 'value' => $refueling->charge_time?->format('H:i'), 'icon' => 'mdi:timer-sand'],
                 ]],
-                ['title' => __('Circumstances'), 'icon' => 'fas-cloud-sun-rain', 'items' => [
+                ['title' => __('Circumstances'), 'icon' => 'fa7-solid:cloud-sun-rain', 'items' => [
                     ['label' => __('Tires'), 'html' => $badges(RefuelingTires::class, $refueling->tires) ?: null],
                     ['label' => __('Climate control'), 'html' => $badges(RefuelingClimateControl::class, $refueling->climate_control) ?: null],
                     ['label' => __('Routes'), 'html' => $badges(RefuelingRoutes::class, $refueling->routes) ?: null],
                     ['label' => __('Driving style'), 'html' => $badges(RefuelingDrivingStyle::class, $refueling->driving_style) ?: null],
-                    ['label' => __('Comments'), 'value' => $refueling->comments, 'icon' => 'gmdi-text-fields-r'],
+                    ['label' => __('Comments'), 'value' => $refueling->comments, 'icon' => 'ic:round-text-fields'],
                 ]],
-                ['title' => __('Payment'), 'icon' => 'mdi-bank-transfer', 'items' => [
+                ['title' => __('Payment'), 'icon' => 'mdi:bank-transfer', 'items' => [
                     ['label' => __('Payment method'), 'html' => $badges(RefuelingPaymentMethod::class, $refueling->payment_method) ?: null],
                     ['label' => __('Discount'), 'value' => $refueling->discount],
                 ]],
@@ -177,9 +177,9 @@ class RefuelingController extends VehicleRecordController
     private function comparisonIcon(float $value, float $average): string
     {
         return match (round($value, 2) <=> round($average, 2)) {
-            1 => 'gmdi-trending-up-r',
-            -1 => 'gmdi-trending-down-r',
-            default => 'mdi-approximately-equal',
+            1 => 'ic:round-trending-up',
+            -1 => 'ic:round-trending-down',
+            default => 'mdi:approximately-equal',
         };
     }
 

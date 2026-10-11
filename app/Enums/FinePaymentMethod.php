@@ -27,11 +27,11 @@ enum FinePaymentMethod: string implements HasIcon, HasLabel
     public function getIcon(): ?string
     {
         return match ($this) {
-            self::Cash => 'mdi-hand-coin-outline',
-            self::BankCard => 'gmdi-credit-card',
-            self::Online => 'gmdi-qr-code',
-            self::DirectDebit => 'fas-file-invoice-dollar',
-            self::BankTransfer => 'mdi-bank-transfer',
+            self::Cash => 'mdi:hand-coin-outline',
+            self::BankCard => 'ic:baseline-credit-card',
+            self::Online => 'ic:baseline-qr-code',
+            self::DirectDebit => 'fa7-solid:file-invoice-dollar',
+            self::BankTransfer => 'mdi:bank-transfer',
         };
     }
 }

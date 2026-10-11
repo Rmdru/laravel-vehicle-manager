@@ -23,8 +23,8 @@ enum AccidentType: string implements HasIcon, HasLabel
     public function getIcon(): ?string
     {
         return match ($this) {
-            self::OneSided => 'mdi-car',
-            self::MultiSide => 'mdi-car-multiple',
+            self::OneSided => 'mdi:car',
+            self::MultiSide => 'mdi:car-multiple',
         };
     }
 }

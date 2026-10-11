@@ -1,20 +1,27 @@
 <script setup lang="ts">
 import { Car } from '@lucide/vue';
 import { shallowRef, watch } from 'vue';
-import { iconName, parseSvg } from '@/lib/svg';
+import { parseSvg } from '@/lib/svg';
 import type { SvgIcon } from '@/lib/svg';
 
-// Name of a logo in resources/icons/brands (Simple Icons), e.g. "bmw".
+// Iconify name of a brand logo in resources/icons: in the brand's colors
+// ("thesvg-color:bmw") or monochrome ("simple-icons:tesla").
 const props = defineProps<{ name?: string | null }>();
 
 // Loaded on demand: only the logos of the user's own vehicles are needed.
-const files = import.meta.glob<string>('../../icons/brands/*.svg', {
-    query: '?raw',
-    import: 'default',
-});
+const files = import.meta.glob<string>(
+    ['../../icons/thesvg-color/*.svg', '../../icons/simple-icons/*.svg'],
+    {
+        query: '?raw',
+        import: 'default',
+    },
+);
 
 const loaders = Object.fromEntries(
-    Object.entries(files).map(([path, load]) => [iconName(path), load]),
+    Object.entries(files).map(([path, load]) => [
+        path.split('/').slice(-2).join(':').replace('.svg', ''),
+        load,
+    ]),
 );
 
 const cache: Record<string, SvgIcon | null> = {};
@@ -43,16 +50,22 @@ watch(
 </script>
 
 <template>
-    <!-- eslint-disable vue/no-v-html -->
-    <svg
-        v-if="logo"
-        v-bind="logo.attributes"
-        width="1em"
-        height="1em"
+    <span
+        class="inline-flex items-center justify-center rounded-md bg-white text-black ring-1 ring-black/10"
         aria-hidden="true"
-        v-html="logo.content"
-    />
-    <!-- No logo for this brand: a generic car. -->
-    <Car v-else-if="!name || !loaders[name]" aria-hidden="true" />
-    <svg v-else viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true" />
+    >
+        <!-- Brand colors assume a white ground, so the logo sits on one in both themes. -->
+        <!-- eslint-disable vue/no-v-html -->
+        <svg
+            v-if="logo"
+            v-bind="logo.attributes"
+            class="size-[72%] overflow-visible"
+            v-html="logo.content"
+        />
+        <!-- No logo for this brand: a generic car. -->
+        <Car
+            v-else-if="!name || !loaders[name]"
+            class="size-[72%] overflow-visible"
+        />
+    </span>
 </template>

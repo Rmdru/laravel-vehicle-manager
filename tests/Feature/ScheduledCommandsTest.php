@@ -61,7 +61,7 @@ class ScheduledCommandsTest extends TestCase
         $this->assertSame(VehicleStatus::Wok->value, $vehicle->status);
     }
 
-    public function test_importing_fuel_prices_stores_dutch_belgian_and_german_prices()
+    public function test_importing_fuel_prices_stores_dutch_belgian_luxembourg_and_german_prices()
     {
         $vehicle = Vehicle::factory()->create(['powertrain' => 'diesel', 'tank_capacity' => 50]);
 
@@ -77,6 +77,14 @@ class ScheduledCommandsTest extends TestCase
                 .'<tr><td>LPG</td><td class="price">€ 0,82 /l</td></tr>'
                 .'</tbody></table>',
             ),
+            'https://carbu.com/luxembourg/index.php/prixmaximum*' => Http::response(
+                '<table class="table prix-officiel"><tbody>'
+                .'<tr><td><span>Diesel</span></td><td class="price">1,452 &euro;/l</td></tr>'
+                .'<tr><td><span>Super 95</span></td><td class="price">1,473 &euro;/l</td></tr>'
+                .'<tr><td><span>Super 98</span></td><td class="price">1,580 &euro;/l</td></tr>'
+                .'<tr><td><span>LPG</span></td><td class="price">0,919 &euro;/l</td></tr>'
+                .'</tbody></table>',
+            ),
             'https://creativecommons.tankerkoenig.de/api/v4/stats*' => Http::response([
                 'timestamp' => '2026-05-26T10:00:00Z',
                 'E10' => ['median' => 1.62],
@@ -89,6 +97,9 @@ class ScheduledCommandsTest extends TestCase
 
         $this->assertTrue(FuelPrice::where('country', 'netherlands')->where('fuel_type', 'Unleaded 95 (E10)')->exists());
         $this->assertEquals(1.48, FuelPrice::where('country', 'germany')->where('fuel_type', 'Diesel')->first()->price);
+        $this->assertSame(4, FuelPrice::where('country', 'luxembourg')->count());
+        $this->assertEquals(1.473, FuelPrice::where('country', 'luxembourg')->where('fuel_type', 'Unleaded 95 (E10)')->first()->price);
+        $this->assertEquals(1.452, FuelPrice::where('country', 'luxembourg')->where('fuel_type', 'Diesel')->first()->price);
         $this->assertTrue(FuelDetourAggregate::where('vehicle_id', $vehicle->id)->exists());
     }
 

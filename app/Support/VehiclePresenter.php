@@ -19,6 +19,7 @@ class VehiclePresenter
     public static function summary(Vehicle $vehicle): array
     {
         $brand = config('vehicles.brands')[$vehicle->brand] ?? (string) $vehicle->brand;
+        $status = VehicleStatus::tryFrom((string) $vehicle->status) ?? VehicleStatus::Drivable;
 
         return [
             'id' => $vehicle->id,
@@ -29,6 +30,10 @@ class VehiclePresenter
             'mileage' => $vehicle->mileage_latest ?? $vehicle->mileage_start,
             'powertrain' => $vehicle->powertrain,
             'imageUrl' => $vehicle->image_url ?: null,
+            'age' => $vehicle->construction_date?->age,
+            'status' => $status->getLabel(),
+            'statusIcon' => $status->getIcon(),
+            'statusColor' => $status->getColor(),
         ];
     }
 
@@ -37,15 +42,10 @@ class VehiclePresenter
      */
     public static function card(Vehicle $vehicle): array
     {
-        $status = VehicleStatus::tryFrom((string) $vehicle->status) ?? VehicleStatus::Drivable;
-
         return [
             ...self::summary($vehicle),
             'mileageStart' => $vehicle->mileage_start,
-            'age' => $vehicle->construction_date?->age,
             'constructionDate' => $vehicle->construction_date?->format('d-m-Y'),
-            'status' => $status->getLabel(),
-            'statusIcon' => $status->getIcon(),
             'showUrl' => route('vehicles.show', $vehicle),
             'editUrl' => route('vehicles.edit', $vehicle),
             'selectUrl' => route('vehicles.select', $vehicle),
@@ -54,13 +54,21 @@ class VehiclePresenter
     }
 
     /**
-     * The name of the brand's logo in resources/icons/brands (Simple Icons),
-     * or null when that pack has no logo for the brand.
+     * The Iconify name of the brand's logo in resources/icons: in the brand's
+     * colors when that set has it, else monochrome, or null without a logo.
      */
     public static function brandLogo(string $brand): ?string
     {
-        $name = (string) str($brand)->replace([' ', '-'], '')->lower()->ascii();
+        $name = (string) str($brand)->lower()->ascii();
 
-        return is_file(resource_path('icons/brands/'.$name.'.svg')) ? $name : null;
+        foreach (['thesvg-color', 'simple-icons'] as $set) {
+            foreach ([str_replace([' ', '-'], '', $name), str_replace(' ', '-', $name)] as $icon) {
+                if (is_file(resource_path('icons/'.$set.'/'.$icon.'.svg'))) {
+                    return $set.':'.$icon;
+                }
+            }
+        }
+
+        return null;
     }
 }

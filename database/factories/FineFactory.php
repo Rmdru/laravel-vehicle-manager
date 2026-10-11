@@ -46,14 +46,14 @@ class FineFactory extends Factory
             'icon' => $this->faker->randomElement([
                 null,
                 $this->faker->randomElement([
-                    'gmdi-directions-car-filled-r',
-                    'gmdi-star',
-                    'mdi-engine',
-                    'gmdi-local-gas-station',
-                    'gmdi-route',
-                    'gmdi-calendar-month-r',
-                    'fas-industry',
-                    'gmdi-local-offer-r',
+                    'ic:round-directions-car-filled',
+                    'ic:baseline-star',
+                    'mdi:engine',
+                    'ic:baseline-local-gas-station',
+                    'ic:baseline-route',
+                    'ic:round-calendar-month',
+                    'fa7-solid:industry',
+                    'ic:round-local-offer',
                 ]),
             ]),
             'road' => $road = $this->faker->randomElement([

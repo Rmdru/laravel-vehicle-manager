@@ -18,9 +18,9 @@ class FerriesTable extends VehicleRecordTable
         $table
             ->defaultSort('-start_date')
             ->withGlobalSearch(columns: ['start_location', 'end_location'])
-            ->column('start_location', __('Section'), sortable: true, as: fn ($value, Ferry $ferry) => $this->withIcon('gmdi-route-r', $ferry->start_location.' - '.$ferry->end_location))
-            ->column('start_date', __('Date'), sortable: true, as: fn ($value, Ferry $ferry) => $this->withIcon('gmdi-calendar-month-r', $this->period($ferry->start_date, $ferry->end_date, 'll HH:mm')))
-            ->column('price', __('Price'), sortable: true, as: fn ($value) => $this->withIcon('mdi-hand-coin-outline', $this->money($value)))
+            ->column('start_location', __('Section'), sortable: true, as: fn ($value, Ferry $ferry) => $this->text($ferry->start_location.' - '.$ferry->end_location))
+            ->column('start_date', __('Date'), sortable: true, as: fn ($value, Ferry $ferry) => $this->text($this->period($ferry->start_date, $ferry->end_date, 'll HH:mm')))
+            ->column('price', __('Price'), sortable: true, as: fn ($value) => $this->amount($this->money($value)))
             ->paginate(25);
     }
 }

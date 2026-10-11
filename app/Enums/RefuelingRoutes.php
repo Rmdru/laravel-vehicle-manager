@@ -27,10 +27,10 @@ enum RefuelingRoutes: string implements HasIcon, HasLabel
     public function getIcon(): string
     {
         return match ($this) {
-            self::Motorway => 'mdi-highway',
-            self::CountryRoad => 'gmdi-landscape-s',
-            self::City => 'gmdi-location-city-r',
-            self::Trailer => 'mdi-truck-trailer',
+            self::Motorway => 'mdi:highway',
+            self::CountryRoad => 'ic:sharp-landscape',
+            self::City => 'ic:round-location-city',
+            self::Trailer => 'mdi:truck-trailer',
         };
     }
 

@@ -167,11 +167,19 @@ abstract class VehicleRecordTable extends AbstractTable
     }
 
     /**
-     * A cell value preceded by an icon from resources/icons.
+     * A plain cell value. Cells are rendered as markup, so the text is escaped here.
      */
-    protected function withIcon(string $icon, mixed $text): HtmlString
+    protected function text(mixed $text): HtmlString
     {
-        return new HtmlString(Html::iconText($icon, (string) $text));
+        return new HtmlString(e((string) $text));
+    }
+
+    /**
+     * A cell with an amount of money, which stands out from the other values.
+     */
+    protected function amount(mixed $text): HtmlString
+    {
+        return new HtmlString('<span class="font-semibold whitespace-nowrap tabular-nums">'.e((string) $text).'</span>');
     }
 
     /**
