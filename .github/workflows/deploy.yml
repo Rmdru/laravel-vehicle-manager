@@ -23,7 +23,7 @@ jobs:
           command_timeout: 10m
           script: |
             cd ../../var/www/vehicle-manager.rubenderuijter.nl
-            git pull origin main
+            git pull origin master
             composer install --no-dev --optimize-autoloader
             php artisan migrate --force
             php artisan storage:link
