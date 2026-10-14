@@ -121,13 +121,15 @@ class DashboardService
      */
     public function fuelPricesAbroad(Vehicle $vehicle): array
     {
+        // Per fuel type: the prices of a country can come from sources that are not equally recent.
         $latestDates = FuelPrice::query()
-            ->select('country', DB::raw('MAX(date) as latest_date'))
-            ->groupBy('country');
+            ->select('country', 'fuel_type', DB::raw('MAX(date) as latest_date'))
+            ->groupBy('country', 'fuel_type');
 
         $fuelPrices = FuelPrice::query()
             ->joinSub($latestDates, 'latest', function ($join) {
                 $join->on('fuel_prices.country', '=', 'latest.country')
+                    ->on('fuel_prices.fuel_type', '=', 'latest.fuel_type')
                     ->on('fuel_prices.date', '=', 'latest.latest_date');
             })
             ->leftJoin('fuel_detour_aggregates', function ($join) use ($vehicle) {

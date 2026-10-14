@@ -54,6 +54,7 @@ class CalculateFuelDetourAggregates
                         $avgFuelCostsPerKm = $this->calculateAverageFuelCostsPerKilometer($vehicle->id);
                         $avgTotalCostsPerKm = $this->calculateCostsPerKilometer(vehicle: $vehicle);
 
+                        // Compared with the same fuel at home, or else with the regular petrol.
                         $comparisionFuelType = match ($fuelPrice['fuel_type']) {
                             'Unleaded 95 (E10)' => 'Unleaded 95 (E10)',
                             'Unleaded 95 (E5)' => 'Unleaded 95 (E10)',
@@ -61,9 +62,11 @@ class CalculateFuelDetourAggregates
                             default => $fuelPrice['fuel_type'],
                         };
 
-                        $homeFuelPrice = array_filter($data, function ($item) use ($comparisionFuelType, $home) {
-                            return $item['country'] === $home && $item['fuel_type'] === $comparisionFuelType;
+                        $homePrices = fn (string $fuelType) => array_filter($data, function ($item) use ($fuelType, $home) {
+                            return $item['country'] === $home && $item['fuel_type'] === $fuelType;
                         });
+
+                        $homeFuelPrice = $homePrices($fuelPrice['fuel_type']) ?: $homePrices($comparisionFuelType);
 
                         if (empty($homeFuelPrice)) {
                             continue;

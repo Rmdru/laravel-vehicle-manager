@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
 type Series = { key: number; label: string; data: number[] };
 
@@ -36,6 +36,21 @@ const ticks = computed(() =>
 );
 
 const hovered = ref<number | null>(null);
+
+// On a narrow screen the months do not all fit: start at the most recent one.
+const scroller = ref<HTMLElement | null>(null);
+
+function scrollToLatest() {
+    if (scroller.value) {
+        scroller.value.scrollLeft = scroller.value.scrollWidth;
+    }
+}
+
+onMounted(scrollToLatest);
+watch(
+    () => props.labels,
+    () => nextTick(scrollToLatest),
+);
 </script>
 
 <template>
@@ -64,7 +79,7 @@ const hovered = ref<number | null>(null);
                     Math.round(tick)
                 }}</span>
             </div>
-            <div class="relative min-w-0 flex-1 overflow-x-auto">
+            <div ref="scroller" class="relative min-w-0 flex-1 overflow-x-auto">
                 <div
                     class="flex h-full min-w-full items-stretch gap-1 border-b border-border"
                     :style="{ width: `${labels.length * 2.75}rem` }"

@@ -16,7 +16,7 @@ class FuelPriceSeeder extends Seeder
 
     /** The fuel types every country has prices of, with the price the history ends at. */
     private const PRICES = [
-        'netherlands' => ['Unleaded 95 (E10)' => 2.43, 'Diesel' => 2.51, 'LPG' => 0.96],
+        'netherlands' => ['Unleaded 95 (E10)' => 2.43, 'Super Plus (E5)' => 2.73, 'Diesel' => 2.51, 'LPG' => 0.96],
         'belgium' => ['Unleaded 95 (E10)' => 2.07, 'Super Plus (E5)' => 2.26, 'Diesel' => 2.49, 'LPG' => 1.08],
         'luxembourg' => ['Unleaded 95 (E10)' => 1.88, 'Super Plus (E5)' => 2.08, 'Diesel' => 2.05, 'LPG' => 0.92],
         'germany' => ['Unleaded 95 (E10)' => 2.18, 'Unleaded 95 (E5)' => 2.23, 'Diesel' => 2.30],

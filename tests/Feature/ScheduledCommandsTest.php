@@ -85,6 +85,15 @@ class ScheduledCommandsTest extends TestCase
                 .'<tr><td><span>LPG</span></td><td class="price">0,919 &euro;/l</td></tr>'
                 .'</tbody></table>',
             ),
+            'https://www.anwb.nl/vakantie/reisvoorbereiding/brandstofprijzen-europa*' => Http::response(
+                '<html><body><script id="__NEXT_DATA__" type="application/json">'.json_encode(['props' => ['pageProps' => ['loaderData' => ['3f1e' => ['countries' => [
+                    ['iso3CountryCode' => 'BEL', 'country' => 'België', 'fuelPrices' => [['fuelTypeCode' => 'EURO98', 'averagePrice' => 2.111]]],
+                    ['iso3CountryCode' => 'NLD', 'country' => 'Nederland', 'fuelPrices' => [
+                        ['fuelType' => 'Euro 95 (E10)', 'fuelTypeCode' => 'EURO95', 'averagePrice' => 2.427],
+                        ['fuelType' => 'Super Plus 98 (E5)', 'fuelTypeCode' => 'EURO98', 'averagePrice' => 2.728],
+                    ]],
+                ]]]]]]).'</script></body></html>',
+            ),
             'https://creativecommons.tankerkoenig.de/api/v4/stats*' => Http::response([
                 'timestamp' => '2026-05-26T10:00:00Z',
                 'E10' => ['median' => 1.62],
@@ -101,6 +110,25 @@ class ScheduledCommandsTest extends TestCase
         $this->assertEquals(1.473, FuelPrice::where('country', 'luxembourg')->where('fuel_type', 'Unleaded 95 (E10)')->first()->price);
         $this->assertEquals(1.452, FuelPrice::where('country', 'luxembourg')->where('fuel_type', 'Diesel')->first()->price);
         $this->assertTrue(FuelDetourAggregate::where('vehicle_id', $vehicle->id)->exists());
+
+        // Only what the CBS lacks comes from the ANWB, as the price of today.
+        $superPlus = FuelPrice::where('country', 'netherlands')->where('fuel_type', 'Super Plus (E5)')->sole();
+        $this->assertEquals(2.728, $superPlus->price);
+        $this->assertSame(today()->toDateString(), $superPlus->date->toDateString());
+        $this->assertSame('2026-05-26', FuelPrice::where('country', 'netherlands')->where('fuel_type', 'Unleaded 95 (E10)')->sole()->date->toDateString());
+    }
+
+    public function test_the_fuel_prices_are_imported_without_the_anwb_when_its_page_cannot_be_read()
+    {
+        Http::fake([
+            'https://opendata.cbs.nl/*' => Http::response(['value' => [['Periods' => '2026-05-26T00:00:00', 'Euro95_1' => 1.65, 'Diesel_2' => 1.45, 'LPG_3' => 0.89]]]),
+            'https://www.anwb.nl/*' => Http::response('<html><body>Nothing to see</body></html>'),
+            '*' => Http::response('', 500),
+        ]);
+
+        $this->artisan('import:fuel-prices')->assertExitCode(0);
+
+        $this->assertSame(3, FuelPrice::where('country', 'netherlands')->count());
     }
 
     public function test_cached_statistics_are_cleared_when_a_refueling_is_created()

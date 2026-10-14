@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Pipelines\ImportFuelPrices\Anwb;
 use App\Pipelines\ImportFuelPrices\Belgium;
 use App\Pipelines\ImportFuelPrices\CalculateFuelDetourAggregates;
 use App\Pipelines\ImportFuelPrices\Germany;
@@ -29,6 +30,7 @@ class ImportFuelPrices extends Command
                 ->send($data)
                 ->through([
                     Netherlands::class,
+                    Anwb::class,
                     Belgium::class,
                     Luxembourg::class,
                     Germany::class,

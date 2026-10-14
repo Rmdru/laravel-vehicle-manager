@@ -265,4 +265,20 @@ class DashboardTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->loadDeferredProps('fuel', fn (Assert $reload) => $reload->has('fuelPricesChart.countries', 0)->etc()));
     }
+
+    public function test_the_prices_abroad_are_the_most_recent_price_of_every_fuel_type()
+    {
+        $vehicle = $this->signInWithVehicle();
+        $monday = now()->subDays(3)->toDateString();
+
+        // The CBS has the prices of Monday, the ANWB has those of every day since.
+        FuelPrice::create(['date' => $monday, 'country' => 'netherlands', 'fuel_type' => 'Unleaded 95 (E10)', 'price' => 2.43]);
+        FuelPrice::create(['date' => $monday, 'country' => 'netherlands', 'fuel_type' => 'Super Plus (E5)', 'price' => 2.70]);
+        FuelPrice::create(['date' => now()->toDateString(), 'country' => 'netherlands', 'fuel_type' => 'Super Plus (E5)', 'price' => 2.73]);
+
+        $prices = collect(app(DashboardService::class)->fuelPricesAbroad($vehicle->fresh())['countries'])->firstWhere('key', 'netherlands')['prices'];
+
+        $this->assertSame(['2,430', now()->subDays(3)->format('d-m-Y')], [$prices['Unleaded 95 (E10)']['price'], $prices['Unleaded 95 (E10)']['date']]);
+        $this->assertSame(['2,730', now()->format('d-m-Y')], [$prices['Super Plus (E5)']['price'], $prices['Super Plus (E5)']['date']]);
+    }
 }
