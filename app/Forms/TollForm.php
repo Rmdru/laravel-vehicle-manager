@@ -18,8 +18,10 @@ class TollForm extends VehicleRecordForm
     {
         return [
             Heading::make(__('Basic')),
-            $this->date('date', __('Date'), required: true, notInFuture: true)
+            $this->date('start_date', __('Start date'), required: true, notInFuture: true)
                 ->default(today()->format('Y-m-d')),
+            $this->date('end_date', __('End date'), notInFuture: true)
+                ->rules('after_or_equal:start_date'),
 
             Heading::make(__('Location')),
             $this->choice('type', __('Type'), $this->enumOptions(TollType::class), required: true),

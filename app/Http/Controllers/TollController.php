@@ -19,6 +19,8 @@ class TollController extends VehicleRecordController
 
     protected string $routeName = 'toll';
 
+    protected string $dateAttribute = 'start_date';
+
     protected function prepare(array $data, ?Model $record): array
     {
         // Roads are entered comma separated and stored as a list.

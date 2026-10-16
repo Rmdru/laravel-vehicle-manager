@@ -326,7 +326,7 @@ class VehicleRecordTest extends TestCase
         $vehicle = $this->signInWithVehicle();
 
         $this->post(route('toll.store'), [
-            'date' => '2026-03-01',
+            'start_date' => '2026-03-01',
             'type' => 'section',
             'country' => 'france',
             'road_type' => 'highway',
@@ -343,7 +343,7 @@ class VehicleRecordTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->where('form.defaults.road', 'A1, A26')->etc());
 
         $this->post(route('toll.store'), [
-            'date' => '2026-03-01',
+            'start_date' => '2026-03-01',
             'type' => 'location',
             'road' => 'A1',
             'start_location' => 'Lille',

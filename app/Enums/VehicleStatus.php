@@ -6,6 +6,7 @@ namespace App\Enums;
 
 use App\Contracts\HasIcon;
 use App\Contracts\HasLabel;
+use Illuminate\Support\Carbon;
 
 enum VehicleStatus: string implements HasIcon, HasLabel
 {
@@ -47,6 +48,34 @@ enum VehicleStatus: string implements HasIcon, HasLabel
             self::NotRollable => 'fa7-solid:car-burst',
             self::Destroyed => 'mdi:fire',
         };
+    }
+
+    /**
+     * Whether the status follows the RDW data. The other statuses are set by
+     * the user and are never overwritten by the import of the RDW data.
+     */
+    public function isManagedByRdw(): bool
+    {
+        return in_array($this, [self::Drivable, self::Wok, self::Apk], true);
+    }
+
+    /**
+     * The status the RDW data points to: waiting for an inspection (WOK) goes
+     * before an expired MOT. The MOT is valid up to and including its expiry date.
+     */
+    public static function fromRdw(array $rdwData): self
+    {
+        $wok = $rdwData['wacht_op_keuren'] ?? null;
+
+        if (filled($wok) && $wok !== 'Geen verstrekking in Open Data') {
+            return self::Wok;
+        }
+
+        if (filled($rdwData['vervaldatum_apk_dt'] ?? null) && Carbon::parse($rdwData['vervaldatum_apk_dt'])->isBefore(today())) {
+            return self::Apk;
+        }
+
+        return self::Drivable;
     }
 
     /**

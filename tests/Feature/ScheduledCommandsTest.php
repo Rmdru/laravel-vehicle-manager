@@ -12,6 +12,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class ScheduledCommandsTest extends TestCase
@@ -44,6 +45,7 @@ class ScheduledCommandsTest extends TestCase
             'license_plate' => 'AB-123-CD',
             'powertrain' => 'diesel',
             'tank_capacity' => 50,
+            'status' => VehicleStatus::Drivable->value,
         ]);
 
         Http::fake([
@@ -59,6 +61,40 @@ class ScheduledCommandsTest extends TestCase
         $this->assertSame('In afwachting', $vehicle->rdw_data['wacht_op_keuren']);
         $this->assertSame('RC123', $vehicle->rdw_data['open_recalls'][0]['referentiecode_rdw']);
         $this->assertSame(VehicleStatus::Wok->value, $vehicle->status);
+    }
+
+    /**
+     * @return array<string, array{0: VehicleStatus, 1: array<string, string>, 2: VehicleStatus}>
+     */
+    public static function rdwStatuses(): array
+    {
+        return [
+            'expired MOT' => [VehicleStatus::Drivable, ['vervaldatum_apk_dt' => '2026-01-31T00:00:00.000'], VehicleStatus::Apk],
+            'MOT expires today' => [VehicleStatus::Drivable, ['vervaldatum_apk_dt' => '2026-03-01T00:00:00.000'], VehicleStatus::Drivable],
+            'WOK goes before an expired MOT' => [VehicleStatus::Apk, ['wacht_op_keuren' => 'In afwachting', 'vervaldatum_apk_dt' => '2026-01-31T00:00:00.000'], VehicleStatus::Wok],
+            'WOK lifted' => [VehicleStatus::Wok, ['wacht_op_keuren' => 'Geen verstrekking in Open Data', 'vervaldatum_apk_dt' => '2027-01-31T00:00:00.000'], VehicleStatus::Drivable],
+            'MOT renewed' => [VehicleStatus::Apk, ['vervaldatum_apk_dt' => '2027-01-31T00:00:00.000'], VehicleStatus::Drivable],
+            'sold is left alone' => [VehicleStatus::Sold, ['wacht_op_keuren' => 'In afwachting'], VehicleStatus::Sold],
+            'stolen is left alone' => [VehicleStatus::Stolen, ['vervaldatum_apk_dt' => '2026-01-31T00:00:00.000'], VehicleStatus::Stolen],
+            'suspended is left alone' => [VehicleStatus::Suspended, [], VehicleStatus::Suspended],
+        ];
+    }
+
+    #[DataProvider('rdwStatuses')]
+    public function test_importing_vehicle_data_updates_the_status_the_rdw_manages(VehicleStatus $current, array $rdwData, VehicleStatus $expected)
+    {
+        $this->travelTo('2026-03-01 12:00:00');
+
+        $vehicle = Vehicle::factory()->create(['license_plate' => 'AB-123-CD', 'status' => $current->value]);
+
+        Http::fake([
+            'https://opendata.rdw.nl/resource/m9d7-ebf2.json*' => Http::response([['kenteken' => 'AB123CD', ...$rdwData]]),
+            'https://opendata.rdw.nl/resource/t49b-isb7.json*' => Http::response([]),
+        ]);
+
+        $this->artisan('import:vehicle-data')->assertExitCode(0);
+
+        $this->assertSame($expected->value, $vehicle->refresh()->status);
     }
 
     public function test_importing_fuel_prices_stores_dutch_belgian_luxembourg_and_german_prices()

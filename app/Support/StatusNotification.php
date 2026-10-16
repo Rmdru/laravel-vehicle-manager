@@ -57,6 +57,39 @@ class StatusNotification
                 ],
                 'icon' => 'mdi:head-sync',
             ],
+            'apk_renewed' => [
+                'statusKey' => 'apk_renewed_status',
+                'category' => 'maintenance',
+                'label' => __('New MOT registered by the RDW'),
+                'thresholds' => ['info' => 0],
+                'thresholdType' => 'recordCount',
+                'messages' => [
+                    'info' => __('The RDW registered a new MOT. Add it as maintenance.'),
+                ],
+                'icon' => 'ic:baseline-security',
+            ],
+            'ownership' => [
+                'statusKey' => 'ownership_status',
+                'category' => 'rdw',
+                'label' => __('Registered to someone else'),
+                'thresholds' => ['warning' => 0],
+                'thresholdType' => 'recordCount',
+                'messages' => [
+                    'warning' => __('According to the RDW the vehicle has been registered to someone else. Has it been sold?'),
+                ],
+                'icon' => 'mdi:account-switch',
+            ],
+            'export' => [
+                'statusKey' => 'export_status',
+                'category' => 'rdw',
+                'label' => __('Exported or no longer registered'),
+                'thresholds' => ['warning' => 0],
+                'thresholdType' => 'recordCount',
+                'messages' => [
+                    'warning' => __('According to the RDW the vehicle has been exported or is no longer registered in the Netherlands.'),
+                ],
+                'icon' => 'mdi:earth-arrow-right',
+            ],
             'maintenance' => [
                 'statusKey' => 'maintenance_status',
                 'category' => 'maintenance',

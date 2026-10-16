@@ -28,11 +28,13 @@ class Toll extends Model
         'road_type',
         'road',
         'toll_company',
-        'date',
+        'start_date',
+        'end_date',
     ];
 
     protected $casts = [
-        'date' => 'date:Y-m-d',
+        'start_date' => 'date:Y-m-d',
+        'end_date' => 'date:Y-m-d',
         'road' => 'array',
     ];
 

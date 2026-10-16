@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Support\Iconify;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Http;
 
 class AddIcons extends Command
 {
@@ -30,21 +30,17 @@ class AddIcons extends Command
 
         foreach ($sets as $prefix => $names) {
             // One request per icon set; the API limits bursts of requests.
-            $response = Http::retry(3, 2000, throw: false)
-                ->get('https://api.iconify.design/'.$prefix.'.json', ['icons' => implode(',', $names)]);
+            $set = Iconify::set($prefix, $names);
 
-            if (! $response->successful() && $response->status() !== 404) {
-                $this->error($prefix.': Iconify request failed ('.$response->status().')');
+            if ($set === null) {
+                $this->error($prefix.': Iconify request failed');
                 $failed = true;
 
                 continue;
             }
 
-            // An unknown icon set answers with a bare 404.
-            $set = is_array($response->json()) ? $response->json() : [];
-
             foreach ($names as $name) {
-                $svg = $this->svg($set, $name);
+                $svg = Iconify::svg($set, $name);
 
                 if ($svg === null) {
                     $this->error($prefix.':'.$name.': not found on Iconify');
@@ -61,33 +57,5 @@ class AddIcons extends Command
         }
 
         return $failed ? self::FAILURE : self::SUCCESS;
-    }
-
-    /**
-     * @param  array<string, mixed>  $set  An icon set in the Iconify JSON format.
-     */
-    private function svg(array $set, string $name): ?string
-    {
-        $alias = $set['aliases'][$name] ?? null;
-
-        // Aliases that flip or rotate their parent are rare; use the parent instead.
-        if ($alias !== null && array_diff(array_keys($alias), ['parent']) !== []) {
-            return null;
-        }
-
-        $icon = $set['icons'][$alias['parent'] ?? $name] ?? null;
-
-        if (! isset($icon['body'])) {
-            return null;
-        }
-
-        $viewBox = implode(' ', [
-            $icon['left'] ?? 0,
-            $icon['top'] ?? 0,
-            $icon['width'] ?? $set['width'] ?? 16,
-            $icon['height'] ?? $set['height'] ?? 16,
-        ]);
-
-        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="'.$viewBox.'">'.$icon['body'].'</svg>';
     }
 }

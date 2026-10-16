@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Deferred, Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Plus, RefreshCw } from '@lucide/vue';
+import { ArrowDown, ArrowUp, Plus, RefreshCw } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import AppIcon from '@/components/AppIcon.vue';
 import BrandLogo from '@/components/BrandLogo.vue';
@@ -38,11 +38,17 @@ type Notification = {
     hasModal: boolean;
     modalTitle?: string;
     data: Record<string, unknown>[];
+    // Where to do what the notification asks for.
+    url?: string;
+    urlLabel?: string;
 };
 
 type FuelPrice = {
     date: string;
     price: string;
+    previousPrice: string | null;
+    // 1: higher than the previous price, -1: lower, 0: the same or unknown.
+    trend: number;
     detourFuel: number;
     detourAll: number;
 };
@@ -232,6 +238,12 @@ const tones: Record<string, string> = {
     success: 'text-success',
 };
 
+// The date of the price, and the price it went up or down from.
+const fuelPriceTitle = (price: FuelPrice): string =>
+    price.previousPrice === null
+        ? price.date
+        : `${price.date} (${t('Previous: € :price/l', { price: price.previousPrice })})`;
+
 const trends: Record<string, string> = {
     success: 'text-success',
     danger: 'text-danger',
@@ -394,6 +406,13 @@ const label = (key: string) => {
                         >
                             {{ t('More information') }}
                         </button>
+                        <Link
+                            v-if="notification.url"
+                            :href="notification.url"
+                            class="min-h-9 content-center text-sm font-semibold underline"
+                        >
+                            {{ notification.urlLabel }}
+                        </Link>
                     </li>
                 </ul>
             </Deferred>
@@ -607,7 +626,11 @@ const label = (key: string) => {
                         </li>
                     </ul>
                     <p v-else class="p-4 text-sm text-muted-foreground">
-                        {{ t('No costs this month') }}
+                        {{
+                            filters.start && filters.end
+                                ? t('No costs in this period')
+                                : t('No costs this month')
+                        }}
                     </p>
                 </Deferred>
             </SectionCard>
@@ -843,13 +866,42 @@ const label = (key: string) => {
                                         <dd
                                             v-if="country.prices[type]"
                                             class="text-right tabular-nums"
-                                            :title="country.prices[type].date"
+                                            :title="
+                                                fuelPriceTitle(
+                                                    country.prices[type],
+                                                )
+                                            "
                                         >
-                                            <div class="font-semibold">
-                                                €
-                                                {{
-                                                    country.prices[type].price
-                                                }}/l
+                                            <div
+                                                class="flex items-center justify-end gap-1 font-semibold"
+                                            >
+                                                <ArrowUp
+                                                    v-if="
+                                                        country.prices[type]
+                                                            .trend > 0
+                                                    "
+                                                    class="size-3.5 shrink-0 text-danger"
+                                                    :aria-label="
+                                                        t('Price increase')
+                                                    "
+                                                />
+                                                <ArrowDown
+                                                    v-else-if="
+                                                        country.prices[type]
+                                                            .trend < 0
+                                                    "
+                                                    class="size-3.5 shrink-0 text-success"
+                                                    :aria-label="
+                                                        t('Price decrease')
+                                                    "
+                                                />
+                                                <span>
+                                                    €
+                                                    {{
+                                                        country.prices[type]
+                                                            .price
+                                                    }}/l
+                                                </span>
                                             </div>
                                             <div
                                                 v-if="!country.isHome"

@@ -87,6 +87,7 @@ abstract class VehicleRecordController extends Controller
     {
         return Inertia::render('Crud/Form', [
             'form' => $this->form::make()
+                ->fill($this->createData(request()))
                 ->action(route($this->routeName.'.store'))
                 ->method('POST'),
             'title' => str(__('Create :name', ['name' => mb_strtolower($this->singularTitle())]))->ucfirst()->toString(),
@@ -201,6 +202,16 @@ abstract class VehicleRecordController extends Controller
      *
      * @return array<string, mixed>
      */
+    /**
+     * Values a new record starts with instead of the defaults of the form.
+     *
+     * @return array<string, mixed>
+     */
+    protected function createData(Request $request): array
+    {
+        return [];
+    }
+
     protected function formData(Model $record): array
     {
         return collect($record->getFillable())

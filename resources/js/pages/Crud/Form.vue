@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
+import { ref } from 'vue';
 import Form from '@form-builder/components/Form.vue';
 import { ArrowLeft, Trash2 } from '@lucide/vue';
 import ToggleButtons from '@/components/ToggleButtons.vue';
@@ -17,6 +18,8 @@ const props = defineProps<{
     // Forms with behaviour beyond what the schema can express.
     variant?: 'refueling' | 'vehicle';
     rdwLookupUrl?: string;
+    // What the RDW knows about the vehicle that needs attention.
+    warning?: string | null;
 }>();
 
 const { t } = useT();
@@ -53,6 +56,8 @@ function calculateRefueling(field: string, form: FormState) {
 
 let lookup: ReturnType<typeof setTimeout> | undefined;
 
+const warning = ref(props.warning ?? null);
+
 // Prefill the vehicle form from the RDW registration once typing stops.
 function lookupLicensePlate(licensePlate: string, form: FormState) {
     clearTimeout(lookup);
@@ -67,9 +72,25 @@ function lookupLicensePlate(licensePlate: string, form: FormState) {
             headers: { Accept: 'application/json' },
         });
 
-        if (response.ok) {
-            Object.assign(form, await response.json());
+        if (!response.ok) {
+            return;
         }
+
+        const { values = {}, warning: rdwWarning = null } =
+            await response.json();
+
+        // Lists (fuel types, specifications) are only filled when still empty.
+        for (const [field, value] of Object.entries(values)) {
+            if (
+                !Array.isArray(value) ||
+                !Array.isArray(form[field]) ||
+                !form[field].length
+            ) {
+                form[field] = value;
+            }
+        }
+
+        warning.value = rdwWarning;
     }, 600);
 }
 
@@ -114,7 +135,19 @@ function onFieldChange(field: string, value: unknown, form: FormState) {
             {{ intro }}
         </p>
 
-        <div class="rounded-xl border bg-card p-4 md:p-6">
+        <p
+            v-if="warning"
+            role="alert"
+            class="rounded-lg bg-warning-muted p-3 text-sm text-warning"
+        >
+            {{ warning }}
+        </p>
+
+        <!-- A full-width select button may not shrink in the form builder, which pushes
+             the clear button of a searchable select into the next column. -->
+        <div
+            class="rounded-xl border bg-card p-4 md:p-6 [&_button.w-full]:min-w-0 [&_button.w-full]:shrink"
+        >
             <Form :schema="form" :columns="2" :on-field-change="onFieldChange">
                 <template #heading="{ field }">
                     <h2 class="mt-4 border-b pb-2 text-lg font-semibold">

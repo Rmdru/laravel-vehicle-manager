@@ -10,6 +10,7 @@ use App\Models\Maintenance;
 use App\Support\Html;
 use App\Support\VehiclePresenter;
 use App\Tables\MaintenancesTable;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -48,6 +49,31 @@ class MaintenanceController extends VehicleRecordController
     protected function description(): string
     {
         return __('Here you can add the costs of maintenance, repairs and parts to get insight in their costs and get informed of important intervals. It is also possible to add small checks to get notified about their intervals. This category includes all costs incurred for preventive and periodic maintenance and repairs, as well as the replacement of worn and outdated parts. This does not include costs arising from damage or accidents.');
+    }
+
+    /**
+     * A MOT the RDW registered, with the defects that were found at it.
+     */
+    protected function createData(Request $request): array
+    {
+        $renewal = $this->vehicle()->rdw_data['apk_renewed'] ?? null;
+
+        if (! $request->boolean('rdw_apk') || empty($renewal['detected_at'])) {
+            return [];
+        }
+
+        $inspection = $this->vehicle()->latestInspection(Carbon::parse($renewal['detected_at'])->subDays(60));
+        $defects = collect($inspection['defects'] ?? [])
+            ->map(fn (array $defect) => '- '.$defect['description'].($defect['count'] > 1 ? ' ('.$defect['count'].'x)' : ''));
+
+        return array_filter([
+            'apk' => true,
+            'date' => $inspection['date'] ?? null,
+            'apk_date' => $inspection['date'] ?? null,
+            'description' => collect([__('MOT')])
+                ->when($defects->isNotEmpty(), fn ($lines) => $lines->push(__('Defects found by the inspection:'), ...$defects))
+                ->implode("\n"),
+        ]);
     }
 
     /**

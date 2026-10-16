@@ -120,7 +120,7 @@ class TimelineService
         foreach ($vehicle->tolls as $toll) {
             $hasRoad = filled($toll->road_type) && filled($toll->road) && filled($toll->country);
 
-            $items->push($this->item($toll, __('Toll'), 'mdi:boom-gate', 'toll', $toll->date, [
+            $items->push($this->item($toll, __('Toll'), 'mdi:boom-gate', 'toll', $toll->start_date, [
                 'price' => $toll->price,
                 'location' => filled($toll->end_location) ? $toll->start_location.' - '.$toll->end_location : $toll->start_location,
                 'country' => $hasRoad ? $toll->country : null,

@@ -100,24 +100,25 @@ class VehicleStatusService
         $icon = $mapping['icon'];
         $hasModal = $status['hasModal'] ?? false;
         $data = $status['data'] ?? [];
+        $action = array_filter(['url' => $status['url'] ?? null, 'urlLabel' => $status['urlLabel'] ?? null]);
 
         $compareValueTime = $status[$thresholdCompareKeyTime] ?? null;
         $recordCount = $status['recordCount'] ?? 0;
 
         if ($this->meetsCriteria('critical', $thresholds, $thresholdType, $compareValueTime, $recordCount)) {
-            $notifications[] = $this->createNotification('critical', $messages['critical'], $key, $icon, $hasModal, $data);
+            $notifications[] = $this->createNotification('critical', $messages['critical'], $key, $icon, $hasModal, $data, $action);
 
             return;
         }
 
         if ($this->meetsCriteria('warning', $thresholds, $thresholdType, $compareValueTime, $recordCount)) {
-            $notifications[] = $this->createNotification('warning', $messages['warning'], $key, $icon, $hasModal, $data);
+            $notifications[] = $this->createNotification('warning', $messages['warning'], $key, $icon, $hasModal, $data, $action);
 
             return;
         }
 
         if ($this->meetsCriteria('info', $thresholds, $thresholdType, $compareValueTime, $recordCount)) {
-            $notifications[] = $this->createNotification('info', $messages['info'], $key, $icon, $hasModal, $data);
+            $notifications[] = $this->createNotification('info', $messages['info'], $key, $icon, $hasModal, $data, $action);
         }
     }
 
@@ -145,9 +146,10 @@ class VehicleStatusService
         string $key,
         string $icon = '',
         bool $hasModal = false,
-        array $data = []
+        array $data = [],
+        array $action = []
     ): array {
-        return array_merge($this->types[$type], [
+        return array_merge($this->types[$type], $action, [
             'key' => $key,
             'type' => $type,
             'text' => $text,

@@ -104,7 +104,7 @@ class VehicleTest extends TestCase
 
         $this->get(route('vehicles.show', $vehicle))
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->component('Crud/Show')->has('sections', 3));
+            ->assertInertia(fn (Assert $page) => $page->component('Crud/Show')->has('sections', 4));
 
         $this->get(route('vehicles.edit', $vehicle))
             ->assertOk()
@@ -239,7 +239,7 @@ class VehicleTest extends TestCase
 
         $this->getJson(route('vehicles.rdw-lookup', ['license_plate' => 'ab-123-c']))
             ->assertOk()
-            ->assertJson([
+            ->assertJson(['values' => [
                 'brand' => array_search('Audi', config('vehicles.brands'), true),
                 'model' => 'A3',
                 'engine' => '1395 cc 4 cylinder 110 kW',
@@ -247,7 +247,8 @@ class VehicleTest extends TestCase
                 'construction_date' => '2018-05-01',
                 'country_registration' => 'netherlands',
                 'powertrain' => 'gasoline',
-            ]);
+                'fuel_types' => ['Unleaded 95 (E10)', 'Super Plus (E5)'],
+            ], 'warning' => null]);
 
         Http::assertSent(fn ($request) => $request['kenteken'] === 'AB123C');
     }

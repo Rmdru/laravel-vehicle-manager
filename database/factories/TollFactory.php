@@ -60,7 +60,8 @@ class TollFactory extends Factory
                 null,
                 $this->faker->words(asText: true),
             ]),
-            'date' => $this->faker->dateTimeBetween()->format('Y-m-d'),
+            'start_date' => $this->faker->dateTimeBetween()->format('Y-m-d'),
+            'end_date' => null,
             'price' => $this->faker->randomFloat(2, 1, 50),
             'toll_company' => $this->faker->randomElement([
                 null,

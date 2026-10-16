@@ -3,7 +3,8 @@
 declare(strict_types=1);
 
 return [
-    // The logo of a gas station by its brand: files in public/images/gas-stations.
+    // The logo of a gas station by its brand: files in public/images/gas-stations. For other
+    // brands the logo is looked up on Iconify, see App\Support\GasStationLogo.
     'gas_station_logos' => [
         'shell' => 'shell.png',
         'shellexpress' => 'shell.png',

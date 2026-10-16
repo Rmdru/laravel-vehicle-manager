@@ -590,6 +590,109 @@ class Vehicle extends Model
         ];
     }
 
+    /**
+     * A new MOT the RDW registered, as long as no maintenance with a MOT has been
+     * added for it. After 90 days it is no longer news.
+     */
+    public function getApkRenewedStatusAttribute(): array
+    {
+        $renewal = $this->rdw_data['apk_renewed'] ?? null;
+        $detectedAt = filled($renewal['detected_at'] ?? null) ? Carbon::parse($renewal['detected_at']) : null;
+
+        // A MOT can be registered some time after the inspection.
+        $registered = $detectedAt?->copy()->subDays(60);
+
+        if ($detectedAt === null
+            || $detectedAt->isBefore(today()->subDays(90))
+            || $this->maintenances->contains(fn (Maintenance $maintenance) => $maintenance->apk && $maintenance->date?->gte($registered))) {
+            return ['recordCount' => 0];
+        }
+
+        $inspection = $this->latestInspection($registered);
+
+        return [
+            'recordCount' => 1,
+            'url' => route('maintenances.create', ['rdw_apk' => 1]),
+            'urlLabel' => __('Add maintenance'),
+            'hasModal' => $inspection !== null,
+            'data' => $inspection === null ? [] : $this->inspectionDetails($inspection),
+        ];
+    }
+
+    /**
+     * The defects found at the latest inspection the RDW knows of, when it was
+     * not before the given day.
+     *
+     * @return array{date: string, type: string, defects: list<array<string, mixed>>}|null
+     */
+    public function latestInspection(?Carbon $notBefore = null): ?array
+    {
+        $inspection = $this->rdw_data['inspection'] ?? null;
+
+        if (empty($inspection['date']) || ($notBefore && Carbon::parse($inspection['date'])->isBefore($notBefore))) {
+            return null;
+        }
+
+        return $inspection;
+    }
+
+    /**
+     * The inspection as rows of label and value, as the details of a notification.
+     *
+     * @param  array{date: string, type: string, defects: list<array<string, mixed>>}  $inspection
+     * @return list<array<string, string>>
+     */
+    public function inspectionDetails(array $inspection): array
+    {
+        return [
+            ['inspection_date' => Carbon::parse($inspection['date'])->isoFormat('ll'), 'inspection_type' => $inspection['type']],
+            ...collect($inspection['defects'])->map(fn (array $defect) => array_filter([
+                'defect' => $defect['description'],
+                'article' => $defect['article'],
+                'number' => $defect['count'] > 1 ? (string) $defect['count'] : null,
+            ]))->all(),
+        ];
+    }
+
+    /**
+     * Registered to someone else after the vehicle was bought: sold?
+     */
+    public function getOwnershipStatusAttribute(): array
+    {
+        $changedAt = $this->rdw_data['ownership_changed_at'] ?? null;
+
+        if (blank($changedAt) || ($this->purchase_date && ! Carbon::parse($changedAt)->isAfter($this->purchase_date))) {
+            return ['recordCount' => 0];
+        }
+
+        return [
+            'recordCount' => 1,
+            'hasModal' => true,
+            'data' => [['registration_date' => Carbon::parse($changedAt)->isoFormat('ll')]],
+            'url' => route('vehicles.edit', $this),
+            'urlLabel' => __('Edit vehicle'),
+        ];
+    }
+
+    /**
+     * Exported according to the RDW, or no longer registered in the Netherlands at all.
+     */
+    public function getExportStatusAttribute(): array
+    {
+        $exported = ($this->rdw_data['export_indicator'] ?? null) === 'Ja';
+        $notFoundSince = $this->rdw_data['not_found_since'] ?? null;
+
+        if (! $exported && blank($notFoundSince)) {
+            return ['recordCount' => 0];
+        }
+
+        return [
+            'recordCount' => 1,
+            'url' => route('vehicles.edit', $this),
+            'urlLabel' => __('Edit vehicle'),
+        ];
+    }
+
     public function calculateMonthlyCosts(string $startDate = '', string $endDate = ''): array
     {
         $vehicleId = $this->id;

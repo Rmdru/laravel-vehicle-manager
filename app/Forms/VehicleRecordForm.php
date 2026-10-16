@@ -97,7 +97,10 @@ abstract class VehicleRecordForm extends AbstractForm
     {
         $field = $required
             ? Radio::make($name)->inline()
-            : Select::make($name);
+            : Select::make($name)->attributes([
+                'clearable' => true,
+                'clearLabel' => trans('form-builder::fields.clear'),
+            ]);
 
         return $field
             ->label($label)
@@ -133,6 +136,7 @@ abstract class VehicleRecordForm extends AbstractForm
             ->label(__('Country'))
             ->options($options)
             ->searchable()
+            ->attributes(['clearable' => ! $required, 'clearLabel' => trans('form-builder::fields.clear')])
             ->default($this->vehicle()?->country_registration)
             ->rules([$required ? 'required' : 'nullable', Rule::in(array_keys($options))]);
     }

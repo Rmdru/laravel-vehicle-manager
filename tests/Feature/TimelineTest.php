@@ -20,7 +20,7 @@ class TimelineTest extends TestCase
 
         Refueling::factory()->for($vehicle)->create(['date' => '2026-03-10', 'gas_station' => 'Shell Utrecht', 'charge_time' => null]);
         Toll::factory()->for($vehicle)->create([
-            'date' => '2026-04-02',
+            'start_date' => '2026-04-02',
             'country' => 'netherlands',
             'road_type' => 'highway',
             'road' => ['A2'],

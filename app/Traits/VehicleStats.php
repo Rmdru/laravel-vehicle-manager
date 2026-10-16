@@ -180,6 +180,48 @@ trait VehicleStats
         );
     }
 
+    /**
+     * What the fuel costs per kilometer driven, in the period or of the latest refueling.
+     */
+    private function calculateFuelCostsPerKilometer(bool $latest = false): float
+    {
+        $vehicleId = CurrentVehicle::get()->id;
+        $startDate = $this->filters['startDate'] ?? request()->query('dashboard_start', null);
+        $endDate = $this->filters['endDate'] ?? request()->query('dashboard_end', null);
+
+        $filterKey = json_encode([$vehicleId, $startDate, $endDate, $latest]);
+
+        return $this->rememberVehicleMetric(
+            "fuel-costs-per-kilometer:{$filterKey}",
+            function () use ($vehicleId, $startDate, $endDate, $latest) {
+                $refuelings = Refueling::query()
+                    ->where('vehicle_id', $vehicleId)
+                    ->where('total_price', '>', 0)
+                    ->whereColumn('mileage_end', '>', 'mileage_begin')
+                    ->when($startDate, fn ($query) => $query->whereDate('date', '>=', $startDate))
+                    ->when($endDate, fn ($query) => $query->whereDate('date', '<=', $endDate));
+
+                if ($latest) {
+                    $refueling = $refuelings->newest()->first(['total_price', 'mileage_begin', 'mileage_end']);
+
+                    return $refueling
+                        ? round((float) $refueling->total_price / ($refueling->mileage_end - $refueling->mileage_begin), 3)
+                        : 0.0;
+                }
+
+                $totals = $refuelings
+                    ->selectRaw('SUM(total_price) as total_costs, SUM(mileage_end - mileage_begin) as total_distance')
+                    ->toBase()
+                    ->first();
+
+                return (float) $totals?->total_distance > 0
+                    ? round((float) $totals->total_costs / (float) $totals->total_distance, 3)
+                    : 0.0;
+            },
+            $vehicleId
+        );
+    }
+
     private function calculateAvgSpeed(bool $latest = false): float
     {
         $vehicleId = CurrentVehicle::get()->id;

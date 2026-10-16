@@ -94,7 +94,7 @@ class MonthlyCostsSeeder extends Seeder
             ]);
 
             Toll::factory()->for($vehicle)->count(fake()->numberBetween(0, 2))->create(fn () => [
-                'date' => $day()->toDateString(),
+                'start_date' => $day()->toDateString(),
                 'price' => fake()->randomFloat(2, 3, 35),
             ]);
 

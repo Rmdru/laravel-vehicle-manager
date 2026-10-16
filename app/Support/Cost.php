@@ -64,7 +64,7 @@ class Cost
                 'invoiceDates' => 'DATE_FORMAT(CONCAT(YEAR(CURDATE()), "-", MONTH(CURDATE()), "-", invoice_day), "%Y-%m-%d")',
                 'icon' => 'mdi:shield-car',
             ],
-            'Tax' => [
+            'Road tax' => [
                 'model' => Tax::class,
                 'priceField' => 'price',
                 'dateColumn' => 'start_date',
@@ -84,7 +84,7 @@ class Cost
             'Toll' => [
                 'model' => Toll::class,
                 'priceField' => 'price',
-                'dateColumn' => 'date',
+                'dateColumn' => 'start_date',
                 'itemField' => "CASE 
                     WHEN end_location IS NOT NULL AND end_location != '' 
                     THEN CONCAT(start_location, ' - ', end_location) 

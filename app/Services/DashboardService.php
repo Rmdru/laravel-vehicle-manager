@@ -30,8 +30,10 @@ class DashboardService
      */
     private array $filters = [];
 
-    public function __construct(private readonly VehicleStatusService $statusService)
-    {
+    public function __construct(
+        private readonly VehicleStatusService $statusService,
+        private readonly RdwService $rdw,
+    ) {
         //
     }
 
@@ -107,13 +109,44 @@ class DashboardService
         return array_values(array_filter([
             $this->stat(__('Average monthly costs'), 'mdi:hand-coin-outline', round($this->calculateAverageMonthlyCosts(), 2), round($this->calculateAverageMonthlyCosts(true), 2), prefix: '€'),
             $this->stat(__('Average costs per kilometer'), 'uil:euro-circle', $this->calculateCostsPerKilometer(), $this->calculateCostsPerKilometer(true), prefix: '€', suffix: '/km'),
+            $this->stat(__('Average fuel costs per kilometer'), 'ic:baseline-local-gas-station', $this->calculateFuelCostsPerKilometer(), $this->calculateFuelCostsPerKilometer(true), prefix: '€', suffix: '/km', hideWhenEmpty: true),
             $this->stat(__('Average fuel usage'), 'mdi:engine', $this->calculateAverageFuelConsumption(), $this->calculateAverageFuelConsumption(true), suffix: $unit),
+            $this->factoryConsumptionStat($vehicle, $unit),
             $this->stat(__('Average on-board computer deviation'), 'mdi:plus-minus-variant', $this->calculateAvgOnboardComputerDeviation(), $this->calculateAvgOnboardComputerDeviation(true), suffix: $unit, hideWhenEmpty: true),
             $this->stat(__('Average range'), 'ic:round-route', $this->calculateAverageRange(), $this->calculateAverageRange(true), suffix: 'km', higherIsBetter: true),
             $this->stat(__('Average monthly distance'), 'mdi:map-marker-distance', $this->calculateAverageMonthlyDistance(), $this->calculateAverageMonthlyDistance(true), suffix: 'km', higherIsBetter: true),
             $this->stat(__('Average speed'), 'mdi:speedometer', $this->calculateAvgSpeed(), $this->calculateAvgSpeed(true), suffix: 'km/h', higherIsBetter: true, hideWhenEmpty: true),
             $this->stat($ratioTitle, 'ic:round-local-gas-station', $this->calculateRatioPremiumFuel(), $this->calculateRatioPremiumFuel(true), suffix: '%', higherIsBetter: true, hideWhenEmpty: true),
         ]));
+    }
+
+    /**
+     * How much more (or less) the vehicle uses than the manufacturer specified,
+     * by WLTP or NEDC as the RDW registered it.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function factoryConsumptionStat(Vehicle $vehicle, string $unit): ?array
+    {
+        $factory = $this->rdw->getFactoryConsumption($vehicle->rdw_data['fuel'] ?? [], (string) $vehicle->powertrain);
+        $average = $this->calculateAverageFuelConsumption();
+
+        if ($factory === null || $average <= 0) {
+            return null;
+        }
+
+        $deviation = fn (float $consumption) => $consumption > 0 ? round(($consumption / $factory['value'] - 1) * 100, 1) : 0.0;
+
+        return $this->stat(
+            __('Fuel usage compared to :method (:consumption)', [
+                'method' => $factory['method'],
+                'consumption' => number_format($factory['value'], 1, ',', '.').' '.$unit,
+            ]),
+            'mdi:fuel',
+            $deviation($average),
+            $deviation($this->calculateAverageFuelConsumption(true)),
+            suffix: '%',
+        );
     }
 
     /**
@@ -144,6 +177,16 @@ class DashboardService
                 'fuel_detour_aggregates.max_detour_only_fuel_costs',
                 'fuel_detour_aggregates.max_detour_all_costs',
             ])
+            // The price before the latest one, to show whether the price went up or down.
+            ->addSelect(['previous_price' => FuelPrice::query()
+                ->from('fuel_prices', 'previous')
+                ->select('previous.price')
+                ->whereColumn('previous.country', 'fuel_prices.country')
+                ->whereColumn('previous.fuel_type', 'fuel_prices.fuel_type')
+                ->whereColumn('previous.date', '<', 'fuel_prices.date')
+                ->orderByDesc('previous.date')
+                ->limit(1),
+            ])
             ->get();
 
         $fuelTypes = $fuelPrices->pluck('fuel_type')->unique()
@@ -167,6 +210,8 @@ class DashboardService
                     'prices' => $prices->mapWithKeys(fn (FuelPrice $price) => [$price->fuel_type => [
                         'date' => $price->date->format('d-m-Y'),
                         'price' => number_format((float) $price->price, 3, ',', '.'),
+                        'previousPrice' => $price->previous_price === null ? null : number_format((float) $price->previous_price, 3, ',', '.'),
+                        'trend' => $price->previous_price === null ? 0 : round((float) $price->price, 3) <=> round((float) $price->previous_price, 3),
                         'detourFuel' => $price->max_detour_only_fuel_costs ?? 0,
                         'detourAll' => $price->max_detour_all_costs ?? 0,
                     ]])->all(),
@@ -381,9 +426,12 @@ class DashboardService
                 ->when($monthly, fn ($query) => $query
                     ->whereDate('start_date', '<=', $until)
                     ->where(fn ($query) => $query->whereNull('end_date')->orWhereDate('end_date', '>=', $from)))
+                // Only the newest of a type can make it into the list.
                 ->when(! $monthly, fn ($query) => $query
                     ->whereDate($dateColumn, '>=', $from)
-                    ->whereDate($dateColumn, '<=', $until))
+                    ->whereDate($dateColumn, '<=', $until)
+                    ->orderByDesc($dateColumn)
+                    ->limit(self::LATEST_COSTS))
                 ->get();
 
             foreach ($records as $record) {

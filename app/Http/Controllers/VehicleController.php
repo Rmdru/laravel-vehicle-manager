@@ -130,8 +130,29 @@ class VehicleController extends Controller
                     ])
                     ->values()
                     ->all()],
+                $this->inspectionSection($vehicle),
             ],
         ]);
+    }
+
+    /**
+     * The defects the RDW registered at the latest inspection that found any.
+     *
+     * @return array{title: string, icon: string, items: list<array<string, mixed>>}
+     */
+    private function inspectionSection(Vehicle $vehicle): array
+    {
+        $inspection = $vehicle->latestInspection();
+
+        return ['title' => __('Defects at the latest inspection (RDW)'), 'icon' => 'mdi:clipboard-alert', 'items' => $inspection === null ? [] : [
+            ['label' => __('Inspection date'), 'value' => Carbon::parse($inspection['date'])->isoFormat('ll'), 'icon' => 'ic:round-calendar-month'],
+            ['label' => __('Inspection type'), 'value' => $inspection['type'], 'icon' => 'ic:baseline-security'],
+            ...collect($inspection['defects'])->map(fn (array $defect) => [
+                'label' => $defect['article'] ?: __('Defect'),
+                'value' => $defect['description'].($defect['count'] > 1 ? ' ('.$defect['count'].'x)' : ''),
+                'icon' => 'mdi:clipboard-alert',
+            ])->all(),
+        ]];
     }
 
     public function edit(Vehicle $vehicle): Response
@@ -151,6 +172,7 @@ class VehicleController extends Controller
             'destroyUrl' => route('vehicles.destroy', $vehicle),
             'variant' => 'vehicle',
             'rdwLookupUrl' => route('vehicles.rdw-lookup'),
+            'warning' => app(RdwService::class)->getOdometerWarning($vehicle->rdw_data ?? []),
         ]);
     }
 
@@ -204,7 +226,8 @@ class VehicleController extends Controller
     }
 
     /**
-     * Values for the vehicle form, based on the RDW registration of a Dutch license plate.
+     * Values for the vehicle form, based on the RDW registration of a Dutch license plate,
+     * and a warning about what the RDW knows that needs attention.
      */
     public function rdwLookup(Request $request, RdwService $rdwService): JsonResponse
     {
@@ -220,28 +243,34 @@ class VehicleController extends Controller
             return response()->json([]);
         }
 
-        $fuelData = json_decode($rdwService->fetchFuelDataByLicensePlate($licensePlate), true)[0] ?? [];
+        $fuelData = json_decode($rdwService->fetchFuelDataByLicensePlate($licensePlate), true) ?: [];
         $date = fn (?string $value) => $value ? Carbon::createFromFormat('Ymd', $value)->format('Y-m-d') : null;
+        $primaryFuel = collect($fuelData)->firstWhere('brandstof_volgnummer', '1') ?? ($fuelData[0] ?? []);
 
         $engine = collect([
             ! empty($vehicleData['cilinderinhoud']) ? $vehicleData['cilinderinhoud'].' cc' : null,
             ! empty($vehicleData['aantal_cilinders']) ? $vehicleData['aantal_cilinders'].' '.__('cylinder') : null,
-            ! empty($fuelData['nettomaximumvermogen']) ? ((int) $fuelData['nettomaximumvermogen']).' kW' : null,
+            ! empty($primaryFuel['nettomaximumvermogen']) ? ((int) $primaryFuel['nettomaximumvermogen']).' kW' : null,
         ])->filter()->implode(' ');
 
         $brand = array_search(ucfirst(strtolower($vehicleData['merk'] ?? '')), config('vehicles.brands'), true);
-        $powertrain = $rdwService->getPowertrainOptionFromRdwFuelResponse(strtolower($fuelData['brandstof_omschrijving'] ?? ''));
+        $powertrain = $rdwService->getPowertrainOptionFromRdwFuelData($fuelData);
 
-        return response()->json(array_filter([
-            'brand' => $brand === false ? null : $brand,
-            'model' => ucfirst(strtolower($vehicleData['handelsbenaming'] ?? '')),
-            'version' => ucfirst(strtolower($vehicleData['type'] ?? '')),
-            'engine' => $engine,
-            'purchase_date' => $date($vehicleData['datum_tenaamstelling'] ?? null),
-            'construction_date' => $date($vehicleData['datum_eerste_toelating'] ?? null),
-            'country_registration' => 'netherlands',
-            'powertrain' => $powertrain,
-        ], fn ($value) => $value !== null && $value !== ''));
+        return response()->json([
+            'values' => array_filter([
+                'brand' => $brand === false ? null : $brand,
+                'model' => ucfirst(strtolower($vehicleData['handelsbenaming'] ?? '')),
+                'version' => ucfirst(strtolower($vehicleData['type'] ?? '')),
+                'engine' => $engine,
+                'purchase_date' => $date($vehicleData['datum_tenaamstelling'] ?? null),
+                'construction_date' => $date($vehicleData['datum_eerste_toelating'] ?? null),
+                'country_registration' => 'netherlands',
+                'powertrain' => $powertrain,
+                'fuel_types' => $rdwService->getFuelTypesFromRdwFuelData($fuelData),
+                'specifications' => $rdwService->getSpecifications($vehicleData, $fuelData),
+            ], fn ($value) => $value !== null && $value !== '' && $value !== []),
+            'warning' => $rdwService->getOdometerWarning($vehicleData),
+        ]);
     }
 
     private function authorizeOwner(Vehicle $vehicle): void
