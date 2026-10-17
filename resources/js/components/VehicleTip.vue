@@ -84,7 +84,7 @@ const actions = (
         <span
             :class="[
                 'flex size-9 shrink-0 items-center justify-center rounded-lg',
-                state === 'current'
+                state === 'current' || state === 'kept'
                     ? tones[tip.priority]
                     : 'bg-muted text-muted-foreground',
             ]"
