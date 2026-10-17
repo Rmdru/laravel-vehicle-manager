@@ -10,10 +10,10 @@ jobs:
       image: php:8.4-cli
     steps:
       - name: Clone
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Deployment
-        uses: appleboy/ssh-action@v0.1.10
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
