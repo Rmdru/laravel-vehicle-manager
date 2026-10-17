@@ -84,6 +84,13 @@ class Navigation
             'Refueled on :date in :country for :price.',
             ':difference below the average price at the time of the advice (:average): :savings saved.',
             ':difference above the average price at the time of the advice (:average): :savings more.',
+            // The tips.
+            'Tips', 'Generate tips', 'The tips have just been generated.',
+            'Get tips on maintenance, costs and the season, based on everything that is known about this vehicle.',
+            'Important', 'Before :date', 'Based on your data', 'General knowledge', 'Done', 'Not relevant',
+            'No tips right now: nothing stands out for this vehicle.', 'Indicative: check a tip before acting on it.',
+            // The categories of the tips.
+            'Maintenance', 'Season', 'Known issue', 'Costs and savings', 'Resale value', 'Rules and obligations', 'Use',
         ];
 
         return collect($keys)->mapWithKeys(fn (string $key) => [$key => __($key)])->all();

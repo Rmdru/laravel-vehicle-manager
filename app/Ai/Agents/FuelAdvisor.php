@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Ai\Agents;
 
+use App\Ai\ApiKeys;
 use App\Models\FuelAdvice;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
-use Laravel\Ai\Ai;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Contracts\HasTools;
@@ -60,11 +60,7 @@ class FuelAdvisor implements Agent, HasStructuredOutput, HasTools
      */
     public function provider(): Provider|string
     {
-        $name = config('fuel_advice.provider');
-
-        return $this->key === null
-            ? $name
-            : Ai::build([...config('ai.providers.'.$name, []), 'key' => $this->key]);
+        return ApiKeys::provider(config('fuel_advice.provider'), $this->key);
     }
 
     public function model(): string

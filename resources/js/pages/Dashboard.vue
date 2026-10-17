@@ -25,6 +25,8 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import VehicleAdvice from '@/components/VehicleAdvice.vue';
+import type { VehicleAdviceData } from '@/components/VehicleAdvice.vue';
 import { useT } from '@/composables/useT';
 import { periodLabel as formatPeriod } from '@/lib/period';
 import type { DateRange } from '@/lib/period';
@@ -45,6 +47,8 @@ type Notification = {
     urlLabel?: string;
     // The fuel advice: opens its own modal.
     opensFuelAdvice?: boolean;
+    // An urgent tip: points to it in the tips.
+    opensVehicleAdvice?: boolean;
 };
 
 type GasStation = {
@@ -103,6 +107,7 @@ const props = defineProps<{
             prices: Record<string, FuelPrice>;
         }[];
     };
+    vehicleAdvice?: VehicleAdviceData;
     // Null for a vehicle that does not use fuel.
     fuelAdvice?: FuelAdviceData | null;
     fuelPricesChart?: {
@@ -186,10 +191,15 @@ const gasStations = computed(
 );
 const details = ref<Notification | null>(null);
 const fuelAdvicePanel = useTemplateRef('fuelAdvicePanel');
+const vehicleAdvicePanel = useTemplateRef('vehicleAdvicePanel');
 
 function showDetails(notification: Notification) {
     if (notification.opensFuelAdvice) {
         fuelAdvicePanel.value?.show();
+    } else if (notification.opensVehicleAdvice) {
+        vehicleAdvicePanel.value?.show(
+            notification.key.replace(/^vehicle_advice:/, ''),
+        );
     } else {
         details.value = notification;
     }
@@ -446,7 +456,8 @@ const label = (key: string) => {
                         <button
                             v-if="
                                 notification.hasModal ||
-                                notification.opensFuelAdvice
+                                notification.opensFuelAdvice ||
+                                notification.opensVehicleAdvice
                             "
                             type="button"
                             class="min-h-9 cursor-pointer text-sm font-semibold underline"
@@ -465,6 +476,15 @@ const label = (key: string) => {
                 </ul>
             </Deferred>
         </SectionCard>
+
+        <Deferred data="vehicleAdvice">
+            <template #fallback><Skeleton class="h-24 w-full" /></template>
+            <VehicleAdvice
+                v-if="vehicleAdvice"
+                ref="vehicleAdvicePanel"
+                :data="vehicleAdvice"
+            />
+        </Deferred>
 
         <div class="flex flex-wrap items-center justify-between gap-2 pt-2">
             <h2 class="flex flex-wrap items-center gap-2 text-lg font-semibold">

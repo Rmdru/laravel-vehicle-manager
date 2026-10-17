@@ -5,17 +5,16 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Ai\Agents\FuelAdvisor;
+use App\Ai\ApiKeys;
 use App\Models\FuelAdvice;
 use App\Models\Refueling;
 use App\Models\Vehicle;
 use App\Support\StatusNotification;
 use Carbon\Carbon;
 use Closure;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use Laravel\Ai\Exceptions\InsufficientCreditsException;
 use Laravel\Ai\Responses\Data\UrlCitation;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use RuntimeException;
@@ -106,7 +105,7 @@ class FuelAdviceService
     private function ask(array $facts, Closure $advisor): array
     {
         $sources = array_values(array_map('strval', (array) config('fuel_advice.sources', [])));
-        $keys = $this->keys();
+        $keys = ApiKeys::shuffled(config('fuel_advice.provider'));
         $failure = null;
 
         $levels = array_filter([
@@ -123,7 +122,7 @@ class FuelAdviceService
                     $failure = $exception;
 
                     // A refused key is of no use for the next attempts either.
-                    if ($this->refused($exception)) {
+                    if (ApiKeys::refused($exception)) {
                         unset($keys[$number]);
                     }
 
@@ -142,41 +141,6 @@ class FuelAdviceService
         }
 
         throw $failure;
-    }
-
-    /**
-     * The API keys of the provider in random order, by the number they have in
-     * the configuration: GEMINI_API_KEY may hold several, separated by commas.
-     * [null] for the key as configured, when there is none or a single one.
-     *
-     * @return array<int, string|null>
-     */
-    private function keys(): array
-    {
-        $keys = array_values(array_filter(array_map(
-            'trim',
-            explode(',', (string) config('ai.providers.'.config('fuel_advice.provider').'.key')),
-        )));
-
-        if (count($keys) < 2) {
-            return [null];
-        }
-
-        $numbers = array_keys($keys);
-        shuffle($numbers);
-
-        return array_combine($numbers, array_map(fn (int $number) => $keys[$number], $numbers));
-    }
-
-    /**
-     * Whether the provider refused the key itself, rather than the request.
-     */
-    private function refused(Throwable $exception): bool
-    {
-        $request = $exception instanceof RequestException ? $exception : $exception->getPrevious();
-
-        return $exception instanceof InsufficientCreditsException
-            || ($request instanceof RequestException && in_array($request->response->status(), [401, 403], true));
     }
 
     /**

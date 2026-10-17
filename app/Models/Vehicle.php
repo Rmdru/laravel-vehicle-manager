@@ -913,6 +913,14 @@ class Vehicle extends Model
     }
 
     /**
+     * @return HasMany<VehicleAdvice, $this>
+     */
+    public function vehicleAdvices(): HasMany
+    {
+        return $this->hasMany(VehicleAdvice::class);
+    }
+
+    /**
      * @return HasMany<Maintenance, $this>
      */
     public function maintenances(): HasMany
