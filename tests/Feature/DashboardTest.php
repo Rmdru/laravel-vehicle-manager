@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Pipelines\ImportFuelPrices\CalculateFuelDetourAggregates;
 use App\Services\DashboardService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -292,6 +293,60 @@ class DashboardTest extends TestCase
         // A gasoline vehicle cannot run on LPG: no detour, and none stored.
         $this->assertNull($germany['LPG']['detourFuel']);
         $this->assertNull($germany['LPG']['detourAll']);
+        $this->assertSame(1, FuelDetourAggregate::where('vehicle_id', $vehicle->id)->count());
+    }
+
+    /**
+     * Unleaded 95 (E10) at home and in Germany, as the import would have stored it.
+     *
+     * @return list<array{date: string, country: string, fuel_type: string, price: float}>
+     */
+    private function storeDetourPrices(): array
+    {
+        $data = [];
+
+        foreach (['netherlands' => 2.40, 'germany' => 2.10] as $country => $price) {
+            FuelPrice::create(['date' => now()->toDateString(), 'country' => $country, 'fuel_type' => 'Unleaded 95 (E10)', 'price' => $price]);
+            $data[] = ['date' => now()->toDateString(), 'country' => $country, 'fuel_type' => 'Unleaded 95 (E10)', 'price' => $price];
+        }
+
+        return $data;
+    }
+
+    public function test_the_detours_are_only_calculated_for_drivable_vehicles_unless_one_is_asked_for()
+    {
+        $drivable = $this->signInWithVehicle();
+        $suspended = $this->signInWithVehicle(['status' => 'suspended']);
+
+        foreach ([$drivable, $suspended] as $vehicle) {
+            Refueling::factory()->for($vehicle)->create(['total_price' => 60, 'mileage_begin' => 1000, 'mileage_end' => 1500, 'charge_time' => null]);
+        }
+
+        $data = $this->storeDetourPrices();
+        $aggregates = fn ($vehicle) => FuelDetourAggregate::where('vehicle_id', $vehicle->id)->count();
+
+        (new CalculateFuelDetourAggregates)->handle($data, fn ($data) => $data);
+
+        $this->assertSame(1, $aggregates($drivable));
+        $this->assertSame(0, $aggregates($suspended));
+
+        // Asked for by hand, the suspended one counts as well.
+        (new CalculateFuelDetourAggregates($suspended->id))->handle($data, fn ($data) => $data);
+
+        $this->assertSame(1, $aggregates($suspended));
+    }
+
+    public function test_refreshing_by_hand_calculates_the_detours_of_the_current_vehicle_whatever_its_status()
+    {
+        $vehicle = $this->signInWithVehicle(['status' => 'suspended']);
+        Refueling::factory()->for($vehicle)->create(['total_price' => 60, 'mileage_begin' => 1000, 'mileage_end' => 1500, 'charge_time' => null]);
+        $this->storeDetourPrices();
+
+        // The prices were just refreshed: the detours come from the prices already there.
+        Cache::put('fuel-prices:refreshing', true, now()->addMinutes(5));
+
+        $this->post(route('fuel-prices.refresh'))->assertRedirect();
+
         $this->assertSame(1, FuelDetourAggregate::where('vehicle_id', $vehicle->id)->count());
     }
 

@@ -60,15 +60,22 @@ class DashboardController extends Controller
 
     public function refreshFuelPrices(): RedirectResponse
     {
+        // Asked for by hand: the detours of the current vehicle are calculated
+        // whatever its status, while the daily import only does drivable ones.
+        $vehicle = CurrentVehicle::get()->id;
+
         // The import calls several external services, so it runs after the response
-        // has been sent, and not again while it is running or has only just run.
+        // has been sent, and not again while it is running or has only just run. The
+        // detours of the vehicle then come from the prices that were just imported.
         if (! Cache::add('fuel-prices:refreshing', true, now()->addMinutes(self::REFRESH_FUEL_PRICES_EVERY))) {
+            defer(fn () => Artisan::call('import:fuel-prices', ['--vehicle' => $vehicle, '--detours-only' => true]));
+
             Inertia::flash('toast', ['type' => 'success', 'message' => __('The fuel prices have just been refreshed.')]);
 
             return back();
         }
 
-        defer(fn () => Artisan::call('import:fuel-prices'));
+        defer(fn () => Artisan::call('import:fuel-prices', ['--vehicle' => $vehicle]));
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('The fuel prices are being refreshed.')]);
 

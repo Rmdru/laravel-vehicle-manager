@@ -4,21 +4,41 @@ declare(strict_types=1);
 
 namespace App\Pipelines\ImportFuelPrices;
 
+use App\Enums\VehicleStatus;
 use App\Models\FuelDetourAggregate;
 use App\Models\FuelPrice;
 use App\Models\Vehicle;
 use App\Traits\VehicleStats;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * How far each vehicle can drive out of its way for the fuel prices abroad:
+ * every drivable vehicle, and the one asked for by hand whatever its status.
+ */
 class CalculateFuelDetourAggregates
 {
     use VehicleStats;
+
+    /**
+     * @param  string|null  $vehicleId  A vehicle to calculate the detours of, whatever its status.
+     * @param  bool  $onlyThatVehicle  Leave out the drivable vehicles.
+     */
+    public function __construct(
+        private readonly ?string $vehicleId = null,
+        private readonly bool $onlyThatVehicle = false,
+    ) {
+        //
+    }
 
     public function handle($data, $next): array
     {
         $countries = array_values(array_unique(array_column($data, 'country')));
 
         Vehicle::query()
+            ->where(fn (Builder $query) => $query
+                ->when(! $this->onlyThatVehicle, fn (Builder $query) => $query->where('status', VehicleStatus::Drivable->value))
+                ->when($this->vehicleId !== null, fn (Builder $query) => $query->orWhere('id', $this->vehicleId)))
             ->chunkById(100, function ($vehicles) use ($data, $countries) {
                 foreach ($vehicles as $vehicle) {
                     if (in_array($vehicle->powertrain, ['electricity', 'hydrogen'])) {

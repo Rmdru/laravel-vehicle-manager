@@ -99,7 +99,7 @@ class ScheduledCommandsTest extends TestCase
 
     public function test_importing_fuel_prices_stores_dutch_belgian_luxembourg_and_german_prices()
     {
-        $vehicle = Vehicle::factory()->create(['powertrain' => 'diesel', 'fuel_types' => ['Diesel'], 'country_registration' => 'netherlands', 'tank_capacity' => 50]);
+        $vehicle = Vehicle::factory()->create(['powertrain' => 'diesel', 'fuel_types' => ['Diesel'], 'country_registration' => 'netherlands', 'status' => VehicleStatus::Drivable->value, 'tank_capacity' => 50]);
 
         Http::fake([
             'https://opendata.cbs.nl/ODataApi/odata/80416ENG/TypedDataSet*' => Http::response([
