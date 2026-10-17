@@ -52,7 +52,17 @@ class VehicleRecordTest extends TestCase
         ];
     }
 
-    #[DataProvider('records')]
+    /**
+     * The records, by their route alone: for the tests that need no model.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function routes(): array
+    {
+        return array_map(fn (array $record) => [$record[0]], self::records());
+    }
+
+    #[DataProvider('routes')]
     public function test_guests_cannot_see_the_records(string $route)
     {
         $this->get(route("{$route}.index"))->assertRedirect(route('login'));
@@ -98,7 +108,7 @@ class VehicleRecordTest extends TestCase
                 ->has('form.defaults'));
     }
 
-    #[DataProvider('records')]
+    #[DataProvider('routes')]
     public function test_storing_validates_the_input(string $route)
     {
         $this->signInWithVehicle();

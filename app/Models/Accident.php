@@ -38,6 +38,9 @@ class Accident extends Model
         'attributes' => 'json',
     ];
 
+    /**
+     * @return BelongsTo<Vehicle, $this>
+     */
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);

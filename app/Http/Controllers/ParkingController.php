@@ -24,8 +24,8 @@ class ParkingController extends VehicleRecordController
     public function duplicate(string $id): RedirectResponse
     {
         $replica = $this->record($id)->replicate();
-        $replica->start_time = now();
-        $replica->end_time = now()->addHour();
+        $replica->setAttribute('start_time', now());
+        $replica->setAttribute('end_time', now()->addHour());
         $replica->save();
 
         return $this->redirectToIndex(__(':name duplicated.', ['name' => $this->singularTitle()]));

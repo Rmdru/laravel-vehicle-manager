@@ -38,7 +38,7 @@ class AccidentController extends VehicleRecordController
 
     protected function saved(Model $record): void
     {
-        if (in_array(AccidentSituation::VehicleNotRollable->value, (array) $record->situation, true)) {
+        if (in_array(AccidentSituation::VehicleNotRollable->value, (array) $record->getAttribute('situation'), true)) {
             $this->vehicle()->update(['status' => VehicleStatus::NotRollable->value]);
         }
     }

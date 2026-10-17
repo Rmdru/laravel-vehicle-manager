@@ -36,7 +36,7 @@ class TollController extends VehicleRecordController
 
     protected function formData(Model $record): array
     {
-        return [...parent::formData($record), 'road' => implode(', ', (array) $record->road)];
+        return [...parent::formData($record), 'road' => implode(', ', (array) $record->getAttribute('road'))];
     }
 
     protected function title(): string

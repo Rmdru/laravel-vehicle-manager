@@ -12,10 +12,10 @@ use App\Services\RdwService;
 use App\Services\VehicleStatusService;
 use App\Support\CurrentVehicle;
 use App\Support\Html;
+use App\Support\LicensePlate;
 use App\Support\StatusNotification;
 use App\Support\VehicleImage;
 use App\Support\VehiclePresenter;
-use App\Traits\Vehicles;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -231,7 +231,7 @@ class VehicleController extends Controller
      */
     public function rdwLookup(Request $request, RdwService $rdwService): JsonResponse
     {
-        $licensePlate = Vehicles::normalizeLicensePlate((string) $request->query('license_plate'));
+        $licensePlate = LicensePlate::normalize((string) $request->query('license_plate'));
 
         if ($licensePlate === '') {
             return response()->json([]);

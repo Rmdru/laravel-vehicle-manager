@@ -26,7 +26,7 @@ class OptimizeVehicleImages extends Command
                 }
 
                 $path = $vehicle->image_path;
-                $isSmall = str_ends_with($path, '.webp') && (@getimagesize($disk->path($path))[0] ?? 0) <= 320;
+                $isSmall = str_ends_with($path, '.webp') && ((($size = @getimagesize($disk->path($path))) === false ? 0 : $size[0]) <= 320);
 
                 // Images that already have their widths, or need none, would only lose quality by being stored again.
                 if ($isSmall || VehicleImage::srcset($vehicle) !== null) {

@@ -19,9 +19,9 @@ return new class extends Migration
             $table->date('date');
             $table->string('garage', 100)->nullable();
             $table->string('type_maintenance', 100)->nullable();
-            $table->json('apk', 100)->nullable();
+            $table->json('apk')->nullable();
             $table->date('apk_date')->nullable();
-            $table->json('washed', 100)->nullable();
+            $table->json('washed')->nullable();
             $table->text('description')->nullable();
             $table->float('total_price')->nullable();
             $table->integer('mileage_begin')->nullable();

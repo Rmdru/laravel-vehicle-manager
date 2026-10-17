@@ -28,11 +28,11 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('vehicles', function (Blueprint $table) {
-            $table->uuid('id')->dropUnique();
+            $table->dropUnique(['id']);
         });
 
         Schema::table('refuelings', function (Blueprint $table) {
-            $table->uuid('id')->dropUnique();
+            $table->dropUnique(['id']);
         });
     }
 };

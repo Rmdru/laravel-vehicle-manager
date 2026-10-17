@@ -129,7 +129,7 @@ class RefuelingForm extends VehicleRecordForm
     private function fuelTypeOptions(): array
     {
         $fuelTypes = trans('fuel_types');
-        $compatible = Arr::only($fuelTypes, $this->vehicle()?->fuel_types ?? []);
+        $compatible = Arr::only($fuelTypes, $this->vehicle()->fuel_types ?? []);
 
         return $compatible ?: $fuelTypes;
     }

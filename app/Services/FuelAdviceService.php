@@ -16,8 +16,6 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Laravel\Ai\Exceptions\InsufficientCreditsException;
-use Laravel\Ai\Responses\Data\ProviderToolCall;
-use Laravel\Ai\Responses\Data\Step;
 use Laravel\Ai\Responses\Data\UrlCitation;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use RuntimeException;
@@ -71,7 +69,7 @@ class FuelAdviceService
             return null;
         }
 
-        $abroad = collect($facts['countries'])->where('worth_the_detour', true)->pluck('country')->values()->all();
+        $abroad = collect((array) $facts['countries'])->where('worth_the_detour', true)->pluck('country')->map(fn ($country) => (string) $country)->values()->all();
         $advisor = fn (bool $search = false, array $sources = [], ?string $key = null) => new FuelAdvisor(
             self::LANGUAGES[$locale] ?? 'English', $facts['home_country'], $abroad, $search, $sources, $key,
         );
@@ -107,7 +105,7 @@ class FuelAdviceService
      */
     private function ask(array $facts, Closure $advisor): array
     {
-        $sources = array_values(config('fuel_advice.sources', []));
+        $sources = array_values(array_map('strval', (array) config('fuel_advice.sources', [])));
         $keys = $this->keys();
         $failure = null;
 
@@ -178,7 +176,7 @@ class FuelAdviceService
         $request = $exception instanceof RequestException ? $exception : $exception->getPrevious();
 
         return $exception instanceof InsufficientCreditsException
-            || ($request instanceof RequestException && in_array($request->response?->status(), [401, 403], true));
+            || ($request instanceof RequestException && in_array($request->response->status(), [401, 403], true));
     }
 
     /**
@@ -204,12 +202,21 @@ class FuelAdviceService
      */
     private function sources(StructuredAgentResponse $response): array
     {
-        $read = $response->steps
-            ->flatMap(fn (Step $step) => $step->providerToolCalls)
-            ->filter(fn (ProviderToolCall $call) => ($call->data['type'] ?? null) === 'url_context_result')
-            ->flatMap(fn (ProviderToolCall $call) => $call->data['result'] ?? [])
-            ->filter(fn ($result) => ($result['status'] ?? null) === 'success' && filled($result['url'] ?? null))
-            ->map(fn (array $result) => new UrlCitation($result['url']));
+        $read = [];
+
+        foreach ($response->steps as $step) {
+            foreach ($step->providerToolCalls as $call) {
+                if (($call->data['type'] ?? null) !== 'url_context_result') {
+                    continue;
+                }
+
+                foreach ((array) ($call->data['result'] ?? []) as $result) {
+                    if (($result['status'] ?? null) === 'success' && filled($result['url'] ?? null)) {
+                        $read[] = new UrlCitation((string) $result['url']);
+                    }
+                }
+            }
+        }
 
         return $response->meta->citations
             ->filter(fn ($citation) => $citation instanceof UrlCitation && filled($citation->url))
@@ -276,7 +283,7 @@ class FuelAdviceService
     {
         $countries = config('countries');
         $facts = $advice->facts;
-        $prices = collect($facts['countries'] ?? [])->keyBy('country');
+        $prices = collect((array) ($facts['countries'] ?? []))->keyBy('country');
         $home = $prices->get($facts['home_country'] ?? '');
         // The country abroad the advice is about, or else the cheapest one worth the detour.
         $country = $prices->get((string) $advice->country);
@@ -335,7 +342,7 @@ class FuelAdviceService
      */
     private function cheapestStation(array $facts): ?array
     {
-        return collect($facts['own_gas_stations'] ?? [])
+        return collect((array) ($facts['own_gas_stations'] ?? []))
             ->filter(fn (array $station) => $station['average_difference_with_country_average'] < 0)
             ->first();
     }
@@ -366,7 +373,7 @@ class FuelAdviceService
             ->latest()
             ->first();
 
-        $country = collect($advice?->facts['countries'] ?? [])->firstWhere('country', $refueling->country);
+        $country = collect((array) ($advice?->facts['countries'] ?? []))->firstWhere('country', $refueling->country);
 
         if ($advice === null || $country === null
             || ! (FuelAdviceFacts::comparable($refueling->fuel_type, $country['fuel_type'] ?? null)

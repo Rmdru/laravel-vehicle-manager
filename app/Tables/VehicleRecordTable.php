@@ -60,7 +60,7 @@ abstract class VehicleRecordTable extends AbstractTable
     }
 
     /**
-     * @param  array<string, string>  $options
+     * @param  array<int|string, string>  $options
      * @param  callable(Builder, string): mixed  $callback
      */
     protected function filter(TableBuilder $table, string $key, string $label, array $options, callable $callback): void
@@ -113,7 +113,7 @@ abstract class VehicleRecordTable extends AbstractTable
 
     protected function booleanFilter(TableBuilder $table, string $column, string $label): void
     {
-        $this->filter($table, $column, $label, ['1' => __('Yes'), '0' => __('No')], fn (Builder $query, string $value) => $value === '1'
+        $this->filter($table, $column, $label, ['1' => (string) __('Yes'), '0' => (string) __('No')], fn (Builder $query, string $value) => $value === '1'
             ? $query->where($column, true)
             : $query->where(fn (Builder $query) => $query->where($column, false)->orWhereNull($column)));
     }

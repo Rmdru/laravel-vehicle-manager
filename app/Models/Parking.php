@@ -34,6 +34,9 @@ class Parking extends Model
 
     protected $table = 'parking';
 
+    /**
+     * @return BelongsTo<Vehicle, $this>
+     */
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);

@@ -30,6 +30,9 @@ class Ferry extends Model
         'end_date' => 'datetime',
     ];
 
+    /**
+     * @return BelongsTo<Vehicle, $this>
+     */
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);

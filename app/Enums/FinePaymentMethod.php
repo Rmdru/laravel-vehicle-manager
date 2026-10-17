@@ -13,7 +13,7 @@ enum FinePaymentMethod: string implements HasIcon, HasLabel
     case DirectDebit = 'direct_debit';
     case BankTransfer = 'bank_transfer';
 
-    public function getLabel(): ?string
+    public function getLabel(): string
     {
         return match ($this) {
             self::Cash => __('Cash'),
@@ -24,7 +24,7 @@ enum FinePaymentMethod: string implements HasIcon, HasLabel
         };
     }
 
-    public function getIcon(): ?string
+    public function getIcon(): string
     {
         return match ($this) {
             self::Cash => 'mdi:hand-coin-outline',

@@ -11,6 +11,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * The percentage is missing on a refueling that has not been filled in yet.
+ *
+ * @property float|null $percentage
+ */
 class Refueling extends Model
 {
     use HasFactory;
@@ -52,6 +57,9 @@ class Refueling extends Model
         'charge_time' => 'datetime:H:i',
     ];
 
+    /**
+     * @return BelongsTo<Vehicle, $this>
+     */
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);

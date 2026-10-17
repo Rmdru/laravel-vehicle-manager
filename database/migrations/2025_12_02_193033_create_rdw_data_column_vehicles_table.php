@@ -20,7 +20,7 @@ return new class extends Migration
     public function down(): void
     {
         if (Schema::hasColumn('vehicles', 'rdw_data')) {
-            Schema::dropColumns('rdw_data');
+            Schema::dropColumns('vehicles', ['rdw_data']);
         }
     }
 };

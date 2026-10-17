@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\Vehicle;
 use App\Support\CurrentVehicle;
 use App\Support\Navigation;
+use App\Tables\VehicleRecordTable;
 use BackedEnum;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -16,7 +17,6 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 use TranquilTools\FormBuilder\AbstractForm;
-use TranquilTools\TableBuilder\AbstractTable;
 
 /**
  * CRUD for a type of record that belongs to the current vehicle.
@@ -29,7 +29,7 @@ abstract class VehicleRecordController extends Controller
     /** @var class-string<AbstractForm> */
     protected string $form;
 
-    /** @var class-string<AbstractTable> */
+    /** @var class-string<VehicleRecordTable> */
     protected string $table;
 
     protected string $routeName;
@@ -241,6 +241,7 @@ abstract class VehicleRecordController extends Controller
 
         $stats = (clone $query)
             ->selectRaw("AVG({$this->priceColumn}) as average, MIN({$this->priceColumn}) as minimum, MAX({$this->priceColumn}) as maximum")
+            ->toBase()
             ->first();
 
         if ($stats?->average === null) {

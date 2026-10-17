@@ -12,5 +12,13 @@ return [
                 'Super Plus (E5)' => 'EURO98',
             ],
         ],
+        // Tankerkönig only has E10, E5 and diesel.
+        'germany' => [
+            'iso3_code' => 'DEU',
+            'fuel_types' => [
+                'Super Plus (E5)' => 'EURO98',
+                'LPG' => 'AUTOGAS',
+            ],
+        ],
     ],
 ];

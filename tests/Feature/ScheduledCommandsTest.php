@@ -99,7 +99,7 @@ class ScheduledCommandsTest extends TestCase
 
     public function test_importing_fuel_prices_stores_dutch_belgian_luxembourg_and_german_prices()
     {
-        $vehicle = Vehicle::factory()->create(['powertrain' => 'diesel', 'tank_capacity' => 50]);
+        $vehicle = Vehicle::factory()->create(['powertrain' => 'diesel', 'fuel_types' => ['Diesel'], 'country_registration' => 'netherlands', 'tank_capacity' => 50]);
 
         Http::fake([
             'https://opendata.cbs.nl/ODataApi/odata/80416ENG/TypedDataSet*' => Http::response([
@@ -128,6 +128,11 @@ class ScheduledCommandsTest extends TestCase
                         ['fuelType' => 'Euro 95 (E10)', 'fuelTypeCode' => 'EURO95', 'averagePrice' => 2.427],
                         ['fuelType' => 'Super Plus 98 (E5)', 'fuelTypeCode' => 'EURO98', 'averagePrice' => 2.728],
                     ]],
+                    ['iso3CountryCode' => 'DEU', 'country' => 'Duitsland', 'fuelPrices' => [
+                        ['fuelType' => 'Euro 95 (E10)', 'fuelTypeCode' => 'EURO95', 'averagePrice' => 2.104],
+                        ['fuelType' => 'Super Plus 98 (E5)', 'fuelTypeCode' => 'EURO98', 'averagePrice' => 2.241],
+                        ['fuelType' => 'Autogas (LPG)', 'fuelTypeCode' => 'AUTOGAS', 'averagePrice' => 1.123],
+                    ]],
                 ]]]]]]).'</script></body></html>',
             ),
             'https://creativecommons.tankerkoenig.de/api/v4/stats*' => Http::response([
@@ -152,6 +157,11 @@ class ScheduledCommandsTest extends TestCase
         $this->assertEquals(2.728, $superPlus->price);
         $this->assertSame(today()->toDateString(), $superPlus->date->toDateString());
         $this->assertSame('2026-05-26', FuelPrice::where('country', 'netherlands')->where('fuel_type', 'Unleaded 95 (E10)')->sole()->date->toDateString());
+
+        // The same for Germany: Super Plus and LPG, which Tankerkönig lacks. Its E10 stays Tankerkönig's.
+        $this->assertEquals(2.241, FuelPrice::where('country', 'germany')->where('fuel_type', 'Super Plus (E5)')->sole()->price);
+        $this->assertEquals(1.123, FuelPrice::where('country', 'germany')->where('fuel_type', 'LPG')->sole()->price);
+        $this->assertEquals(1.62, FuelPrice::where('country', 'germany')->where('fuel_type', 'Unleaded 95 (E10)')->sole()->price);
     }
 
     public function test_the_fuel_prices_are_imported_without_the_anwb_when_its_page_cannot_be_read()

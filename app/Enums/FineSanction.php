@@ -16,7 +16,7 @@ enum FineSanction: string implements HasIcon, HasLabel
     case DriversLicenseConfiscated = 'drivers_license_confiscated';
     case Arrested = 'arrested';
 
-    public function getLabel(): ?string
+    public function getLabel(): string
     {
         return match ($this) {
             self::WokStatus => __('WOK status'),

@@ -7,7 +7,10 @@ import { usePage } from '@inertiajs/vue3';
 export function useT() {
     const page = usePage();
 
-    function t(key: string, replace: Record<string, string | number> = {}): string {
+    function t(
+        key: string,
+        replace: Record<string, string | number> = {},
+    ): string {
         const translations = (page.props.t ?? {}) as Record<string, string>;
 
         return Object.entries(replace).reduce(

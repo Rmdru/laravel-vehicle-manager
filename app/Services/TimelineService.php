@@ -286,7 +286,7 @@ class TimelineService
             'logo' => $extra['logo'] ?? null,
             'flag' => $country ? ['isoCode' => $country['iso_code'], 'name' => $country['name']] : null,
             'date' => $date?->isoFormat('ll'),
-            'sort' => $date?->timestamp ?? 0,
+            'sort' => $date->timestamp ?? 0,
             'month' => $date ? (string) str($date->isoFormat('MMMM Y'))->ucfirst() : '',
             'price' => is_numeric($extra['price'] ?? null) && (float) $extra['price'] > 0
                 ? '€ '.number_format((float) $extra['price'], 2, ',', '.')

@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\FuelDetourAggregate;
 use App\Models\FuelPrice;
 use App\Models\Reconditioning;
 use App\Models\Refueling;
 use App\Models\User;
+use App\Pipelines\ImportFuelPrices\CalculateFuelDetourAggregates;
 use App\Services\DashboardService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -262,6 +264,35 @@ class DashboardTest extends TestCase
         $vehicle->update(['country_registration' => 'france']);
 
         $this->assertSame('netherlands', $home());
+    }
+
+    public function test_the_detours_are_only_calculated_and_shown_for_the_fuels_of_the_vehicle()
+    {
+        // signInWithVehicle(): Unleaded 95 (E10) and Super Plus (E5), registered in the Netherlands.
+        $vehicle = $this->signInWithVehicle();
+        Refueling::factory()->for($vehicle)->create(['total_price' => 60, 'mileage_begin' => 1000, 'mileage_end' => 1500, 'charge_time' => null]);
+
+        $prices = [
+            ['netherlands', 'Unleaded 95 (E10)', 2.40], ['germany', 'Unleaded 95 (E10)', 2.10],
+            ['netherlands', 'LPG', 1.00], ['germany', 'LPG', 0.80],
+        ];
+
+        foreach ($prices as [$country, $fuelType, $price]) {
+            FuelPrice::create(['date' => now()->toDateString(), 'country' => $country, 'fuel_type' => $fuelType, 'price' => $price]);
+        }
+
+        (new CalculateFuelDetourAggregates)->handle(
+            array_map(fn (array $price) => ['date' => now()->toDateString(), 'country' => $price[0], 'fuel_type' => $price[1], 'price' => $price[2]], $prices),
+            fn ($data) => $data,
+        );
+
+        $germany = collect(app(DashboardService::class)->fuelPricesAbroad($vehicle->fresh())['countries'])->firstWhere('key', 'germany')['prices'];
+
+        $this->assertGreaterThan(0, $germany['Unleaded 95 (E10)']['detourFuel']);
+        // A gasoline vehicle cannot run on LPG: no detour, and none stored.
+        $this->assertNull($germany['LPG']['detourFuel']);
+        $this->assertNull($germany['LPG']['detourAll']);
+        $this->assertSame(1, FuelDetourAggregate::where('vehicle_id', $vehicle->id)->count());
     }
 
     public function test_the_fuel_prices_chart_has_the_countries_with_prices_in_the_period()

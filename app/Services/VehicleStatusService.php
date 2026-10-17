@@ -55,7 +55,7 @@ class VehicleStatusService
                 continue;
             }
 
-            $this->processNotification($notifications, $status ?? null, $mapping, $key);
+            $this->processNotification($notifications, $status, $mapping, $key);
         }
 
         if (empty($notifications)) {

@@ -12,6 +12,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
 
+/**
+ * The dates can be missing on a model that has not been saved yet.
+ *
+ * @property Carbon|null $start_date
+ * @property Carbon|null $end_date
+ */
 class Tax extends Model
 {
     use HasFactory;
@@ -104,6 +110,9 @@ class Tax extends Model
         return $nextInvoiceDate;
     }
 
+    /**
+     * @return BelongsTo<Vehicle, $this>
+     */
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);

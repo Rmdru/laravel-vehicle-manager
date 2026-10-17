@@ -12,7 +12,7 @@ enum AccidentType: string implements HasIcon, HasLabel
     case OneSided = 'one_sided';
     case MultiSide = 'multi_sided';
 
-    public function getLabel(): ?string
+    public function getLabel(): string
     {
         return match ($this) {
             self::OneSided => __('One-sided'),
@@ -20,7 +20,7 @@ enum AccidentType: string implements HasIcon, HasLabel
         };
     }
 
-    public function getIcon(): ?string
+    public function getIcon(): string
     {
         return match ($this) {
             self::OneSided => 'mdi:car',

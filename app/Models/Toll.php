@@ -40,6 +40,9 @@ class Toll extends Model
 
     protected $table = 'toll';
 
+    /**
+     * @return BelongsTo<Vehicle, $this>
+     */
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);

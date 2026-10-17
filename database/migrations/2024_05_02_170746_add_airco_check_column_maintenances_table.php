@@ -52,7 +52,7 @@ return new class extends Migration
         });
 
         Schema::table('maintenances', function (Blueprint $table) {
-            $table->uuid('id')->dropUnique();
+            $table->dropUnique(['id']);
         });
 
         Schema::table('maintenances', function (Blueprint $table) {

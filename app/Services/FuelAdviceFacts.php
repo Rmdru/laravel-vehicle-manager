@@ -92,12 +92,12 @@ class FuelAdviceFacts
             return null;
         }
 
-        $home = $vehicle->fuelPriceHomeCountry($prices->keys()->all());
+        $home = $vehicle->fuelPriceHomeCountry(array_values(array_map('strval', $prices->keys()->all())));
         $homePrice = $prices->has($home) ? (float) $prices[$home]->last()->price : null;
-        $user = $vehicle->user;
+        $user = $vehicle->user()->first();
         // The city of the user, as their profile located it. Without one the
         // driver is taken to live in the country the vehicle is registered in.
-        $location = $user?->latitude !== null && $user?->longitude !== null && filled($user?->city)
+        $location = $user !== null && $user->latitude !== null && $user->longitude !== null && filled($user->city)
             ? ['lat' => (float) $user->latitude, 'lon' => (float) $user->longitude]
             : null;
 
@@ -141,7 +141,7 @@ class FuelAdviceFacts
      * country on the day: the price itself says little, as prices move.
      *
      * @param  list<string>  $fuelTypes  The fuel of the advice, and the ones comparable to it.
-     * @return list<array<string, mixed>>
+     * @return array<int, array<string, mixed>>
      */
     private function gasStations(Vehicle $vehicle, array $fuelTypes): array
     {
@@ -348,7 +348,7 @@ class FuelAdviceFacts
      */
     private function detour(Vehicle $vehicle, string $country, ?float $savings, ?array $location): array
     {
-        $points = config('fuel_advice.border_points.'.$country, []);
+        $points = (array) config('fuel_advice.border_points.'.$country, []);
 
         if ($location === null || $points === []) {
             return ['distance_from_driver_km' => 'unknown', 'worth_the_detour' => false];
@@ -372,7 +372,7 @@ class FuelAdviceFacts
      * The distance as the crow flies, by the haversine formula.
      *
      * @param  array{lat: float, lon: float}  $from
-     * @param  array{0: float, 1: float}  $to  Latitude, longitude.
+     * @param  array<int, float>  $to  Latitude, longitude.
      */
     private function kilometers(array $from, array $to): float
     {

@@ -23,6 +23,11 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
+/**
+ * The construction date can be unknown.
+ *
+ * @property Carbon|null $construction_date
+ */
 class Vehicle extends Model
 {
     use HasFactory;
@@ -34,7 +39,7 @@ class Vehicle extends Model
     /**
      * The attributes that are mass assignable.
      *
-     * @var array<int, string>
+     * @var list<string>
      */
     protected $fillable = [
         'user_id',
@@ -383,7 +388,7 @@ class Vehicle extends Model
         // Insurances that have yet to start, or that have no end, have nothing to report.
         $insurance = $this->insurances->where('start_date', '<=', today())->sortByDesc('start_date')->first();
 
-        if (empty($insurance?->end_date)) {
+        if (empty($insurance->end_date)) {
             return [];
         }
 
@@ -401,7 +406,7 @@ class Vehicle extends Model
     {
         $tax = $this->taxes->where('start_date', '<=', today())->sortByDesc('start_date')->first();
 
-        if (empty($tax?->end_date)) {
+        if (empty($tax->end_date)) {
             return [];
         }
 
@@ -422,9 +427,10 @@ class Vehicle extends Model
      */
     private function weatherLocation(): array
     {
-        $owner = $this->user;
+        // The owner can be gone (soft deleted), whatever the foreign key says.
+        $owner = $this->getRelationValue('user');
 
-        if ($owner?->latitude !== null && $owner?->longitude !== null) {
+        if ($owner instanceof User && $owner->latitude !== null && $owner->longitude !== null) {
             return ['lat' => $owner->latitude, 'lon' => $owner->longitude];
         }
 
@@ -438,6 +444,16 @@ class Vehicle extends Model
     {
         Cache::forget('vehicle_'.$this->id.'_historical_min_temps');
         Cache::store('database')->forget('vehicle_'.$this->id.'_historical_min_temps');
+    }
+
+    /**
+     * Whether the vehicle can run on the fuel: one of its compatible fuel
+     * types. A vehicle without them (from before they had to be filled in)
+     * is taken to run on any.
+     */
+    public function suitableForFuel(string $fuelType): bool
+    {
+        return empty($this->fuel_types) || in_array($fuelType, $this->fuel_types, true);
     }
 
     /**
@@ -495,6 +511,11 @@ class Vehicle extends Model
         return $this->reconditionings()->where('type', 'exterior_protection')->orderByDesc('date')->first();
     }
 
+    /**
+     * Empty when the vehicle was never washed.
+     *
+     * @return array{time: int|float, timeDiffHumans: string}|array{}
+     */
     public function getWashingStatusAttribute(): array
     {
         $latestWash = (new Reconditioning)->latestWash($this->id);
@@ -523,7 +544,7 @@ class Vehicle extends Model
 
         $washingStatus = $this->washing_status;
 
-        if (empty($washingStatus) || (! empty($washingStatus) && $washingStatus['time'] >= 10)) {
+        if (empty($washingStatus) || $washingStatus['time'] >= 10) {
             return [];
         }
 
@@ -545,7 +566,7 @@ class Vehicle extends Model
         $washingStatus = $this->washing_status;
         $exteriorProtectionStatus = $this->getExteriorProtectionStatus();
 
-        if (empty($washingStatus) || (! empty($washingStatus) && $washingStatus['time'] >= 10)) {
+        if (empty($washingStatus) || $washingStatus['time'] >= 10) {
             return [];
         }
 
@@ -569,7 +590,7 @@ class Vehicle extends Model
         $washingStatus = $this->washing_status;
         $exteriorProtectionStatus = $this->getExteriorProtectionStatus();
 
-        if (empty($washingStatus) || (! empty($washingStatus) && $washingStatus['time'] >= 10) || empty($exteriorProtectionStatus)) {
+        if (empty($washingStatus) || $washingStatus['time'] >= 10 || empty($exteriorProtectionStatus)) {
             return [];
         }
 
@@ -618,7 +639,7 @@ class Vehicle extends Model
 
         if ($detectedAt === null
             || $detectedAt->isBefore(today()->subDays(90))
-            || $this->maintenances->contains(fn (Maintenance $maintenance) => $maintenance->apk && $maintenance->date?->gte($registered))) {
+            || $this->maintenances->contains(fn (Maintenance $maintenance) => $maintenance->apk && $maintenance->date->gte($registered))) {
             return ['recordCount' => 0];
         }
 
@@ -867,11 +888,17 @@ class Vehicle extends Model
         return $averages;
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * @return HasMany<Refueling, $this>
+     */
     public function refuelings(): HasMany
     {
         return $this->hasMany(Refueling::class);
@@ -885,66 +912,105 @@ class Vehicle extends Model
         return $this->hasMany(FuelAdvice::class);
     }
 
+    /**
+     * @return HasMany<Maintenance, $this>
+     */
     public function maintenances(): HasMany
     {
         return $this->hasMany(Maintenance::class);
     }
 
+    /**
+     * @return HasMany<Insurance, $this>
+     */
     public function insurances(): HasMany
     {
         return $this->hasMany(Insurance::class);
     }
 
+    /**
+     * @return HasMany<Tax, $this>
+     */
     public function taxes(): HasMany
     {
         return $this->hasMany(Tax::class);
     }
 
+    /**
+     * @return HasMany<Parking, $this>
+     */
     public function parkings(): HasMany
     {
         return $this->hasMany(Parking::class);
     }
 
+    /**
+     * @return HasMany<Toll, $this>
+     */
     public function tolls(): HasMany
     {
         return $this->hasMany(Toll::class);
     }
 
+    /**
+     * @return HasMany<Fine, $this>
+     */
     public function fines(): HasMany
     {
         return $this->hasMany(Fine::class);
     }
 
+    /**
+     * @return HasMany<Reconditioning, $this>
+     */
     public function reconditionings(): HasMany
     {
         return $this->hasMany(Reconditioning::class);
     }
 
+    /**
+     * @return HasMany<Vignette, $this>
+     */
     public function vignettes(): HasMany
     {
         return $this->hasMany(Vignette::class);
     }
 
+    /**
+     * @return HasMany<EnvironmentalSticker, $this>
+     */
     public function environmentalStickers(): HasMany
     {
         return $this->hasMany(EnvironmentalSticker::class);
     }
 
+    /**
+     * @return HasMany<Ferry, $this>
+     */
     public function ferries(): HasMany
     {
         return $this->hasMany(Ferry::class);
     }
 
+    /**
+     * @return HasMany<Service, $this>
+     */
     public function services(): HasMany
     {
         return $this->hasMany(Service::class);
     }
 
+    /**
+     * @return HasMany<Product, $this>
+     */
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);
     }
 
+    /**
+     * @return HasMany<Accident, $this>
+     */
     public function accidents(): HasMany
     {
         return $this->hasMany(Accident::class);

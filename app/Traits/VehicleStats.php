@@ -135,7 +135,7 @@ trait VehicleStats
                 $monthsCount = $results->count();
 
                 foreach ($results as $result) {
-                    $totalDistance += $result->total_distance;
+                    $totalDistance += $result->getAttribute('total_distance');
                 }
 
                 if ($monthsCount === 0) {

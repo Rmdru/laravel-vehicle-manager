@@ -221,10 +221,11 @@ class DashboardService
                     'prices' => $prices->mapWithKeys(fn (FuelPrice $price) => [$price->fuel_type => [
                         'date' => $price->date->format('d-m-Y'),
                         'price' => number_format((float) $price->price, 3, ',', '.'),
-                        'previousPrice' => $price->previous_price === null ? null : number_format((float) $price->previous_price, 3, ',', '.'),
-                        'trend' => $price->previous_price === null ? 0 : round((float) $price->price, 3) <=> round((float) $price->previous_price, 3),
-                        'detourFuel' => $price->max_detour_only_fuel_costs ?? 0,
-                        'detourAll' => $price->max_detour_all_costs ?? 0,
+                        'previousPrice' => $price->getAttribute('previous_price') === null ? null : number_format((float) $price->getAttribute('previous_price'), 3, ',', '.'),
+                        'trend' => $price->getAttribute('previous_price') === null ? 0 : round((float) $price->price, 3) <=> round((float) $price->getAttribute('previous_price'), 3),
+                        // Only for a fuel the vehicle can run on.
+                        'detourFuel' => $vehicle->suitableForFuel($price->fuel_type) ? ($price->max_detour_only_fuel_costs ?? 0) : null,
+                        'detourAll' => $vehicle->suitableForFuel($price->fuel_type) ? ($price->max_detour_all_costs ?? 0) : null,
                     ]])->all(),
                 ])
                 ->values()
@@ -372,7 +373,7 @@ class DashboardService
     /**
      * The five cheapest and the five most expensive of the gas stations.
      *
-     * @param  Collection<int, array<string, mixed>>  $stations
+     * @param  Collection<int, covariant array<string, mixed>>  $stations
      * @return array{cheapest: list<array<string, mixed>>, mostExpensive: list<array<string, mixed>>}
      */
     private function rankGasStations(Collection $stations): array
@@ -521,15 +522,15 @@ class DashboardService
      */
     private function invoiceDates(Model $record, Carbon $from, Carbon $until): array
     {
-        $first = Carbon::parse($record->start_date)->max($from);
-        $last = collect([$until, today()->subDay()->endOfDay(), $record->end_date ? Carbon::parse($record->end_date)->endOfDay() : null])
+        $first = Carbon::parse($record->getAttribute('start_date'))->max($from);
+        $last = collect([$until, today()->subDay()->endOfDay(), $record->getAttribute('end_date') ? Carbon::parse($record->getAttribute('end_date'))->endOfDay() : null])
             ->filter()
             ->min();
 
         $dates = [];
 
         for ($month = $first->copy()->startOfMonth(); $month->lte($last); $month->addMonth()) {
-            $date = $month->copy()->addDays(min((int) $record->invoice_day, $month->daysInMonth) - 1);
+            $date = $month->copy()->addDays(min((int) $record->getAttribute('invoice_day'), $month->daysInMonth) - 1);
 
             if ($date->betweenIncluded($first->copy()->startOfDay(), $last)) {
                 $dates[] = $date;
@@ -549,20 +550,20 @@ class DashboardService
 
     private function costItem(string $type, Model $record, Vehicle $vehicle): string
     {
-        $section = fn () => filled($record->end_location)
-            ? $record->start_location.' - '.$record->end_location
-            : (string) $record->start_location;
+        $section = fn () => filled($record->getAttribute('end_location'))
+            ? $record->getAttribute('start_location').' - '.$record->getAttribute('end_location')
+            : (string) $record->getAttribute('start_location');
 
         return (string) str(match ($type) {
-            'Fuel' => $record->amount.' '.(trans('powertrains')[$vehicle->powertrain]['unit_short'] ?? 'l'),
-            'Maintenance' => (string) $record->description,
-            'Reconditioning', 'Service', 'Accident' => str_replace('_', ' ', (string) $record->type),
-            'Insurance' => (string) $record->type,
-            'Parking' => (string) $record->location,
+            'Fuel' => $record->getAttribute('amount').' '.(trans('powertrains')[$vehicle->powertrain]['unit_short'] ?? 'l'),
+            'Maintenance' => (string) $record->getAttribute('description'),
+            'Reconditioning', 'Service', 'Accident' => str_replace('_', ' ', (string) $record->getAttribute('type')),
+            'Insurance' => (string) $record->getAttribute('type'),
+            'Parking' => (string) $record->getAttribute('location'),
             'Toll', 'Transport trains & ferry services' => $section(),
-            'Fine' => (string) $record->fact,
-            'Vignette', 'Environmental sticker' => (string) $record->country,
-            'Product' => (string) $record->name,
+            'Fine' => (string) $record->getAttribute('fact'),
+            'Vignette', 'Environmental sticker' => (string) $record->getAttribute('country'),
+            'Product' => (string) $record->getAttribute('name'),
             default => '',
         })->words(10);
     }

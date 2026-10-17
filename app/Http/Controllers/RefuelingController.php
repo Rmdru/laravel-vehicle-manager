@@ -59,6 +59,7 @@ class RefuelingController extends VehicleRecordController
         $consumptionUnit = $powertrain['consumption_unit'] ?? 'l/100km';
         $averages = Refueling::where('vehicle_id', $refueling->vehicle_id)
             ->selectRaw('AVG(fuel_consumption) as consumption, AVG(avg_speed) as speed')
+            ->toBase()
             ->first();
 
         $number = fn ($value, int $decimals = 2) => number_format((float) $value, $decimals, ',', '.');
@@ -78,7 +79,7 @@ class RefuelingController extends VehicleRecordController
                     ['label' => __('Gas station'), 'value' => $refueling->gas_station, 'icon' => 'ic:round-location-on'],
                     ['label' => __('Service by attendant'), 'html' => $refueling->service_by_attendant ? Html::badge(__('Service by attendant'), 'success', 'ic:baseline-star') : null],
                     ['label' => __('Country'), 'html' => Html::flag($refueling->country, showName: true) ?: null],
-                    ['label' => __('Date'), 'value' => $refueling->date?->isoFormat('ll'), 'icon' => 'ic:round-calendar-month'],
+                    ['label' => __('Date'), 'value' => $refueling->date->isoFormat('ll'), 'icon' => 'ic:round-calendar-month'],
                 ]],
                 ['title' => __('Fuel'), 'icon' => 'mdi:fuel', 'items' => [
                     ['label' => __('Fuel type'), 'value' => trans('fuel_types')[$refueling->fuel_type] ?? $refueling->fuel_type, 'icon' => 'ic:round-local-gas-station'],
@@ -122,7 +123,7 @@ class RefuelingController extends VehicleRecordController
     {
         $vehicle = $this->vehicle();
 
-        $refueling = $record ? clone $record : new Refueling;
+        $refueling = $record instanceof Refueling ? clone $record : new Refueling;
         $refueling->fill([...$data, 'vehicle_id' => $vehicle->id])->setRelation('vehicle', $vehicle);
         $refueling->calculateConsumption();
 
@@ -174,7 +175,7 @@ class RefuelingController extends VehicleRecordController
 
     protected function formData(Model $record): array
     {
-        return [...parent::formData($record), 'charge_time' => $record->charge_time?->format('H:i')];
+        return [...parent::formData($record), 'charge_time' => $record->getAttribute('charge_time')?->format('H:i')];
     }
 
     protected function formProps(): array
@@ -196,6 +197,7 @@ class RefuelingController extends VehicleRecordController
 
         $consumption = (clone $query)
             ->selectRaw('AVG(fuel_consumption) as average, MIN(fuel_consumption) as minimum, MAX(fuel_consumption) as maximum')
+            ->toBase()
             ->first();
 
         if (! $mostVisited) {

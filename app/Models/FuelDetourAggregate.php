@@ -21,11 +21,17 @@ class FuelDetourAggregate extends Model
         'max_detour_all_costs',
     ];
 
+    /**
+     * @return BelongsTo<Vehicle, $this>
+     */
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);
     }
 
+    /**
+     * @return BelongsTo<FuelPrice, $this>
+     */
     public function fuelPrice(): BelongsTo
     {
         return $this->belongsTo(FuelPrice::class);

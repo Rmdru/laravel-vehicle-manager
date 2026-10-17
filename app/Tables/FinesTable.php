@@ -25,7 +25,7 @@ class FinesTable extends VehicleRecordTable
             ->column('icon', '', canBeHidden: false, as: fn ($value, Fine $fine) => new HtmlString(Html::rowIcon($fine->icon, 'maki:police')))
             ->column('fact', __('Fact'), sortable: true, as: fn ($value, Fine $fine) => new HtmlString(
                 '<div class="font-medium">'.Html::iconText('ic:round-gavel', $fine->fact).'</div>'
-                .(filled($fine->description) ? '<div class="text-xs text-muted-foreground">'.e(str($fine->description)->limit(80)).'</div>' : '')
+                .(filled($fine->description) ? '<div class="text-xs text-muted-foreground">'.e(str($fine->description)->limit(80)->toString()).'</div>' : '')
             ))
             ->column('country', __('Country'), sortable: true, as: fn ($value) => new HtmlString(Html::flag($value)))
             ->column('road', __('Road'), sortable: true, as: fn ($value, Fine $fine) => new HtmlString(

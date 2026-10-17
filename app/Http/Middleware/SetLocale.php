@@ -21,7 +21,7 @@ class SetLocale
 
     public function handle(Request $request, Closure $next): Response
     {
-        $locale = $request->user()?->language
+        $locale = $request->user()->language
             ?? ($request->hasSession() ? $request->session()->get('locale') : null);
 
         if (is_string($locale) && array_key_exists($locale, self::LOCALES)) {

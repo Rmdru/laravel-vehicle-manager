@@ -15,7 +15,7 @@ enum TollPaymentMethod: string implements HasIcon, HasLabel
     case TollBadge = 'toll_badge';
     case App = 'app';
 
-    public function getLabel(): ?string
+    public function getLabel(): string
     {
         return match ($this) {
             self::Cash => __('Cash'),
@@ -26,7 +26,7 @@ enum TollPaymentMethod: string implements HasIcon, HasLabel
         };
     }
 
-    public function getIcon(): ?string
+    public function getIcon(): string
     {
         return match ($this) {
             self::Cash => 'mdi:hand-coin-outline',

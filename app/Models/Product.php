@@ -25,6 +25,9 @@ class Product extends Model
         'date' => 'date:Y-m-d',
     ];
 
+    /**
+     * @return BelongsTo<Vehicle, $this>
+     */
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);

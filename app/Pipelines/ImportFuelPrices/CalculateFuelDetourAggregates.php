@@ -29,7 +29,8 @@ class CalculateFuelDetourAggregates
                     $home = $vehicle->fuelPriceHomeCountry($countries);
 
                     foreach ($data as $fuelPrice) {
-                        if ($fuelPrice['country'] === $home) {
+                        // No detour is worth a fuel the vehicle cannot run on.
+                        if ($fuelPrice['country'] === $home || ! $vehicle->suitableForFuel($fuelPrice['fuel_type'])) {
                             continue;
                         }
 

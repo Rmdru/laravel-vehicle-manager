@@ -29,10 +29,18 @@ class FuelAdvisor implements Agent, HasStructuredOutput, HasTools
         .'official maximum prices (Belgium and Luxembourg publish them in advance), the recent trend of crude oil '
         .'prices, and holidays or events in the coming days that push the prices up';
 
+    /** What each action of FuelAdvice::ACTIONS means. */
+    private const ACTIONS = [
+        'refuel_now' => 'refuel today or tomorrow, because the tank is (nearly) due or the prices are about to rise.',
+        'wait' => 'wait until the recommended date, because the prices are falling and the tank allows it.',
+        'refuel_abroad' => 'refuel in the given country, because it saves money even with the detour.',
+        'anytime' => 'no moment or place stands out.',
+    ];
+
     /**
      * @param  string  $home  The country the vehicle is registered in.
-     * @param  list<string>  $abroad  The countries worth the detour from where the driver lives.
-     * @param  list<string>  $sources  Pages to read for news.
+     * @param  array<int, string>  $abroad  The countries worth the detour from where the driver lives.
+     * @param  array<int, string>  $sources  Pages to read for news.
      * @param  string|null  $key  The API key to use, one of those configured; null for the configured one.
      */
     public function __construct(
@@ -89,12 +97,7 @@ class FuelAdvisor implements Agent, HasStructuredOutput, HasTools
             .'once every four refuelings, to keep the engine clean); the prices in the facts are already those of Super '
             .'Plus. Say so in the advice.';
 
-        $actions = implode("\n", array_map(fn (string $action) => '- '.$action.': '.match ($action) {
-            'refuel_now' => 'refuel today or tomorrow, because the tank is (nearly) due or the prices are about to rise.',
-            'wait' => 'wait until the recommended date, because the prices are falling and the tank allows it.',
-            'refuel_abroad' => 'refuel in the given country, because it saves money even with the detour.',
-            'anytime' => 'no moment or place stands out.',
-        }, $this->actions()));
+        $actions = implode("\n", array_map(fn (string $action) => '- '.$action.': '.self::ACTIONS[$action], $this->actions()));
 
         return <<<TEXT
             You advise the driver of a vehicle on when and where to refuel, to pay as little as possible.

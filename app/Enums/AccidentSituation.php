@@ -16,7 +16,7 @@ enum AccidentSituation: string implements HasIcon, HasLabel
     case VehicleInWater = 'vehicle_in_water';
     case Deceased = 'deceased';
 
-    public function getLabel(): ?string
+    public function getLabel(): string
     {
         return match ($this) {
             self::Injury => __('Injury'),
@@ -28,7 +28,7 @@ enum AccidentSituation: string implements HasIcon, HasLabel
         };
     }
 
-    public function getIcon(): ?string
+    public function getIcon(): string
     {
         return match ($this) {
             self::Injury => 'mdi:ambulance',

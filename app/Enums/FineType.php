@@ -14,7 +14,7 @@ enum FineType: string implements HasIcon, HasLabel
     case TrafficControl = 'traffic_control';
     case BorderControl = 'border_control';
 
-    public function getLabel(): ?string
+    public function getLabel(): string
     {
         return match ($this) {
             self::Camera => __('Camera'),
@@ -26,7 +26,7 @@ enum FineType: string implements HasIcon, HasLabel
         };
     }
 
-    public function getIcon(): ?string
+    public function getIcon(): string
     {
         return match ($this) {
             self::Camera => 'mdi:cctv',

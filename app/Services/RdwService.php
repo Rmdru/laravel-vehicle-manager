@@ -264,7 +264,5 @@ class RdwService
 
             return '';
         }
-
-        return '';
     }
 }

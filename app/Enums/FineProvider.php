@@ -14,7 +14,7 @@ enum FineProvider: string implements HasIcon, HasLabel
     case OtherGovernment = 'other_government';
     case Other = 'other';
 
-    public function getLabel(): ?string
+    public function getLabel(): string
     {
         return match ($this) {
             self::Police => __('Police'),
@@ -26,7 +26,7 @@ enum FineProvider: string implements HasIcon, HasLabel
         };
     }
 
-    public function getIcon(): ?string
+    public function getIcon(): string
     {
         return match ($this) {
             self::Police => 'maki:police',

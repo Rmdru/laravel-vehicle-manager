@@ -27,7 +27,7 @@ enum AccidentAttributeType: string implements HasIcon, HasLabel
     case Subway = 'subway';
     case Train = 'train';
 
-    public function getLabel(): ?string
+    public function getLabel(): string
     {
         return match ($this) {
             self::Person => __('Person'),
@@ -50,7 +50,7 @@ enum AccidentAttributeType: string implements HasIcon, HasLabel
         };
     }
 
-    public function getIcon(): ?string
+    public function getIcon(): string
     {
         return match ($this) {
             self::Person => 'ic:baseline-person',

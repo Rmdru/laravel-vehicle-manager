@@ -23,11 +23,7 @@ const isActive = (href: string) =>
 </script>
 
 <template>
-    <SidebarGroup
-        v-for="group in groups"
-        :key="group.label"
-        class="px-2 py-0"
-    >
+    <SidebarGroup v-for="group in groups" :key="group.label" class="px-2 py-0">
         <SidebarGroupLabel>{{ group.label }}</SidebarGroupLabel>
         <SidebarMenu>
             <SidebarMenuItem v-for="item in group.items" :key="item.href">

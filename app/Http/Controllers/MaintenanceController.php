@@ -114,7 +114,7 @@ class MaintenanceController extends VehicleRecordController
             'sections' => [
                 ['title' => __('Maintenance'), 'items' => [
                     ['label' => __('Vehicle'), 'value' => $this->vehicle()->full_name, 'logo' => VehiclePresenter::summary($this->vehicle())['brandLogo']],
-                    ['label' => __('Date'), 'value' => $maintenance->date?->isoFormat('ll'), 'icon' => 'ic:round-calendar-month'],
+                    ['label' => __('Date'), 'value' => $maintenance->date->isoFormat('ll'), 'icon' => 'ic:round-calendar-month'],
                     ['label' => __('Garage'), 'value' => $maintenance->garage ?: __('Unknown'), 'icon' => 'mdi:garage'],
                     ['label' => __('Mileage'), 'value' => filled($maintenance->mileage) ? $maintenance->mileage.' km' : null, 'icon' => 'ic:baseline-route'],
                 ]],

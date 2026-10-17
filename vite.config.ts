@@ -10,8 +10,14 @@ import path from 'path';
 export default defineConfig({
     resolve: {
         alias: {
-            '@form-builder': path.resolve(__dirname, 'vendor/tranquil-tools/laravel-vue-form-builder/resources/js'),
-            '@table-builder': path.resolve(__dirname, 'vendor/tranquil-tools/laravel-vue-table-builder/resources/js'),
+            '@form-builder': path.resolve(
+                __dirname,
+                'vendor/tranquil-tools/laravel-vue-form-builder/resources/js',
+            ),
+            '@table-builder': path.resolve(
+                __dirname,
+                'vendor/tranquil-tools/laravel-vue-table-builder/resources/js',
+            ),
         },
     },
     plugins: lazyPlugins(() => [

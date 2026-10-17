@@ -67,8 +67,9 @@ type FuelPrice = {
     previousPrice: string | null;
     // 1: higher than the previous price, -1: lower, 0: the same or unknown.
     trend: number;
-    detourFuel: number;
-    detourAll: number;
+    // Null for a fuel the vehicle cannot run on: no detour is worth it.
+    detourFuel: number | null;
+    detourAll: number | null;
 };
 
 const props = defineProps<{
@@ -1032,7 +1033,11 @@ const label = (key: string) => {
                                                 </span>
                                             </div>
                                             <div
-                                                v-if="!country.isHome"
+                                                v-if="
+                                                    !country.isHome &&
+                                                    country.prices[type]
+                                                        .detourFuel !== null
+                                                "
                                                 class="text-xs text-muted-foreground"
                                             >
                                                 {{
@@ -1049,9 +1054,11 @@ const label = (key: string) => {
                                                     t(
                                                         'Break-even full: :km km',
                                                         {
-                                                            km: country.prices[
-                                                                type
-                                                            ].detourAll,
+                                                            km:
+                                                                country.prices[
+                                                                    type
+                                                                ].detourAll ??
+                                                                0,
                                                         },
                                                     )
                                                 }}

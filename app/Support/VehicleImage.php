@@ -92,7 +92,8 @@ class VehicleImage
             return null;
         }
 
-        $largest = @getimagesize($disk->path($vehicle->image_path))[0] ?? null;
+        $size = @getimagesize($disk->path($vehicle->image_path));
+        $largest = $size === false ? null : $size[0];
 
         if ($largest) {
             $candidates->push(route('vehicle.image', ['vehicle' => $vehicle->id, ...$version]).' '.$largest.'w');

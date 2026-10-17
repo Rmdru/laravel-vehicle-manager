@@ -105,6 +105,6 @@ class GasStationLogo
             return $svg;
         }
 
-        return preg_replace('/<svg\b/', '<svg width="'.($viewBox[1] * 10).'" height="'.($viewBox[2] * 10).'"', $svg, 1);
+        return preg_replace('/<svg\b/', '<svg width="'.((float) $viewBox[1] * 10).'" height="'.((float) $viewBox[2] * 10).'"', $svg, 1);
     }
 }
