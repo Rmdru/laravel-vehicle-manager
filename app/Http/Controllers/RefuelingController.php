@@ -11,6 +11,7 @@ use App\Enums\RefuelingRoutes;
 use App\Enums\RefuelingTires;
 use App\Forms\RefuelingForm;
 use App\Models\Refueling;
+use App\Services\FuelAdviceService;
 use App\Support\GasStationLogo;
 use App\Support\Html;
 use App\Tables\RefuelingsTable;
@@ -141,6 +142,8 @@ class RefuelingController extends VehicleRecordController
         }
 
         $this->recalculate($record->next());
+
+        app(FuelAdviceService::class)->regenerateAfter($record);
     }
 
     public function destroy(string $id): RedirectResponse

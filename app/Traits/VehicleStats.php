@@ -7,6 +7,7 @@ namespace App\Traits;
 use App\Models\Refueling;
 use App\Models\Vehicle;
 use App\Support\CurrentVehicle;
+use App\Support\PremiumFuel;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -340,9 +341,13 @@ trait VehicleStats
         );
     }
 
+    /**
+     * The share of the premium variant of the fuel, in percent of the amount, see PremiumFuel.
+     */
     public function calculateRatioPremiumFuel(bool $thisMonth = false): float
     {
         $vehicleId = CurrentVehicle::get()->id;
+        $fuels = PremiumFuel::for(CurrentVehicle::get()->powertrain);
         $startDate = $this->filters['startDate'] ?? null;
         $endDate = $this->filters['endDate'] ?? null;
 
@@ -355,8 +360,10 @@ trait VehicleStats
 
         return $this->rememberVehicleMetric(
             "premium-fuel-ratio:{$filterKey}",
-            function () use ($vehicleId, $startDate, $endDate) {
-                $refuelings = Refueling::query()->where('vehicle_id', $vehicleId);
+            function () use ($vehicleId, $startDate, $endDate, $fuels) {
+                $refuelings = Refueling::query()
+                    ->where('vehicle_id', $vehicleId)
+                    ->whereIn('fuel_type', $fuels['all']);
 
                 if ($startDate) {
                     $refuelings->whereDate('date', '>=', $startDate);
@@ -366,14 +373,10 @@ trait VehicleStats
                     $refuelings->whereDate('date', '<=', $endDate);
                 }
 
+                $placeholders = implode(', ', array_fill(0, count($fuels['premium']), '?'));
+
                 $stats = $refuelings
-                    ->selectRaw('COALESCE(SUM(amount), 0) as total_amount, COALESCE(SUM(CASE WHEN fuel_type IN (?, ?, ?, ?, ?) THEN amount ELSE 0 END), 0) as premium_amount', [
-                        'Super Plus (E5)',
-                        'V-Power 100',
-                        'Ultimate 102',
-                        'Premium diesel',
-                        'Electricity AC',
-                    ])
+                    ->selectRaw("COALESCE(SUM(amount), 0) as total_amount, COALESCE(SUM(CASE WHEN fuel_type IN ({$placeholders}) THEN amount ELSE 0 END), 0) as premium_amount", $fuels['premium'])
                     ->first();
 
                 $totalAmount = (float) ($stats->total_amount ?? 0);

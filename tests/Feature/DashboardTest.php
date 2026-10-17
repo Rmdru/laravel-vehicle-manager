@@ -67,13 +67,43 @@ class DashboardTest extends TestCase
                     ->has('stats.0.title')
                     ->has('fuelPricesAbroad.countries')
                     ->has('fuelUsageByType')
-                    ->where('cheapestGasStations.0.gasStation', 'Shell Utrecht')
-                    ->where('cheapestGasStations.0.visits', 3)
+                    ->where('topGasStations.fuelTypes.0.cheapest.0.gasStation', 'Shell Utrecht')
+                    ->where('topGasStations.fuelTypes.0.cheapest.0.visits', 3)
                     ->has('averageMonthlyCosts', 1)
                     ->where('averageMonthlyCosts.0.label', 'Fuel')
                     ->where('costsChart.series.0.key', 0)
                     ->has('latestCosts', 3)
                     ->etc()));
+    }
+
+    public function test_the_top_gas_stations_are_ranked_per_fuel_type()
+    {
+        $vehicle = $this->signInWithVehicle();
+
+        $refuel = fn (string $station, string $fuelType, float $price) => Refueling::factory()->for($vehicle)->create([
+            'date' => now()->toDateString(),
+            'gas_station' => $station,
+            'fuel_type' => $fuelType,
+            'unit_price' => $price,
+        ]);
+
+        $refuel('Shell', 'Unleaded 95 (E10)', 1.9);
+        $refuel('Esso', 'Unleaded 95 (E10)', 2.0);
+        $refuel('Esso', 'Unleaded 95 (E10)', 2.0);
+        $refuel('Tango', 'Super Plus 98', 2.1);
+        $refuel('Shell', 'Super Plus 98', 2.4);
+
+        $top = app(DashboardService::class)->topGasStations($vehicle, null, null);
+        $groups = $top['fuelTypes'];
+
+        $this->assertSame(['Unleaded 95 (E10)', 'Super Plus 98'], array_column($groups, 'key'));
+        $this->assertSame(['Shell', 'Esso'], array_column($groups[0]['cheapest'], 'gasStation'));
+        $this->assertSame(['Esso', 'Shell'], array_column($groups[0]['mostExpensive'], 'gasStation'));
+        $this->assertSame(['Tango', 'Shell'], array_column($groups[1]['cheapest'], 'gasStation'));
+
+        // Of all fuel types together, a station per fuel type.
+        $this->assertSame(['Shell', 'Esso', 'Tango', 'Shell'], array_column($top['all']['cheapest'], 'gasStation'));
+        $this->assertSame(['Unleaded 95 (E10)', 'Unleaded 95 (E10)', 'Super Plus 98', 'Super Plus 98'], array_column($top['all']['cheapest'], 'fuelType'));
     }
 
     public function test_the_notifications_are_ordered_by_urgency()

@@ -131,7 +131,8 @@ class StatusNotification
                 'statusKey' => 'periodic_super_plus',
                 'category' => 'refueling',
                 'label' => __('1 in 4 times fill up with Super Plus (E5)'),
-                'thresholds' => ['info' => 2],
+                // See Vehicle::superPlusDue().
+                'thresholds' => ['info' => 0],
                 'thresholdType' => 'recordCount',
                 'messages' => [
                     'info' => __('Next time fill up with Super Plus (E5) fuel!'),

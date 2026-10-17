@@ -5,6 +5,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EnvironmentalStickerController;
 use App\Http\Controllers\FerryController;
 use App\Http\Controllers\FineController;
+use App\Http\Controllers\FuelAdviceController;
 use App\Http\Controllers\InsuranceController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\MaintenanceController;
@@ -36,6 +37,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/', DashboardController::class)->name('dashboard');
         Route::get('timeline', TimelineController::class)->name('timeline');
         Route::post('fuel-prices/refresh', [DashboardController::class, 'refreshFuelPrices'])->name('fuel-prices.refresh');
+        Route::post('fuel-advice', [FuelAdviceController::class, 'store'])->name('fuel-advice.store');
 
         Route::post('maintenances/small-check', [MaintenanceController::class, 'smallCheck'])->name('maintenances.small-check');
 

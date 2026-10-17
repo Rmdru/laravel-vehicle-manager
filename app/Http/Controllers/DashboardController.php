@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Services\DashboardService;
+use App\Services\FuelAdviceService;
 use App\Support\Cost;
 use App\Support\CurrentVehicle;
 use Illuminate\Http\RedirectResponse;
@@ -20,7 +21,7 @@ class DashboardController extends Controller
     /** Minutes between two refreshes of the fuel prices, at least. */
     private const REFRESH_FUEL_PRICES_EVERY = 5;
 
-    public function __invoke(Request $request, DashboardService $dashboard): Response
+    public function __invoke(Request $request, DashboardService $dashboard, FuelAdviceService $fuelAdvice): Response
     {
         $vehicle = CurrentVehicle::get();
 
@@ -35,19 +36,22 @@ class DashboardController extends Controller
         $end = $filters['dashboard_end'] ?? null;
         $costTypes = array_values($filters['cost_types'] ?? []);
 
+        $usesFuel = ! in_array($vehicle->powertrain, ['electricity', 'hydrogen'], true);
+
         return Inertia::render('Dashboard', [
             'filters' => ['start' => $start, 'end' => $end, 'costTypes' => $costTypes],
             'costTypeOptions' => collect(Cost::types($vehicle))->map(fn (array $type, string $name) => __($name))->all(),
-            'usesFuel' => ! in_array($vehicle->powertrain, ['electricity', 'hydrogen'], true),
+            'usesFuel' => $usesFuel,
             'refreshFuelPricesUrl' => route('fuel-prices.refresh'),
             // Deferred: the notifications can involve slow lookups at external services.
             'notifications' => Inertia::defer(fn () => $dashboard->notifications($vehicle), 'status'),
             'statuses' => Inertia::defer(fn () => $dashboard->statuses($vehicle), 'status'),
             'stats' => Inertia::defer(fn () => $dashboard->stats($vehicle, $start, $end), 'statistics'),
             'fuelPricesAbroad' => Inertia::defer(fn () => $dashboard->fuelPricesAbroad($vehicle), 'fuel'),
+            'fuelAdvice' => Inertia::defer(fn () => $usesFuel ? $fuelAdvice->forDashboard($vehicle) : null, 'fuel'),
             'fuelPricesChart' => Inertia::defer(fn () => $dashboard->fuelPricesChart($vehicle, $start, $end), 'fuel'),
             'fuelUsageByType' => Inertia::defer(fn () => $dashboard->fuelUsageByType($vehicle, $start, $end), 'fuel'),
-            'cheapestGasStations' => Inertia::defer(fn () => $dashboard->cheapestGasStations($vehicle, $start, $end), 'fuel'),
+            'topGasStations' => Inertia::defer(fn () => $dashboard->topGasStations($vehicle, $start, $end), 'fuel'),
             'averageMonthlyCosts' => Inertia::defer(fn () => $dashboard->averageMonthlyCostsByType($vehicle, $start, $end, $costTypes), 'costs'),
             'costsChart' => Inertia::defer(fn () => $dashboard->costsChart($vehicle, $start, $end, $costTypes), 'costs'),
             'latestCosts' => Inertia::defer(fn () => $dashboard->latestCosts($vehicle, $start, $end, $costTypes), 'costs'),

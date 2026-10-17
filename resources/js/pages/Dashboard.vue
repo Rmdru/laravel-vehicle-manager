@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Deferred, Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ArrowDown, ArrowUp, Plus, RefreshCw } from '@lucide/vue';
-import { computed, ref } from 'vue';
+import { computed, ref, useTemplateRef } from 'vue';
 import AppIcon from '@/components/AppIcon.vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue';
@@ -11,6 +11,8 @@ import CountryFlag from '@/components/CountryFlag.vue';
 import FilterChips from '@/components/FilterChips.vue';
 import type { FilterChip } from '@/components/FilterChips.vue';
 import FilterSheet from '@/components/FilterSheet.vue';
+import FuelAdvice from '@/components/FuelAdvice.vue';
+import type { FuelAdviceData } from '@/components/FuelAdvice.vue';
 import FuelPricesChart from '@/components/FuelPricesChart.vue';
 import LicensePlate from '@/components/LicensePlate.vue';
 import PeriodFilter from '@/components/PeriodFilter.vue';
@@ -41,6 +43,22 @@ type Notification = {
     // Where to do what the notification asks for.
     url?: string;
     urlLabel?: string;
+    // The fuel advice: opens its own modal.
+    opensFuelAdvice?: boolean;
+};
+
+type GasStation = {
+    gasStation: string;
+    fuelType: string;
+    visits: number;
+    averagePrice: string;
+    lowestPrice: string;
+    highestPrice: string;
+};
+
+type GasStationRanking = {
+    cheapest: GasStation[];
+    mostExpensive: GasStation[];
 };
 
 type FuelPrice = {
@@ -84,8 +102,12 @@ const props = defineProps<{
             prices: Record<string, FuelPrice>;
         }[];
     };
+    // Null for a vehicle that does not use fuel.
+    fuelAdvice?: FuelAdviceData | null;
     fuelPricesChart?: {
         home: string | null;
+        // The day the next refueling is expected, marked in the chart.
+        expectedRefuelDate: string | null;
         countries: {
             key: string;
             name: string;
@@ -104,12 +126,11 @@ const props = defineProps<{
         amount: string;
         count: number;
     }[];
-    cheapestGasStations?: {
-        gasStation: string;
-        visits: number;
-        averagePrice: string;
-        lowestPrice: string;
-    }[];
+    topGasStations?: {
+        all: GasStationRanking;
+        // Per fuel type, the one refueled most often first.
+        fuelTypes: ({ key: string; label: string } & GasStationRanking)[];
+    };
     averageMonthlyCosts?: {
         key: number;
         label: string;
@@ -141,14 +162,37 @@ const filteredProps = [
     'stats',
     'fuelPricesChart',
     'fuelUsageByType',
-    'cheapestGasStations',
+    'topGasStations',
     'averageMonthlyCosts',
     'costsChart',
     'latestCosts',
 ];
 
 const filtering = ref(false);
+const gasStationOrder = ref<'cheapest' | 'mostExpensive'>('cheapest');
+// Null as long as no fuel type is chosen: all fuel types together.
+const gasStationFuelType = ref<string | null>(null);
+const gasStationGroup = computed(() =>
+    props.topGasStations?.fuelTypes.find(
+        (group) => group.key === gasStationFuelType.value,
+    ),
+);
+const gasStations = computed(
+    () =>
+        (gasStationGroup.value ?? props.topGasStations?.all)?.[
+            gasStationOrder.value
+        ] ?? [],
+);
 const details = ref<Notification | null>(null);
+const fuelAdvicePanel = useTemplateRef('fuelAdvicePanel');
+
+function showDetails(notification: Notification) {
+    if (notification.opensFuelAdvice) {
+        fuelAdvicePanel.value?.show();
+    } else {
+        details.value = notification;
+    }
+}
 const refreshing = ref(false);
 
 // Shown on the sections the date range applies to.
@@ -399,10 +443,13 @@ const label = (key: string) => {
                             {{ notification.text }}
                         </span>
                         <button
-                            v-if="notification.hasModal"
+                            v-if="
+                                notification.hasModal ||
+                                notification.opensFuelAdvice
+                            "
                             type="button"
                             class="min-h-9 cursor-pointer text-sm font-semibold underline"
-                            @click="details = notification"
+                            @click="showDetails(notification)"
                         >
                             {{ t('More information') }}
                         </button>
@@ -635,15 +682,64 @@ const label = (key: string) => {
                 </Deferred>
             </SectionCard>
 
-            <SectionCard :title="t('Cheapest gas stations')" flush>
-                <Deferred data="cheapestGasStations">
+            <SectionCard :title="t('Top gas stations')" flush>
+                <template #actions>
+                    <div
+                        class="mr-2 flex rounded-lg bg-muted p-0.5 text-xs font-semibold"
+                    >
+                        <button
+                            v-for="option in [
+                                { value: 'cheapest', label: t('Cheapest') },
+                                {
+                                    value: 'mostExpensive',
+                                    label: t('Most expensive'),
+                                },
+                            ] as const"
+                            :key="option.value"
+                            type="button"
+                            :aria-pressed="gasStationOrder === option.value"
+                            :class="[
+                                'min-h-8 cursor-pointer rounded-md px-2.5 transition',
+                                gasStationOrder === option.value
+                                    ? 'bg-card text-foreground shadow-sm'
+                                    : 'text-muted-foreground hover:text-foreground',
+                            ]"
+                            @click="gasStationOrder = option.value"
+                        >
+                            {{ option.label }}
+                        </button>
+                    </div>
+                </template>
+                <Deferred data="topGasStations">
                     <template #fallback>
                         <div class="p-4"><Skeleton class="h-24 w-full" /></div>
                     </template>
                     <div
-                        v-if="cheapestGasStations?.length"
-                        class="overflow-x-auto"
+                        v-if="(topGasStations?.fuelTypes.length ?? 0) > 1"
+                        class="flex flex-wrap gap-2 border-b px-4 py-3"
                     >
+                        <button
+                            v-for="group in topGasStations?.fuelTypes"
+                            :key="group.key"
+                            type="button"
+                            :aria-pressed="group.key === gasStationGroup?.key"
+                            :class="[
+                                'inline-flex min-h-9 cursor-pointer items-center rounded-full border px-3 py-1 text-sm font-medium transition',
+                                group.key === gasStationGroup?.key
+                                    ? 'border-transparent bg-primary text-primary-foreground'
+                                    : 'border-input text-muted-foreground hover:border-ring/50 hover:text-foreground',
+                            ]"
+                            @click="
+                                gasStationFuelType =
+                                    group.key === gasStationGroup?.key
+                                        ? null
+                                        : group.key
+                            "
+                        >
+                            {{ group.label }}
+                        </button>
+                    </div>
+                    <div v-if="gasStations.length" class="overflow-x-auto">
                         <table class="w-full text-sm tabular-nums">
                             <thead>
                                 <tr
@@ -654,6 +750,12 @@ const label = (key: string) => {
                                     >
                                         {{ t('Gas station') }}
                                     </th>
+                                    <th
+                                        v-if="!gasStationGroup"
+                                        class="px-3 py-2.5 text-left font-semibold"
+                                    >
+                                        {{ t('Fuel type') }}
+                                    </th>
                                     <th class="px-3 py-2.5 font-semibold">
                                         {{ t('Visit count') }}
                                     </th>
@@ -661,18 +763,28 @@ const label = (key: string) => {
                                         {{ t('Average price') }}
                                     </th>
                                     <th class="py-2.5 pr-4 pl-3 font-semibold">
-                                        {{ t('Lowest price') }}
+                                        {{
+                                            gasStationOrder === 'cheapest'
+                                                ? t('Lowest price')
+                                                : t('Highest price')
+                                        }}
                                     </th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr
-                                    v-for="row in cheapestGasStations"
-                                    :key="row.gasStation"
+                                    v-for="row in gasStations"
+                                    :key="`${row.gasStation}-${row.fuelType}`"
                                     class="border-t text-right"
                                 >
                                     <td class="px-4 py-3 text-left font-medium">
                                         {{ row.gasStation }}
+                                    </td>
+                                    <td
+                                        v-if="!gasStationGroup"
+                                        class="px-3 py-3 text-left whitespace-nowrap"
+                                    >
+                                        {{ row.fuelType }}
                                     </td>
                                     <td class="px-3 py-3">{{ row.visits }}</td>
                                     <td class="px-3 py-3 whitespace-nowrap">
@@ -681,7 +793,11 @@ const label = (key: string) => {
                                     <td
                                         class="py-3 pr-4 pl-3 font-semibold whitespace-nowrap"
                                     >
-                                        {{ row.lowestPrice }}
+                                        {{
+                                            gasStationOrder === 'cheapest'
+                                                ? row.lowestPrice
+                                                : row.highestPrice
+                                        }}
                                     </td>
                                 </tr>
                             </tbody>
@@ -830,6 +946,18 @@ const label = (key: string) => {
                             />
                         </Button>
                     </template>
+                    <Deferred data="fuelAdvice">
+                        <template #fallback>
+                            <div class="border-b p-3">
+                                <Skeleton class="h-12 w-full" />
+                            </div>
+                        </template>
+                        <FuelAdvice
+                            v-if="fuelAdvice"
+                            ref="fuelAdvicePanel"
+                            :data="fuelAdvice"
+                        />
+                    </Deferred>
                     <Deferred data="fuelPricesAbroad">
                         <template #fallback>
                             <div class="p-4">
@@ -963,6 +1091,9 @@ const label = (key: string) => {
                             v-if="fuelPricesChart?.countries.length"
                             :countries="fuelPricesChart.countries"
                             :home="fuelPricesChart.home"
+                            :expected-refuel-date="
+                                fuelPricesChart.expectedRefuelDate
+                            "
                         />
                     </Deferred>
                 </SectionCard>

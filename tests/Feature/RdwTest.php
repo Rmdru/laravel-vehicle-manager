@@ -207,7 +207,7 @@ class RdwTest extends TestCase
         CurrentVehicle::set($vehicle);
         $stats = collect(app(DashboardService::class)->stats($vehicle))->keyBy('title');
 
-        $comparison = $stats['Fuel usage compared to NEDC (5,0 l/100km)'];
+        $comparison = $stats['Fuel usage compared to specification (5,0 l/100km)'];
         $this->assertSame('15 %', $comparison['value']);
         $this->assertSame('10 %', $comparison['latest']);
         $this->assertSame('success', $comparison['color']);

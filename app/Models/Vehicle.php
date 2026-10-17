@@ -8,6 +8,7 @@ use App\Enums\MaintenanceTypeMaintenance;
 use App\Services\OpenMeteoService;
 use App\Services\VehicleCostsService;
 use App\Support\Cost;
+use App\Support\PremiumFuel;
 use App\Traits\LocationByIp;
 use App\Traits\VehicleStats;
 use Carbon\Carbon;
@@ -165,25 +166,38 @@ class Vehicle extends Model
 
     public function getPeriodicSuperPlusAttribute(): array
     {
-        $fuelTypes = [
-            'Unleaded 95 (E10)',
-            'Unleaded 95 (E5)',
-        ];
+        return ['recordCount' => $this->superPlusDue() ? 1 : 0];
+    }
 
-        if ($this->refuelings->isNotEmpty()) {
-            return [
-                'recordCount' => $this->refuelings()
-                    ->newest()
-                    ->limit(3)
-                    ->get()
-                    ->whereIn('fuel_type', $fuelTypes)
-                    ->count(),
-            ];
+    /**
+     * Whether the next refueling has to be Super Plus, to fill up with it 1 in 4
+     * times: the last three refuelings were regular unleaded, or premium makes up
+     * less than 25% of the gasoline refueled. Only for an engine that runs (at
+     * least partly) on gasoline, and only from four refuelings on: before that a
+     * single tank of regular unleaded would already call for Super Plus.
+     */
+    public function superPlusDue(): bool
+    {
+        if (! str_contains((string) $this->powertrain, 'gasoline') || $this->refuelings()->count() < 4) {
+            return false;
         }
 
-        return [
-            'recordCount' => 0,
-        ];
+        $regular = PremiumFuel::REGULAR_GASOLINE;
+        $premium = PremiumFuel::PREMIUM_GASOLINE;
+
+        $lastThree = $this->refuelings()->newest()->limit(3)->pluck('fuel_type');
+
+        if ($lastThree->count() === 3 && $lastThree->every(fn (?string $type) => in_array($type, $regular, true))) {
+            return true;
+        }
+
+        $amounts = $this->refuelings()
+            ->whereIn('fuel_type', [...$regular, ...$premium])
+            ->selectRaw('COALESCE(SUM(amount), 0) as total, COALESCE(SUM(CASE WHEN fuel_type IN (?, ?, ?, ?) THEN amount ELSE 0 END), 0) as premium', $premium)
+            ->toBase()
+            ->first();
+
+        return (float) $amounts->total > 0 && (float) $amounts->premium / (float) $amounts->total * 100 < 25;
     }
 
     /**
@@ -861,6 +875,14 @@ class Vehicle extends Model
     public function refuelings(): HasMany
     {
         return $this->hasMany(Refueling::class);
+    }
+
+    /**
+     * @return HasMany<FuelAdvice, $this>
+     */
+    public function fuelAdvices(): HasMany
+    {
+        return $this->hasMany(FuelAdvice::class);
     }
 
     public function maintenances(): HasMany

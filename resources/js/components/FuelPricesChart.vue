@@ -2,6 +2,7 @@
 import { usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import CountryFlag from '@/components/CountryFlag.vue';
+import { useT } from '@/composables/useT';
 
 type Point = { date: string; price: number };
 type Series = { key: number; label: string; points: Point[] };
@@ -16,8 +17,11 @@ const props = defineProps<{
     countries: Country[];
     // The country the chart opens on, when it has prices.
     home?: string | null;
+    // The day the next refueling is expected: a dashed line, also in the future.
+    expectedRefuelDate?: string | null;
 }>();
 
+const { t } = useT();
 const locale = usePage().props.locale;
 
 const selected = ref<string | null>(null);
@@ -63,10 +67,26 @@ const dates = computed(() =>
     ].sort(),
 );
 
+// The days the chart spans: those with prices, up to the expected refueling.
+const expected = computed(() =>
+    props.expectedRefuelDate && props.expectedRefuelDate >= dates.value[0]
+        ? props.expectedRefuelDate
+        : null,
+);
+
+const domain = computed(() => {
+    const last = dates.value[dates.value.length - 1];
+
+    return {
+        first: dates.value[0],
+        last: expected.value && expected.value > last ? expected.value : last,
+    };
+});
+
 // Horizontal position of a date, in percent of the plot.
 function x(date: string) {
-    const first = time(dates.value[0]);
-    const span = time(dates.value[dates.value.length - 1]) - first;
+    const first = time(domain.value.first);
+    const span = time(domain.value.last) - first;
 
     return span ? ((time(date) - first) / span) * 100 : 50;
 }
@@ -250,6 +270,24 @@ function select(key: string) {
                     />
                 </template>
 
+                <template v-if="expected">
+                    <div
+                        class="pointer-events-none absolute inset-y-0 border-l-2 border-dashed border-foreground/50"
+                        :style="{ left: `${x(expected)}%` }"
+                    />
+                    <span
+                        class="pointer-events-none absolute -top-2 rounded bg-card px-1 text-xs font-medium whitespace-nowrap text-muted-foreground"
+                        :class="
+                            x(expected) > 70
+                                ? '-ml-1 -translate-x-full'
+                                : 'ml-1'
+                        "
+                        :style="{ left: `${x(expected)}%` }"
+                    >
+                        {{ t('Expected refueling') }}: {{ day(expected) }}
+                    </span>
+                </template>
+
                 <template v-if="hovered !== null">
                     <div
                         class="pointer-events-none absolute inset-y-0 w-px bg-foreground/30"
@@ -299,11 +337,15 @@ function select(key: string) {
 
         <div
             class="-mt-3 ml-14 flex text-xs text-muted-foreground"
-            :class="dates.length > 1 ? 'justify-between' : 'justify-center'"
+            :class="
+                domain.first !== domain.last
+                    ? 'justify-between'
+                    : 'justify-center'
+            "
         >
-            <span>{{ day(dates[0]) }}</span>
-            <span v-if="dates.length > 1">
-                {{ day(dates[dates.length - 1]) }}
+            <span>{{ day(domain.first) }}</span>
+            <span v-if="domain.first !== domain.last">
+                {{ day(domain.last) }}
             </span>
         </div>
     </div>

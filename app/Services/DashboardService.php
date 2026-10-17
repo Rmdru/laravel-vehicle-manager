@@ -11,6 +11,8 @@ use App\Support\Cost;
 use App\Traits\VehicleStats;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -33,6 +35,8 @@ class DashboardService
     public function __construct(
         private readonly VehicleStatusService $statusService,
         private readonly RdwService $rdw,
+        private readonly FuelAdviceFacts $fuelAdviceFacts,
+        private readonly FuelAdviceService $fuelAdvice,
     ) {
         //
     }
@@ -44,8 +48,16 @@ class DashboardService
      */
     public function notifications(Vehicle $vehicle): array
     {
+        $notifications = collect($this->statusService->getNotifications($vehicle));
+        $fuelAdvice = $this->fuelAdvice->notification($vehicle);
+
+        // The fuel advice goes on top; then "all is well" no longer is.
+        if ($fuelAdvice !== null) {
+            $notifications = $notifications->reject(fn (array $notification) => $notification['type'] === 'success')->push($fuelAdvice);
+        }
+
         // Most urgent first: critical, then warnings, then information.
-        return collect($this->statusService->getNotifications($vehicle))
+        return $notifications
             ->sortBy('priority')
             ->values()
             ->all();
@@ -138,8 +150,7 @@ class DashboardService
         $deviation = fn (float $consumption) => $consumption > 0 ? round(($consumption / $factory['value'] - 1) * 100, 1) : 0.0;
 
         return $this->stat(
-            __('Fuel usage compared to :method (:consumption)', [
-                'method' => $factory['method'],
+            __('Fuel usage compared to specification (:consumption)', [
                 'consumption' => number_format($factory['value'], 1, ',', '.').' '.$unit,
             ]),
             'mdi:fuel',
@@ -224,9 +235,10 @@ class DashboardService
     /**
      * The fuel prices over time, per country that has prices in the period.
      * Without a period: the past year. The chart opens on the country the vehicle
-     * is registered in.
+     * is registered in, and marks the day the next refueling is expected, as
+     * long as the period runs up to today.
      *
-     * @return array{home: string|null, countries: list<array{key: string, name: string, isoCode: string|null, series: list<array{key: int, label: string, points: list<array{date: string, price: float}>}>}>}
+     * @return array{home: string|null, expectedRefuelDate: string|null, countries: list<array{key: string, name: string, isoCode: string|null, series: list<array{key: int, label: string, points: list<array{date: string, price: float}>}>}>}
      */
     public function fuelPricesChart(Vehicle $vehicle, ?string $start = null, ?string $end = null): array
     {
@@ -243,6 +255,9 @@ class DashboardService
 
         return [
             'home' => $vehicle->country_registration,
+            'expectedRefuelDate' => $until->isBefore(today())
+                ? null
+                : $this->fuelAdviceFacts->expectedRefuelDate($vehicle)?->toDateString(),
             'countries' => FuelPrice::query()
                 ->whereDate('date', '>=', $from)
                 ->whereDate('date', '<=', $until)
@@ -307,32 +322,70 @@ class DashboardService
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * The gas stations with the lowest and the highest average price per fuel
+     * type: of all fuel types together, a station per fuel type, and of each
+     * fuel type, the one refueled most often first.
+     *
+     * @return array{all: array{cheapest: list<array<string, mixed>>, mostExpensive: list<array<string, mixed>>}, fuelTypes: list<array{key: string, label: string, cheapest: list<array<string, mixed>>, mostExpensive: list<array<string, mixed>>}>}
      */
-    public function cheapestGasStations(Vehicle $vehicle, ?string $start, ?string $end): array
+    public function topGasStations(Vehicle $vehicle, ?string $start, ?string $end): array
     {
         $unit = trans('powertrains')[$vehicle->powertrain]['unit_short'] ?? 'l';
         $price = fn ($value) => '€ '.number_format((float) $value, 3, ',', '.').'/'.$unit;
+        // Refuelings without a fuel type form a group of their own.
+        $label = fn (string $fuelType) => $fuelType === '' ? __('Other') : (trans('fuel_types')[$fuelType] ?? $fuelType);
 
-        return Refueling::query()
+        $stations = Refueling::query()
             ->where('vehicle_id', $vehicle->id)
             ->when($start, fn ($query) => $query->whereDate('date', '>=', $start))
             ->when($end, fn ($query) => $query->whereDate('date', '<=', $end))
-            ->select('gas_station')
-            ->selectRaw('COUNT(*) as visit_count, AVG(unit_price) as avg_price, MIN(unit_price) as lowest_price')
-            ->groupBy('gas_station')
-            ->orderBy('avg_price')
-            ->orderByDesc('visit_count')
-            ->limit(5)
+            ->select('fuel_type', 'gas_station')
+            ->selectRaw('COUNT(*) as visit_count, AVG(unit_price) as avg_price, MIN(unit_price) as lowest_price, MAX(unit_price) as highest_price')
+            ->groupBy('fuel_type', 'gas_station')
             ->toBase()
             ->get()
             ->map(fn ($row) => [
+                'key' => (string) $row->fuel_type,
                 'gasStation' => $row->gas_station,
+                'fuelType' => $label((string) $row->fuel_type),
                 'visits' => (int) $row->visit_count,
+                'average' => (float) $row->avg_price,
                 'averagePrice' => $price($row->avg_price),
                 'lowestPrice' => $price($row->lowest_price),
+                'highestPrice' => $price($row->highest_price),
+            ]);
+
+        $fuelTypes = $stations
+            ->groupBy('key')
+            ->sortByDesc(fn (Collection $stations) => $stations->sum('visits'))
+            ->map(fn (Collection $stations, string $fuelType) => [
+                'key' => $fuelType,
+                'label' => $label($fuelType),
+                ...$this->rankGasStations($stations),
             ])
+            ->values()
             ->all();
+
+        return ['all' => $this->rankGasStations($stations), 'fuelTypes' => $fuelTypes];
+    }
+
+    /**
+     * The five cheapest and the five most expensive of the gas stations.
+     *
+     * @param  Collection<int, array<string, mixed>>  $stations
+     * @return array{cheapest: list<array<string, mixed>>, mostExpensive: list<array<string, mixed>>}
+     */
+    private function rankGasStations(Collection $stations): array
+    {
+        // On a tie in price, the most visited station first.
+        $top = fn (string $direction) => $stations
+            ->sortBy([['average', $direction], ['visits', 'desc']])
+            ->take(5)
+            ->map(fn (array $station) => Arr::except($station, ['key', 'average']))
+            ->values()
+            ->all();
+
+        return ['cheapest' => $top('asc'), 'mostExpensive' => $top('desc')];
     }
 
     /**
