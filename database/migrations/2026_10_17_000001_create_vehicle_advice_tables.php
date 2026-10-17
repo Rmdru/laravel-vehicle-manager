@@ -26,25 +26,14 @@ return new class extends Migration
             $table->index(['vehicle_id', 'locale', 'created_at']);
         });
 
-        // The tips the owner did something with, by their key: done, kept for
-        // later reference, or not relevant. With a copy of the tip, so that it
-        // stays in the overview after the advice it came from is pruned. The
-        // model is told not to make these tips again.
-        Schema::create('vehicle_tips', function (Blueprint $table) {
+        // Suggestions the driver marked as done or not relevant, by their key:
+        // they are left out, and the model is told not to make them again.
+        Schema::create('vehicle_advice_dismissals', function (Blueprint $table) {
             $table->id();
             $table->foreignUuid('vehicle_id');
             $table->string('key');
-            $table->string('status');
-            $table->string('locale', 5);
-            $table->string('category');
-            // Null when the model chose none of the known icons: the icon of the category is shown.
-            $table->string('icon')->nullable();
-            $table->string('priority');
-            $table->string('basis');
-            $table->string('action');
-            $table->date('due_date')->nullable();
+            $table->string('reason');
             $table->string('title');
-            $table->text('body');
             $table->timestamps();
             $table->unique(['vehicle_id', 'key']);
         });
@@ -52,7 +41,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('vehicle_tips');
+        Schema::dropIfExists('vehicle_advice_dismissals');
         Schema::dropIfExists('vehicle_advice');
     }
 };
