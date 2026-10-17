@@ -18,6 +18,7 @@ use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\TaxController;
 use App\Http\Controllers\TimelineController;
 use App\Http\Controllers\TollController;
+use App\Http\Controllers\VehicleAdviceController;
 use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\VignetteController;
 use App\Http\Middleware\CreateFirstVehicle;
@@ -38,6 +39,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('timeline', TimelineController::class)->name('timeline');
         Route::post('fuel-prices/refresh', [DashboardController::class, 'refreshFuelPrices'])->name('fuel-prices.refresh');
         Route::post('fuel-advice', [FuelAdviceController::class, 'store'])->name('fuel-advice.store');
+        Route::post('vehicle-advice', [VehicleAdviceController::class, 'store'])->name('vehicle-advice.store');
+        Route::post('vehicle-advice/dismiss', [VehicleAdviceController::class, 'dismiss'])->name('vehicle-advice.dismiss');
 
         Route::post('maintenances/small-check', [MaintenanceController::class, 'smallCheck'])->name('maintenances.small-check');
 

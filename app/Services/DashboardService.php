@@ -37,6 +37,7 @@ class DashboardService
         private readonly RdwService $rdw,
         private readonly FuelAdviceFacts $fuelAdviceFacts,
         private readonly FuelAdviceService $fuelAdvice,
+        private readonly VehicleAdviceService $vehicleAdvice,
     ) {
         //
     }
@@ -51,9 +52,12 @@ class DashboardService
         $notifications = collect($this->statusService->getNotifications($vehicle));
         $fuelAdvice = $this->fuelAdvice->notification($vehicle);
 
-        // The fuel advice goes on top; then "all is well" no longer is.
-        if ($fuelAdvice !== null) {
-            $notifications = $notifications->reject(fn (array $notification) => $notification['type'] === 'success')->push($fuelAdvice);
+        // The fuel advice goes on top, and the tips that are urgent follow the
+        // other warnings; then "all is well" no longer is.
+        $advice = array_values(array_filter([$fuelAdvice, ...$this->vehicleAdvice->notifications($vehicle)]));
+
+        if ($advice !== []) {
+            $notifications = $notifications->reject(fn (array $notification) => $notification['type'] === 'success')->push(...$advice);
         }
 
         // Most urgent first: critical, then warnings, then information.
