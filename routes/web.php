@@ -37,10 +37,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware(CreateFirstVehicle::class)->group(function () {
         Route::get('/', DashboardController::class)->name('dashboard');
         Route::get('timeline', TimelineController::class)->name('timeline');
+        Route::get('tips', [VehicleAdviceController::class, 'index'])->name('tips');
         Route::post('fuel-prices/refresh', [DashboardController::class, 'refreshFuelPrices'])->name('fuel-prices.refresh');
         Route::post('fuel-advice', [FuelAdviceController::class, 'store'])->name('fuel-advice.store');
         Route::post('vehicle-advice', [VehicleAdviceController::class, 'store'])->name('vehicle-advice.store');
-        Route::post('vehicle-advice/dismiss', [VehicleAdviceController::class, 'dismiss'])->name('vehicle-advice.dismiss');
+        Route::post('vehicle-advice/status', [VehicleAdviceController::class, 'status'])->name('vehicle-advice.status');
 
         Route::post('maintenances/small-check', [MaintenanceController::class, 'smallCheck'])->name('maintenances.small-check');
 

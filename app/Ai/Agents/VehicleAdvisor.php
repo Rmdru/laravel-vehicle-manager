@@ -77,6 +77,7 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
     {
         $categories = $this->describe(self::CATEGORIES);
         $actions = $this->describe(self::ACTIONS);
+        $icons = $this->describe(VehicleAdvice::ICONS);
 
         return <<<TEXT
             You advise the owner of a vehicle on what to do about it in the coming months: what to have done, what to
@@ -89,8 +90,10 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
 
             already_shown_notifications are shown to the owner already: do not repeat them. You may build on one,
             when you add something it does not say (such as what an MOT of a vehicle this old usually takes).
-            dismissed_suggestions were marked by the owner as done or as not relevant: do not make them again, under
-            any key, unless the facts show that the situation has clearly changed since.
+            handled_suggestions are tips the owner already did something with: done, kept (the owner knows, and
+            looks the tip up when needed) or not_relevant. Do not make them again, under any key, unless the facts show
+            that the situation has clearly changed since (such as a new season for a seasonal tip that was done last
+            year).
 
             Every date, mileage and amount of the vehicle comes from the facts; never invent them. Where you rely on
             what you know about this make, model or engine rather than on the facts (an interval of the manufacturer, a
@@ -104,6 +107,9 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
 
             The action is what the owner can open in the app for the suggestion, one of:
             {$actions}
+
+            The icon is the one that shows best what the suggestion is about, one of:
+            {$icons}
 
             The key is a short, stable name of what the suggestion is about, in English snake_case (such as
             timing_belt, winter_tires or insurance_comparison): the same subject gets the same key next time.
@@ -121,6 +127,7 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
             'suggestions' => $schema->array()->items($schema->object([
                 'key' => $schema->string()->required(),
                 'category' => $schema->string()->enum(VehicleAdvice::CATEGORIES)->required(),
+                'icon' => $schema->string()->enum(array_keys(VehicleAdvice::ICONS))->required(),
                 'priority' => $schema->string()->enum(VehicleAdvice::PRIORITIES)->required(),
                 'basis' => $schema->string()->enum(VehicleAdvice::BASES)->required(),
                 'action' => $schema->string()->enum(VehicleAdvice::ACTIONS)->required(),

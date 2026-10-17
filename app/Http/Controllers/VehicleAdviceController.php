@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Models\VehicleAdviceDismissal;
+use App\Models\VehicleTip;
 use App\Services\VehicleAdviceService;
 use App\Support\CurrentVehicle;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use Inertia\Response;
 use Throwable;
 
 class VehicleAdviceController extends Controller
@@ -45,14 +47,29 @@ class VehicleAdviceController extends Controller
         return back();
     }
 
-    public function dismiss(Request $request, VehicleAdviceService $advices): RedirectResponse
+    /**
+     * All tips of the current vehicle: the current ones, and the ones kept or done.
+     */
+    public function index(VehicleAdviceService $advices): Response
+    {
+        return Inertia::render('Tips', [
+            'tips' => $advices->overview(CurrentVehicle::get()),
+        ]);
+    }
+
+    /**
+     * Marks a tip as done, kept or not relevant.
+     */
+    public function status(Request $request, VehicleAdviceService $advices): RedirectResponse
     {
         $validated = $request->validate([
             'key' => ['required', 'string', 'max:60'],
-            'reason' => ['required', Rule::in(VehicleAdviceDismissal::REASONS)],
+            'status' => ['required', Rule::in(VehicleTip::STATUSES)],
         ]);
 
-        $advices->dismiss(CurrentVehicle::get(), $validated['key'], $validated['reason']);
+        if (! $advices->handle(CurrentVehicle::get(), $validated['key'], $validated['status'])) {
+            throw ValidationException::withMessages(['key' => __('This tip no longer exists.')]);
+        }
 
         return back();
     }

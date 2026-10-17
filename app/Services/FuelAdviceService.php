@@ -70,7 +70,7 @@ class FuelAdviceService
 
         $abroad = collect((array) $facts['countries'])->where('worth_the_detour', true)->pluck('country')->map(fn ($country) => (string) $country)->values()->all();
         $advisor = fn (bool $search = false, array $sources = [], ?string $key = null) => new FuelAdvisor(
-            self::LANGUAGES[$locale] ?? 'English', $facts['home_country'], $abroad, $search, $sources, $key,
+            self::LANGUAGES[$locale] ?? 'English', $facts['home_country'], $abroad, $search, $sources, $key, (bool) ($facts['old_fuel'] ?? false),
         );
 
         [$response, $grounded] = $this->ask($facts, $advisor);

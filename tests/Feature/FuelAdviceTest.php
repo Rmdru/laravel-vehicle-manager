@@ -179,6 +179,71 @@ class FuelAdviceTest extends TestCase
         $this->assertFalse($germany['worth_the_detour']);
     }
 
+    /**
+     * Without the Super Plus of "1 in 4 times", the advice is about E10: it has
+     * been in the tank for 40 days, so the fuel is getting old.
+     *
+     * @return array<string, mixed>
+     */
+    private function germanyWithOldFuelFrom(string $city, float $latitude, float $longitude, bool $oldFuel = true): array
+    {
+        $vehicle = $this->signInWithVehicle(['notifications' => [['periodic_super_plus' => false, 'old_fuel' => $oldFuel]]]);
+        $vehicle->user->update(['city' => $city, 'latitude' => $latitude, 'longitude' => $longitude]);
+        $this->refuelings($vehicle, regular: true);
+        $this->travel(40)->days();
+        $this->prices();
+
+        return collect(app(FuelAdviceFacts::class)->for($vehicle->refresh())['countries'])->firstWhere('country', 'germany');
+    }
+
+    public function test_with_old_fuel_in_the_tank_the_first_kilometers_of_the_detour_are_free()
+    {
+        FuelAdvisor::fake([$this->answer(['action' => 'refuel_abroad', 'country' => 'germany'])]);
+
+        // Amersfoort is about 90 km from Germany by road: of those, 50 are free.
+        $germany = $this->germanyWithOldFuelFrom('Amersfoort', 52.156, 5.387);
+
+        $this->assertSame(50, $germany['free_km_one_way_for_old_fuel']);
+        // € 15 cheaper on a full tank, minus 2 × (90 - 50) km at € 0.12.
+        $this->assertSame(round(2 * ($germany['distance_from_driver_km'] - 50) * 0.12, 2), $germany['detour_fuel_costs_eur']);
+        $this->assertGreaterThan(0, $germany['net_savings_per_full_tank_eur']);
+        $this->assertTrue($germany['worth_the_detour']);
+
+        app(FuelAdviceService::class)->generate(Vehicle::query()->sole(), 'en');
+
+        FuelAdvisor::assertPrompted(fn (AgentPrompt $prompt) => in_array('refuel_abroad', $prompt->agent->actions(), true)
+            && str_contains($prompt->agent->instructions(), 'free_km_one_way_for_old_fuel kilometers each way do not count'));
+    }
+
+    public function test_without_old_fuel_the_same_detour_is_not_worth_it()
+    {
+        $germany = $this->germanyWithOldFuelFrom('Amersfoort', 52.156, 5.387, oldFuel: false);
+
+        $this->assertArrayNotHasKey('free_km_one_way_for_old_fuel', $germany);
+        $this->assertLessThan(0, $germany['net_savings_per_full_tank_eur']);
+        $this->assertFalse($germany['worth_the_detour']);
+    }
+
+    public function test_with_old_fuel_in_the_tank_a_country_far_away_is_still_not_worth_it()
+    {
+        // Amsterdam is more than 120 km from every border.
+        $germany = $this->germanyWithOldFuelFrom('Amsterdam', 52.37, 4.90);
+
+        $this->assertGreaterThan(120, $germany['distance_from_driver_km']);
+        $this->assertLessThan(0, $germany['net_savings_per_full_tank_eur']);
+        $this->assertFalse($germany['worth_the_detour']);
+    }
+
+    public function test_old_fuel_is_left_out_when_its_notification_is_off()
+    {
+        $vehicle = $this->signInWithVehicle(['notifications' => [['old_fuel' => false, 'periodic_super_plus' => false]]]);
+        $this->refuelings($vehicle, regular: true);
+        $this->travel(40)->days();
+        $this->prices();
+
+        $this->assertFalse(app(FuelAdviceFacts::class)->for($vehicle->refresh())['old_fuel']);
+    }
+
     public function test_the_advice_is_about_super_plus_when_it_is_its_turn()
     {
         $vehicle = $this->signInWithVehicle();

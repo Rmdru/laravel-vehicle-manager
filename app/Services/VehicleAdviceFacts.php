@@ -7,7 +7,7 @@ namespace App\Services;
 use App\Models\Maintenance;
 use App\Models\Refueling;
 use App\Models\Vehicle;
-use App\Models\VehicleAdviceDismissal;
+use App\Models\VehicleTip;
 use BackedEnum;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\App;
@@ -79,14 +79,15 @@ class VehicleAdviceFacts
             'valid_vignettes_and_stickers' => $this->vignettes($vehicle),
             'average_monthly_costs_past_year_eur' => $this->costs($vehicle),
             'already_shown_notifications' => $this->notifications($vehicle),
-            'dismissed_suggestions' => VehicleAdviceDismissal::query()
+            'handled_suggestions' => VehicleTip::query()
                 ->where('vehicle_id', $vehicle->id)
-                ->orderBy('created_at')
-                ->get(['key', 'reason', 'title'])
-                ->map(fn (VehicleAdviceDismissal $dismissal) => [
-                    'key' => $dismissal->key,
-                    'reason' => $dismissal->reason,
-                    'title' => $dismissal->title,
+                ->orderBy('updated_at')
+                ->get()
+                ->map(fn (VehicleTip $tip) => [
+                    'key' => $tip->key,
+                    'status' => $tip->status,
+                    'title' => $tip->title,
+                    'since' => $tip->updated_at->toDateString(),
                 ])
                 ->all(),
         ];

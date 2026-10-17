@@ -23,6 +23,7 @@ class Navigation
             ['label' => __('Overview'), 'items' => [
                 $item(__('Dashboard'), 'dashboard', 'ic:round-bar-chart'),
                 $item(__('Timeline'), 'timeline', 'ic:round-timeline'),
+                $item(__('Tips'), 'tips', 'ic:round-auto-awesome'),
             ]],
             ['label' => __('Maintenance'), 'items' => [
                 $item(__('Maintenance & repairs'), 'maintenances.index', 'mdi:car-wrench'),
@@ -91,6 +92,10 @@ class Navigation
             'No tips right now: nothing stands out for this vehicle.', 'Indicative: check a tip before acting on it.',
             // The categories of the tips.
             'Maintenance', 'Season', 'Known issue', 'Costs and savings', 'Resale value', 'Rules and obligations', 'Use',
+            // The overview of the tips, and what can be done with a tip.
+            'All tips', 'Current tips', 'Kept', 'Keep', 'Remove', 'Kept on :date', 'Done on :date',
+            'Keep a tip to look it up here later, without it showing on the dashboard.',
+            'The tips you marked as done are listed here.',
         ];
 
         return collect($keys)->mapWithKeys(fn (string $key) => [$key => __($key)])->all();

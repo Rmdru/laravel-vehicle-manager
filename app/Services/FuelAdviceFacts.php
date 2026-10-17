@@ -8,6 +8,7 @@ use App\Models\FuelDetourAggregate;
 use App\Models\FuelPrice;
 use App\Models\Refueling;
 use App\Models\Vehicle;
+use App\Support\StatusNotification;
 use App\Traits\VehicleStats;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
@@ -72,6 +73,8 @@ class FuelAdviceFacts
 
         // The advice is about the next refueling, which may have to be Super Plus.
         $superPlus = $this->superPlusDue($vehicle);
+        // The vehicle is driven little: a longer drive to cheaper fuel does it good.
+        $oldFuel = $this->oldFuel($vehicle);
         $fuelType = $superPlus ? self::SUPER_PLUS : $usual;
         $candidates = [$fuelType, ...self::COMPARABLE[$fuelType] ?? []];
 
@@ -107,6 +110,7 @@ class FuelAdviceFacts
             'fuel_type' => $fuelType,
             'usual_fuel_type' => $usual,
             'super_plus_due' => $superPlus,
+            'old_fuel' => $oldFuel,
             'home_country' => $home,
             'driver_location' => $location
                 ? ['city' => $user->city, 'known' => true]
@@ -116,7 +120,7 @@ class FuelAdviceFacts
             ]),
             'next_refueling' => $this->nextRefueling($vehicle),
             'countries' => $prices
-                ->map(fn (Collection $prices, string $country) => $this->country($vehicle, $country, $prices, $country === $home ? null : $homePrice, $location))
+                ->map(fn (Collection $prices, string $country) => $this->country($vehicle, $country, $prices, $country === $home ? null : $homePrice, $location, $oldFuel))
                 ->sortBy('latest_price')
                 ->values()
                 ->all(),
@@ -291,7 +295,7 @@ class FuelAdviceFacts
      * @param  array{lat: float, lon: float}|null  $location  Where the driver lives.
      * @return array<string, mixed>
      */
-    private function country(Vehicle $vehicle, string $country, Collection $prices, ?float $homePrice, ?array $location): array
+    private function country(Vehicle $vehicle, string $country, Collection $prices, ?float $homePrice, ?array $location, bool $oldFuel = false): array
     {
         $latest = $prices->last();
         $price = (float) $latest->price;
@@ -333,7 +337,7 @@ class FuelAdviceFacts
             // How far the vehicle can drive out of its way before the cheaper fuel no longer pays off.
             $facts['break_even_detour_km_fuel_costs_only'] = $detour?->max_detour_only_fuel_costs;
             $facts['break_even_detour_km_all_costs'] = $detour?->max_detour_all_costs;
-            $facts = [...$facts, ...$this->detour($vehicle, $country, $savings, $location)];
+            $facts = [...$facts, ...$this->detour($vehicle, $country, $savings, $location, $oldFuel)];
         }
 
         return array_filter($facts, fn ($value) => $value !== null);
@@ -341,12 +345,15 @@ class FuelAdviceFacts
 
     /**
      * Whether refueling in the country pays off from where the driver lives:
-     * the savings on a full tank minus the fuel to get there and back.
+     * the savings on a full tank minus the fuel to get there and back. With
+     * old fuel in the tank the first kilometers do not count: the vehicle
+     * could do with a drive. Beyond those the detour costs as always, so that
+     * a country far away is still not worth it.
      *
      * @param  array{lat: float, lon: float}|null  $location
      * @return array<string, mixed>
      */
-    private function detour(Vehicle $vehicle, string $country, ?float $savings, ?array $location): array
+    private function detour(Vehicle $vehicle, string $country, ?float $savings, ?array $location, bool $oldFuel = false): array
     {
         $points = (array) config('fuel_advice.border_points.'.$country, []);
 
@@ -356,16 +363,19 @@ class FuelAdviceFacts
 
         $nearest = collect($points)->min(fn (array $point) => $this->kilometers($location, $point));
         $distance = (int) round($nearest * config('fuel_advice.road_factor'));
+        $free = $oldFuel ? (int) config('fuel_advice.old_fuel_free_km') : 0;
+        $charged = max(0, $distance - $free);
         $costsPerKilometer = $this->calculateAverageFuelCostsPerKilometer($vehicle->id);
-        $net = $savings !== null && $costsPerKilometer > 0 ? $savings - 2 * $distance * $costsPerKilometer : null;
+        $net = $savings !== null && $costsPerKilometer > 0 ? $savings - 2 * $charged * $costsPerKilometer : null;
 
-        return [
+        return array_filter([
             // One way, by road, estimated.
             'distance_from_driver_km' => $distance,
-            'detour_fuel_costs_eur' => $costsPerKilometer > 0 ? round(2 * $distance * $costsPerKilometer, 2) : null,
+            'free_km_one_way_for_old_fuel' => $oldFuel ? $free : null,
+            'detour_fuel_costs_eur' => $costsPerKilometer > 0 ? round(2 * $charged * $costsPerKilometer, 2) : null,
             'net_savings_per_full_tank_eur' => $net === null ? null : round($net, 2),
             'worth_the_detour' => $net !== null && $net > 0,
-        ];
+        ], fn ($value) => $value !== null);
     }
 
     /**
@@ -390,14 +400,30 @@ class FuelAdviceFacts
      */
     private function superPlusDue(Vehicle $vehicle): bool
     {
-        $enabled = collect($vehicle->notifications ?? [])
-            ->first(fn ($settings) => is_array($settings) && array_key_exists('periodic_super_plus', $settings));
+        return $this->notificationOn($vehicle, 'periodic_super_plus') && $vehicle->superPlusDue();
+    }
 
-        if ($enabled !== null && ! $enabled['periodic_super_plus']) {
-            return false;
-        }
+    /**
+     * Whether the E10 in the tank is getting old, as the notification that says
+     * so tells (from the same threshold on), as long as it is on.
+     */
+    private function oldFuel(Vehicle $vehicle): bool
+    {
+        $days = $vehicle->fuel_status['time'] ?? null;
+        $threshold = StatusNotification::configuration()['old_fuel']['thresholds']['warning'];
 
-        return $vehicle->superPlusDue();
+        return $days !== null && $days < $threshold && $this->notificationOn($vehicle, 'old_fuel');
+    }
+
+    /**
+     * Whether the owner left the notification on: it is, unless turned off.
+     */
+    private function notificationOn(Vehicle $vehicle, string $key): bool
+    {
+        $settings = collect($vehicle->notifications ?? [])
+            ->first(fn ($settings) => is_array($settings) && array_key_exists($key, $settings));
+
+        return $settings === null || (bool) $settings[$key];
     }
 
     /**
