@@ -42,6 +42,7 @@ class FuelAdvisor implements Agent, HasStructuredOutput, HasTools
      * @param  array<int, string>  $abroad  The countries worth the detour from where the driver lives.
      * @param  array<int, string>  $sources  Pages to read for news.
      * @param  string|null  $key  The API key to use, one of those configured; null for the configured one.
+     * @param  bool  $oldFuel  The E10 in the tank is getting old: the detour is no objection.
      */
     public function __construct(
         private readonly string $language,
@@ -50,6 +51,7 @@ class FuelAdvisor implements Agent, HasStructuredOutput, HasTools
         private readonly bool $search = false,
         private readonly array $sources = [],
         private readonly ?string $key = null,
+        private readonly bool $oldFuel = false,
     ) {
         //
     }
@@ -88,6 +90,20 @@ class FuelAdvisor implements Agent, HasStructuredOutput, HasTools
             : 'Refueling in '.implode(' or ', $this->abroad).' is worth the detour from where the driver lives: the net '
                 .'savings (the savings on a full tank minus the fuel to get there and back) are positive. Weigh those net '
                 .'savings against the trouble of the trip; small net savings are not worth a special trip.';
+
+        $oldFuel = 'old_fuel is true: the E10 in the tank is getting old, so the vehicle is hardly driven. Recommend '
+            .'refueling soon, so that the fuel does not get older.';
+
+        $abroad = match (true) {
+            $this->oldFuel && $this->abroad !== [] => $oldFuel.' A drive does the vehicle good, so the first '
+                .'free_km_one_way_for_old_fuel kilometers each way do not count as detour costs: the detour costs and the '
+                .'net savings in the facts already leave them out. Refueling in '.implode(' or ', $this->abroad).' is '
+                .'therefore worth the trip. The trip itself is no objection up to that distance, and say that the drive '
+                .'does the vehicle good; beyond it, weigh the net savings against the trouble of the trip as usual. Of '
+                .'several countries, prefer the one with the highest net savings, not simply the cheapest fuel.',
+            $this->oldFuel => $oldFuel.' '.$abroad,
+            default => $abroad,
+        };
 
         $superPlus = 'When super_plus_due is true, the next refueling has to be Super Plus (the owner fills up with it '
             .'once every four refuelings, to keep the engine clean); the prices in the facts are already those of Super '

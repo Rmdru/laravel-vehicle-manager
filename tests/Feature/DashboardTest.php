@@ -296,6 +296,24 @@ class DashboardTest extends TestCase
         $this->assertSame(1, FuelDetourAggregate::where('vehicle_id', $vehicle->id)->count());
     }
 
+    public function test_a_detour_that_was_not_calculated_is_no_break_even_and_one_not_worth_it_is_zero()
+    {
+        $vehicle = $this->signInWithVehicle();
+
+        $germany = FuelPrice::create(['date' => now()->toDateString(), 'country' => 'germany', 'fuel_type' => 'Unleaded 95 (E10)', 'price' => 2.50]);
+        FuelPrice::create(['date' => now()->toDateString(), 'country' => 'belgium', 'fuel_type' => 'Unleaded 95 (E10)', 'price' => 2.10]);
+        FuelDetourAggregate::create(['vehicle_id' => $vehicle->id, 'fuel_price_id' => $germany->id, 'max_detour_only_fuel_costs' => 0, 'max_detour_all_costs' => 0]);
+
+        $countries = collect(app(DashboardService::class)->fuelPricesAbroad($vehicle)['countries'])->keyBy('key');
+
+        // Germany is more expensive: not worth any detour, so 0 km.
+        $this->assertSame(0, (int) $countries['germany']['prices']['Unleaded 95 (E10)']['detourFuel']);
+        $this->assertNotNull($countries['germany']['prices']['Unleaded 95 (E10)']['detourAll']);
+        // Not calculated for Belgium: no break-even line at all.
+        $this->assertNull($countries['belgium']['prices']['Unleaded 95 (E10)']['detourFuel']);
+        $this->assertNull($countries['belgium']['prices']['Unleaded 95 (E10)']['detourAll']);
+    }
+
     /**
      * Unleaded 95 (E10) at home and in Germany, as the import would have stored it.
      *

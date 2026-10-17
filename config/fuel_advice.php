@@ -36,6 +36,10 @@ return [
     // The part of the tank left when a refueling is due.
     'reserve' => 0.15,
 
+    // Kilometers one way that do not count as detour costs while the E10 in the
+    // tank is getting old: the vehicle is hardly driven, and a drive does it good.
+    'old_fuel_free_km' => 50,
+
     // How much longer the road is than the straight line to a gas station abroad.
     'road_factor' => 1.3,
 

@@ -8,9 +8,10 @@ use App\Ai\Agents\VehicleAdvisor;
 use App\Ai\ApiKeys;
 use App\Models\Vehicle;
 use App\Models\VehicleAdvice;
-use App\Models\VehicleAdviceDismissal;
+use App\Models\VehicleTip;
 use App\Support\StatusNotification;
 use Carbon\Carbon;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Laravel\Ai\Responses\StructuredAgentResponse;
@@ -34,7 +35,7 @@ class VehicleAdviceService
         'es' => 'Spanish, addressing the owner informally ("tú")',
     ];
 
-    /** The icon of each category, as on the dashboard. */
+    /** The icon of each category: for a tip without an icon of its own. */
     private const ICONS = [
         'maintenance' => 'mdi:car-wrench',
         'season' => 'mdi:snowflake',
@@ -87,11 +88,11 @@ class VehicleAdviceService
     private function generateFrom(Vehicle $vehicle, string $locale, array $facts): VehicleAdvice
     {
         $response = $this->ask($facts, self::LANGUAGES[$locale] ?? 'English');
-        $dismissed = array_column($facts['dismissed_suggestions'], 'key');
+        $handled = array_column($facts['handled_suggestions'], 'key');
 
         return $vehicle->vehicleAdvices()->create([
             'locale' => $locale,
-            'suggestions' => $this->suggestions((array) ($response['suggestions'] ?? []), $dismissed),
+            'suggestions' => $this->suggestions((array) ($response['suggestions'] ?? []), $handled),
             'facts' => $facts,
             'facts_hash' => $this->facts->fingerprint($facts),
             'model' => $response->meta->model ?? config('vehicle_advice.model'),
@@ -135,20 +136,21 @@ class VehicleAdviceService
 
     /**
      * What the model made of the suggestions, as far as it makes sense: known
-     * categories and actions, no date in the past, nothing the owner dismissed
+     * categories and actions, no date in the past, nothing the owner handled
      * and every subject once.
      *
      * @param  array<int, mixed>  $suggestions
-     * @param  list<string>  $dismissed
+     * @param  list<string>  $handled
      * @return list<array<string, mixed>>
      */
-    private function suggestions(array $suggestions, array $dismissed): array
+    private function suggestions(array $suggestions, array $handled): array
     {
         return collect($suggestions)
             ->filter(fn ($suggestion) => is_array($suggestion))
             ->map(fn (array $suggestion) => [
                 'key' => Str::limit(Str::snake(Str::ascii(trim((string) ($suggestion['key'] ?? '')))), 60, ''),
                 'category' => in_array($suggestion['category'] ?? null, VehicleAdvice::CATEGORIES, true) ? $suggestion['category'] : null,
+                'icon' => array_key_exists((string) ($suggestion['icon'] ?? ''), VehicleAdvice::ICONS) ? $suggestion['icon'] : null,
                 'priority' => in_array($suggestion['priority'] ?? null, VehicleAdvice::PRIORITIES, true) ? $suggestion['priority'] : 'low',
                 'basis' => in_array($suggestion['basis'] ?? null, VehicleAdvice::BASES, true) ? $suggestion['basis'] : 'general_knowledge',
                 'action' => in_array($suggestion['action'] ?? null, VehicleAdvice::ACTIONS, true) ? $suggestion['action'] : 'none',
@@ -157,7 +159,7 @@ class VehicleAdviceService
                 'body' => trim((string) ($suggestion['body'] ?? '')),
             ])
             ->filter(fn (array $suggestion) => $suggestion['key'] !== '' && $suggestion['category'] !== null && $suggestion['title'] !== '')
-            ->reject(fn (array $suggestion) => in_array($suggestion['key'], $dismissed, true))
+            ->reject(fn (array $suggestion) => in_array($suggestion['key'], $handled, true))
             ->unique('key')
             ->take(config('vehicle_advice.suggestions'))
             ->values()
@@ -193,21 +195,41 @@ class VehicleAdviceService
     }
 
     /**
-     * Marks a suggestion of the latest advice as done or as not relevant: it
-     * is no longer shown, and the model is told not to make it again.
+     * Marks a tip as done, kept or not relevant: it is no longer shown on the
+     * dashboard, and the model is told not to make it again. A tip of the
+     * latest advice is copied, so that the overview keeps it; a tip that was
+     * handled before only changes its status. False for an unknown tip.
      */
-    public function dismiss(Vehicle $vehicle, string $key, string $reason): void
+    public function handle(Vehicle $vehicle, string $key, string $status): bool
     {
-        $suggestion = collect($this->latest($vehicle, app()->getLocale())->suggestions ?? [])->firstWhere('key', $key);
+        $tip = VehicleTip::query()->where('vehicle_id', $vehicle->id)->where('key', $key)->first();
 
-        VehicleAdviceDismissal::query()->updateOrCreate(
-            ['vehicle_id' => $vehicle->id, 'key' => $key],
-            ['reason' => $reason, 'title' => (string) ($suggestion['title'] ?? $key)],
-        );
+        if ($tip !== null) {
+            $tip->update(['status' => $status]);
+
+            return true;
+        }
+
+        $locale = app()->getLocale();
+        $suggestion = collect($this->latest($vehicle, $locale)->suggestions ?? [])->firstWhere('key', $key);
+
+        if ($suggestion === null) {
+            return false;
+        }
+
+        VehicleTip::query()->create([
+            'vehicle_id' => $vehicle->id,
+            'status' => $status,
+            'locale' => $locale,
+            ...Arr::only($suggestion, ['key', 'category', 'icon', 'priority', 'basis', 'action', 'due_date', 'title', 'body']),
+        ]);
+
+        return true;
     }
 
     /**
-     * The suggestions in the current locale that were not dismissed since.
+     * The tips of the latest advice in the current locale that were not
+     * handled since.
      *
      * @return list<array<string, mixed>>
      */
@@ -217,16 +239,19 @@ class VehicleAdviceService
             return [];
         }
 
-        $dismissed = VehicleAdviceDismissal::query()->where('vehicle_id', $vehicle->id)->pluck('key')->all();
+        $handled = VehicleTip::query()->where('vehicle_id', $vehicle->id)->pluck('key')->all();
+        $priorities = array_flip(VehicleAdvice::PRIORITIES);
 
         return collect($advice->suggestions)
-            ->reject(fn (array $suggestion) => in_array($suggestion['key'], $dismissed, true))
+            ->reject(fn (array $suggestion) => in_array($suggestion['key'], $handled, true))
+            ->sortBy(fn (array $suggestion) => $priorities[$suggestion['priority']] ?? count($priorities))
             ->values()
             ->all();
     }
 
     /**
-     * The advice in the current locale, for the dashboard.
+     * The advice in the current locale, for the dashboard: the tips that were
+     * not handled yet.
      *
      * @return array<string, mixed>
      */
@@ -234,22 +259,46 @@ class VehicleAdviceService
     {
         $locale = app()->getLocale();
         $advice = $this->latest($vehicle, $locale);
-        $priorities = array_flip(VehicleAdvice::PRIORITIES);
 
         return [
             'advice' => $advice ? [
                 'id' => $advice->id,
-                'suggestions' => collect($this->current($vehicle, $advice))
-                    ->sortBy(fn (array $suggestion) => $priorities[$suggestion['priority']] ?? 9)
-                    ->map(fn (array $suggestion) => $this->present($vehicle, $suggestion))
-                    ->values()
-                    ->all(),
+                'suggestions' => array_map(fn (array $suggestion) => $this->present($vehicle, $suggestion), $this->current($vehicle, $advice)),
                 'model' => $advice->model,
                 'generatedAt' => $advice->created_at->isoFormat('D MMMM HH:mm'),
             ] : null,
             'canGenerate' => $this->canGenerate($vehicle, $locale),
             'generateUrl' => route('vehicle-advice.store'),
-            'dismissUrl' => route('vehicle-advice.dismiss'),
+            'statusUrl' => route('vehicle-advice.status'),
+            'overviewUrl' => route('tips'),
+        ];
+    }
+
+    /**
+     * All tips, for the overview: the current ones as on the dashboard, and
+     * the ones kept or done, the most recently handled first. The ones that
+     * are not relevant are left out altogether.
+     *
+     * @return array<string, mixed>
+     */
+    public function overview(Vehicle $vehicle): array
+    {
+        $handled = VehicleTip::query()
+            ->where('vehicle_id', $vehicle->id)
+            ->whereIn('status', [VehicleTip::KEPT, VehicleTip::DONE])
+            ->latest('updated_at')
+            ->get()
+            ->groupBy('status');
+
+        $present = fn (VehicleTip $tip) => [
+            ...$this->present($vehicle, [...$tip->only(['key', 'category', 'icon', 'priority', 'basis', 'action', 'title', 'body']), 'due_date' => $tip->due_date?->toDateString()]),
+            'handledAt' => $tip->updated_at->isoFormat('D MMMM YYYY'),
+        ];
+
+        return [
+            ...$this->forDashboard($vehicle),
+            'kept' => $handled->get(VehicleTip::KEPT, collect())->map($present)->values()->all(),
+            'done' => $handled->get(VehicleTip::DONE, collect())->map($present)->values()->all(),
         ];
     }
 
@@ -273,7 +322,7 @@ class VehicleAdviceService
         return [
             'key' => $suggestion['key'],
             'category' => $suggestion['category'],
-            'icon' => self::ICONS[$suggestion['category']] ?? 'mdi:lightbulb-on-outline',
+            'icon' => $this->icon($suggestion),
             'priority' => $suggestion['priority'],
             'basis' => $suggestion['basis'],
             'title' => $suggestion['title'],
@@ -282,6 +331,18 @@ class VehicleAdviceService
             'url' => $url,
             'urlLabel' => $label,
         ];
+    }
+
+    /**
+     * The icon the model chose, or else the one of the category.
+     *
+     * @param  array<string, mixed>  $suggestion
+     */
+    private function icon(array $suggestion): string
+    {
+        return array_key_exists((string) ($suggestion['icon'] ?? ''), VehicleAdvice::ICONS)
+            ? $suggestion['icon']
+            : self::ICONS[$suggestion['category']] ?? 'mdi:lightbulb-on-outline';
     }
 
     /**
@@ -303,7 +364,7 @@ class VehicleAdviceService
                 'key' => 'vehicle_advice:'.$suggestion['key'],
                 'type' => 'warning',
                 'text' => $suggestion['title'],
-                'icon' => self::ICONS[$suggestion['category']] ?? 'mdi:lightbulb-on-outline',
+                'icon' => $this->icon($suggestion),
                 'typeIcon' => $types['warning']['icon'],
                 'priority' => $types['warning']['priority'],
                 'hasModal' => false,

@@ -1,76 +1,53 @@
 <script setup lang="ts">
 import { Link, router } from '@inertiajs/vue3';
-import { RefreshCw } from '@lucide/vue';
+import { ChevronRight, RefreshCw } from '@lucide/vue';
 import { nextTick, ref } from 'vue';
-import AppIcon from '@/components/AppIcon.vue';
-import ColorBadge from '@/components/ColorBadge.vue';
 import SectionCard from '@/components/SectionCard.vue';
 import { Button } from '@/components/ui/button';
+import VehicleTip from '@/components/VehicleTip.vue';
+import type {
+    VehicleTipData,
+    VehicleTipStatus,
+} from '@/components/VehicleTip.vue';
 import { useT } from '@/composables/useT';
-
-export type VehicleAdviceSuggestion = {
-    key: string;
-    category:
-        | 'maintenance'
-        | 'season'
-        | 'known_issue'
-        | 'costs'
-        | 'value'
-        | 'legal'
-        | 'usage';
-    icon: string;
-    priority: 'high' | 'medium' | 'low';
-    // From the records in the app, or from what the model knows in general.
-    basis: 'app_data' | 'general_knowledge';
-    title: string;
-    body: string;
-    due: string | null;
-    // Where to do what the suggestion asks for.
-    url: string | null;
-    urlLabel: string | null;
-};
 
 export type VehicleAdviceData = {
     advice: {
         id: string;
-        // The most important first; without the ones dismissed since.
-        suggestions: VehicleAdviceSuggestion[];
+        // The most important first; without the ones handled since.
+        suggestions: VehicleTipData[];
         model: string;
         generatedAt: string;
     } | null;
     canGenerate: boolean;
     generateUrl: string;
-    dismissUrl: string;
+    statusUrl: string;
+    overviewUrl: string;
 };
 
-const props = defineProps<{ data: VehicleAdviceData }>();
+const props = withDefaults(
+    defineProps<{
+        data: VehicleAdviceData;
+        // The props to reload after a change: urgent tips are notifications as well.
+        reload?: string[];
+        // On the dashboard: foldable, with a link to the overview of all tips.
+        onDashboard?: boolean;
+        title?: string;
+    }>(),
+    {
+        reload: () => ['vehicleAdvice', 'notifications'],
+        onDashboard: true,
+        title: 'Tips',
+    },
+);
 
 const { t } = useT();
 
 const generating = ref(false);
-const dismissing = ref<string | null>(null);
-// The suggestion a notification under "Needs attention" pointed to.
+const handling = ref<string | null>(null);
+// The tip a notification under "Needs attention" pointed to.
 const highlighted = ref<string | null>(null);
 const card = ref<HTMLElement | null>(null);
-
-const categories: Record<VehicleAdviceSuggestion['category'], string> = {
-    maintenance: 'Maintenance',
-    season: 'Season',
-    known_issue: 'Known issue',
-    costs: 'Costs and savings',
-    value: 'Resale value',
-    legal: 'Rules and obligations',
-    usage: 'Use',
-};
-
-const tones: Record<VehicleAdviceSuggestion['priority'], string> = {
-    high: 'bg-warning-muted text-warning',
-    medium: 'bg-info-muted text-info',
-    low: 'bg-muted text-muted-foreground',
-};
-
-// Reloaded with the notifications: urgent tips are shown there as well.
-const reload = ['vehicleAdvice', 'notifications'];
 
 function generate() {
     router.post(
@@ -78,22 +55,22 @@ function generate() {
         {},
         {
             preserveScroll: true,
-            only: reload,
+            only: props.reload,
             onStart: () => (generating.value = true),
             onFinish: () => (generating.value = false),
         },
     );
 }
 
-function dismiss(key: string, reason: 'done' | 'not_relevant') {
+function setStatus(key: string, status: VehicleTipStatus) {
     router.post(
-        props.data.dismissUrl,
-        { key, reason },
+        props.data.statusUrl,
+        { key, status },
         {
             preserveScroll: true,
-            only: reload,
-            onStart: () => (dismissing.value = key),
-            onFinish: () => (dismissing.value = null),
+            only: props.reload,
+            onStart: () => (handling.value = key),
+            onFinish: () => (handling.value = null),
         },
     );
 }
@@ -111,9 +88,9 @@ defineExpose({
 <template>
     <div ref="card" class="scroll-mt-4">
         <SectionCard
-            :title="t('Tips')"
+            :title="t(title)"
             icon="ic:round-auto-awesome"
-            collapsible
+            :collapsible="onDashboard"
             persist-key="vehicle-advice"
             flush
         >
@@ -163,109 +140,15 @@ defineExpose({
 
             <template v-else>
                 <ul v-if="data.advice.suggestions.length" class="divide-y">
-                    <li
+                    <VehicleTip
                         v-for="suggestion in data.advice.suggestions"
                         :key="suggestion.key"
-                        :class="[
-                            'flex gap-3 px-4 py-3 transition-colors',
-                            highlighted === suggestion.key ? 'bg-muted/60' : '',
-                            dismissing === suggestion.key ? 'opacity-50' : '',
-                        ]"
-                    >
-                        <span
-                            :class="[
-                                'flex size-9 shrink-0 items-center justify-center rounded-lg',
-                                tones[suggestion.priority],
-                            ]"
-                        >
-                            <AppIcon :name="suggestion.icon" class="size-5" />
-                        </span>
-                        <div class="flex min-w-0 flex-1 flex-col gap-1.5">
-                            <div
-                                class="flex flex-wrap items-center gap-x-2 gap-y-1"
-                            >
-                                <span class="font-semibold">
-                                    {{ suggestion.title }}
-                                </span>
-                                <ColorBadge
-                                    v-if="suggestion.priority === 'high'"
-                                    color="warning"
-                                >
-                                    {{ t('Important') }}
-                                </ColorBadge>
-                            </div>
-                            <p
-                                class="text-sm leading-relaxed text-muted-foreground"
-                            >
-                                {{ suggestion.body }}
-                            </p>
-                            <div
-                                class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
-                            >
-                                <span>{{
-                                    t(categories[suggestion.category])
-                                }}</span>
-                                <span
-                                    v-if="suggestion.due"
-                                    class="flex items-center gap-1"
-                                >
-                                    <AppIcon
-                                        name="ic:round-calendar-month"
-                                        class="size-3.5"
-                                    />
-                                    {{
-                                        t('Before :date', {
-                                            date: suggestion.due,
-                                        })
-                                    }}
-                                </span>
-                                <span>
-                                    {{
-                                        suggestion.basis === 'app_data'
-                                            ? t('Based on your data')
-                                            : t('General knowledge')
-                                    }}
-                                </span>
-                            </div>
-                            <div
-                                class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm"
-                            >
-                                <Link
-                                    v-if="suggestion.url"
-                                    :href="suggestion.url"
-                                    class="min-h-9 content-center font-semibold underline"
-                                >
-                                    {{ suggestion.urlLabel }}
-                                </Link>
-                                <button
-                                    type="button"
-                                    class="inline-flex min-h-9 cursor-pointer items-center gap-1 text-muted-foreground hover:text-foreground"
-                                    :disabled="dismissing !== null"
-                                    @click="dismiss(suggestion.key, 'done')"
-                                >
-                                    <AppIcon
-                                        name="ic:round-check"
-                                        class="size-4"
-                                    />
-                                    {{ t('Done') }}
-                                </button>
-                                <button
-                                    type="button"
-                                    class="inline-flex min-h-9 cursor-pointer items-center gap-1 text-muted-foreground hover:text-foreground"
-                                    :disabled="dismissing !== null"
-                                    @click="
-                                        dismiss(suggestion.key, 'not_relevant')
-                                    "
-                                >
-                                    <AppIcon
-                                        name="ic:round-close"
-                                        class="size-4"
-                                    />
-                                    {{ t('Not relevant') }}
-                                </button>
-                            </div>
-                        </div>
-                    </li>
+                        :tip="suggestion"
+                        state="current"
+                        :busy="handling === suggestion.key"
+                        :highlighted="highlighted === suggestion.key"
+                        @status="(status) => setStatus(suggestion.key, status)"
+                    />
                 </ul>
                 <p v-else class="p-4 text-sm text-muted-foreground">
                     {{
@@ -274,15 +157,29 @@ defineExpose({
                         )
                     }}
                 </p>
-                <p class="border-t px-4 py-3 text-xs text-muted-foreground">
-                    {{
-                        t('Generated on :date by :model.', {
-                            date: data.advice.generatedAt,
-                            model: data.advice.model,
-                        })
-                    }}
-                    {{ t('Indicative: check a tip before acting on it.') }}
-                </p>
+                <div
+                    class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t px-4 py-2"
+                >
+                    <p
+                        class="min-w-0 flex-1 basis-64 py-1 text-xs text-muted-foreground"
+                    >
+                        {{
+                            t('Generated on :date by :model.', {
+                                date: data.advice.generatedAt,
+                                model: data.advice.model,
+                            })
+                        }}
+                        {{ t('Indicative: check a tip before acting on it.') }}
+                    </p>
+                    <Link
+                        v-if="onDashboard"
+                        :href="data.overviewUrl"
+                        class="inline-flex min-h-9 items-center gap-1 text-sm font-semibold"
+                    >
+                        {{ t('All tips') }}
+                        <ChevronRight class="size-4" />
+                    </Link>
+                </div>
             </template>
         </SectionCard>
     </div>

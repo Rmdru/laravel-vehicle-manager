@@ -585,5 +585,15 @@
     "Done": "Gedaan",
     "Not relevant": "Niet relevant",
     "No tips right now: nothing stands out for this vehicle.": "Op dit moment geen tips: er springt niets uit voor dit voertuig.",
-    "Indicative: check a tip before acting on it.": "Indicatief: controleer een tip voordat je ermee aan de slag gaat."
+    "Indicative: check a tip before acting on it.": "Indicatief: controleer een tip voordat je ermee aan de slag gaat.",
+    "All tips": "Alle tips",
+    "Current tips": "Actuele tips",
+    "Keep": "Bewaren",
+    "Kept": "Bewaard",
+    "Remove": "Verwijderen",
+    "Kept on :date": "Bewaard op :date",
+    "Done on :date": "Gedaan op :date",
+    "Keep a tip to look it up here later, without it showing on the dashboard.": "Bewaar een tip om hem hier later terug te lezen, zonder dat hij op het dashboard staat.",
+    "The tips you marked as done are listed here.": "Hier staan de tips die je als gedaan hebt gemarkeerd.",
+    "This tip no longer exists.": "Deze tip bestaat niet meer."
 }

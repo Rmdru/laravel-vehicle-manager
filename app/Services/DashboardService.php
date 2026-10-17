@@ -227,9 +227,10 @@ class DashboardService
                         'price' => number_format((float) $price->price, 3, ',', '.'),
                         'previousPrice' => $price->getAttribute('previous_price') === null ? null : number_format((float) $price->getAttribute('previous_price'), 3, ',', '.'),
                         'trend' => $price->getAttribute('previous_price') === null ? 0 : round((float) $price->price, 3) <=> round((float) $price->getAttribute('previous_price'), 3),
-                        // Only for a fuel the vehicle can run on.
-                        'detourFuel' => $vehicle->suitableForFuel($price->fuel_type) ? ($price->max_detour_only_fuel_costs ?? 0) : null,
-                        'detourAll' => $vehicle->suitableForFuel($price->fuel_type) ? ($price->max_detour_all_costs ?? 0) : null,
+                        // Only for a fuel the vehicle can run on, and once the detour has been
+                        // calculated (null from the left join): 0 means it is not worth the detour.
+                        'detourFuel' => $vehicle->suitableForFuel($price->fuel_type) ? $price->getAttribute('max_detour_only_fuel_costs') : null,
+                        'detourAll' => $vehicle->suitableForFuel($price->fuel_type) ? $price->getAttribute('max_detour_all_costs') : null,
                     ]])->all(),
                 ])
                 ->values()

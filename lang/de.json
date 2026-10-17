@@ -584,5 +584,15 @@
     "Done": "Erledigt",
     "Not relevant": "Nicht relevant",
     "No tips right now: nothing stands out for this vehicle.": "Derzeit keine Tipps: Bei diesem Fahrzeug fällt nichts auf.",
-    "Indicative: check a tip before acting on it.": "Unverbindlich: Prüfen Sie einen Tipp, bevor Sie danach handeln."
+    "Indicative: check a tip before acting on it.": "Unverbindlich: Prüfen Sie einen Tipp, bevor Sie danach handeln.",
+    "All tips": "Alle Tipps",
+    "Current tips": "Aktuelle Tipps",
+    "Keep": "Behalten",
+    "Kept": "Behalten",
+    "Remove": "Entfernen",
+    "Kept on :date": "Behalten am :date",
+    "Done on :date": "Erledigt am :date",
+    "Keep a tip to look it up here later, without it showing on the dashboard.": "Behalten Sie einen Tipp, um ihn hier später nachzulesen, ohne dass er auf dem Dashboard erscheint.",
+    "The tips you marked as done are listed here.": "Hier stehen die Tipps, die Sie als erledigt markiert haben.",
+    "This tip no longer exists.": "Diesen Tipp gibt es nicht mehr."
 }

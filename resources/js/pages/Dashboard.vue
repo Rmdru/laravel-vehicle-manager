@@ -71,7 +71,8 @@ type FuelPrice = {
     previousPrice: string | null;
     // 1: higher than the previous price, -1: lower, 0: the same or unknown.
     trend: number;
-    // Null for a fuel the vehicle cannot run on: no detour is worth it.
+    // Null for a fuel the vehicle cannot run on, or when the detour has not
+    // been calculated: no break-even line. 0 when no detour is worth it.
     detourFuel: number | null;
     detourAll: number | null;
 };

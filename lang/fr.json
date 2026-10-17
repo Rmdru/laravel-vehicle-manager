@@ -584,5 +584,15 @@
     "Done": "Fait",
     "Not relevant": "Non pertinent",
     "No tips right now: nothing stands out for this vehicle.": "Aucun conseil pour le moment : rien ne ressort pour ce véhicule.",
-    "Indicative: check a tip before acting on it.": "Indicatif : vérifiez un conseil avant d'y donner suite."
+    "Indicative: check a tip before acting on it.": "Indicatif : vérifiez un conseil avant d'y donner suite.",
+    "All tips": "Tous les conseils",
+    "Current tips": "Conseils actuels",
+    "Keep": "Conserver",
+    "Kept": "Conservés",
+    "Remove": "Supprimer",
+    "Kept on :date": "Conservé le :date",
+    "Done on :date": "Fait le :date",
+    "Keep a tip to look it up here later, without it showing on the dashboard.": "Conservez un conseil pour le retrouver ici plus tard, sans qu'il s'affiche sur le tableau de bord.",
+    "The tips you marked as done are listed here.": "Les conseils que vous avez marqués comme faits sont listés ici.",
+    "This tip no longer exists.": "Ce conseil n'existe plus."
 }

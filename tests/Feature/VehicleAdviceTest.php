@@ -6,7 +6,8 @@ use App\Ai\Agents\VehicleAdvisor;
 use App\Models\Maintenance;
 use App\Models\User;
 use App\Models\Vehicle;
-use App\Models\VehicleAdviceDismissal;
+use App\Models\VehicleAdvice;
+use App\Models\VehicleTip;
 use App\Services\VehicleAdviceFacts;
 use App\Services\VehicleAdviceService;
 use Illuminate\Console\Scheduling\Schedule;
@@ -59,6 +60,16 @@ class VehicleAdviceTest extends TestCase
         return ['suggestions' => $suggestions ?: [$this->suggestion()]];
     }
 
+    private function tip(Vehicle $vehicle, string $key, string $status): VehicleTip
+    {
+        return VehicleTip::create([
+            ...$this->suggestion(['key' => $key, 'title' => 'Winter tires', 'due_date' => null]),
+            'vehicle_id' => $vehicle->id,
+            'status' => $status,
+            'locale' => 'en',
+        ]);
+    }
+
     public function test_the_facts_tell_what_is_known_about_the_vehicle()
     {
         $vehicle = $this->signInWithVehicle([
@@ -76,7 +87,7 @@ class VehicleAdviceTest extends TestCase
             'apk' => true,
             'tasks' => [['task' => 'Oil change', 'price' => 90]],
         ]);
-        VehicleAdviceDismissal::create(['vehicle_id' => $vehicle->id, 'key' => 'winter_tires', 'reason' => 'done', 'title' => 'Winter tires']);
+        $this->tip($vehicle, 'winter_tires', VehicleTip::KEPT);
 
         $facts = app(VehicleAdviceFacts::class)->for($vehicle->fresh());
 
@@ -88,7 +99,7 @@ class VehicleAdviceTest extends TestCase
         $this->assertSame(['Oil change'], $facts['maintenance_history'][0]['tasks']);
         // The MOT expires within two months: the dashboard says so already.
         $this->assertContains('apk', array_column($facts['already_shown_notifications'], 'key'));
-        $this->assertSame([['key' => 'winter_tires', 'reason' => 'done', 'title' => 'Winter tires']], $facts['dismissed_suggestions']);
+        $this->assertSame([['key' => 'winter_tires', 'status' => 'kept', 'title' => 'Winter tires', 'since' => '2026-10-17']], $facts['handled_suggestions']);
     }
 
     public function test_the_fingerprint_does_not_change_with_the_day()
@@ -121,7 +132,7 @@ class VehicleAdviceTest extends TestCase
             && str_contains($prompt->agent->instructions(), 'Dutch'));
     }
 
-    public function test_what_the_model_makes_up_or_the_owner_dismissed_is_left_out()
+    public function test_what_the_model_makes_up_or_the_owner_handled_is_left_out()
     {
         VehicleAdvisor::fake([$this->answer([
             $this->suggestion(['key' => 'Brake Fluid', 'priority' => 'urgent', 'basis' => 'guess', 'action' => 'call_garage', 'due_date' => '2026-01-01']),
@@ -132,7 +143,7 @@ class VehicleAdviceTest extends TestCase
         ])]);
 
         $vehicle = $this->signInWithVehicle();
-        VehicleAdviceDismissal::create(['vehicle_id' => $vehicle->id, 'key' => 'winter_tires', 'reason' => 'not_relevant', 'title' => 'Winter tires']);
+        $this->tip($vehicle, 'winter_tires', VehicleTip::NOT_RELEVANT);
 
         $suggestions = app(VehicleAdviceService::class)->generate($vehicle, 'en')->suggestions;
 
@@ -143,6 +154,35 @@ class VehicleAdviceTest extends TestCase
         $this->assertSame('none', $suggestions[0]['action']);
         // Never in the past.
         $this->assertSame('2026-10-17', $suggestions[0]['due_date']);
+    }
+
+    public function test_every_icon_the_model_can_choose_can_be_shown()
+    {
+        foreach (array_keys(VehicleAdvice::ICONS) as $icon) {
+            [$set, $name] = explode(':', $icon);
+
+            $this->assertFileExists(resource_path("icons/{$set}/{$name}.svg"), "[{$icon}] is not in resources/icons.");
+        }
+    }
+
+    public function test_the_icon_the_model_chose_is_shown_or_else_the_one_of_the_category()
+    {
+        VehicleAdvisor::fake([$this->answer([
+            $this->suggestion(['key' => 'battery', 'icon' => 'mdi:car-battery']),
+            $this->suggestion(['key' => 'brakes', 'icon' => 'mdi:made-up']),
+        ])]);
+
+        $vehicle = $this->signInWithVehicle();
+        app(VehicleAdviceService::class)->generate($vehicle, 'en');
+        $this->post(route('vehicle-advice.status'), ['key' => 'battery', 'status' => 'kept']);
+
+        $this->get(route('tips'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('tips.advice.suggestions.0.icon', 'mdi:car-wrench')
+                // Kept with the icon it was given.
+                ->where('tips.kept.0.icon', 'mdi:car-battery'));
+
+        VehicleAdvisor::assertPrompted(fn (AgentPrompt $prompt) => str_contains($prompt->agent->instructions(), 'mdi:car-battery: the battery'));
     }
 
     public function test_the_other_key_is_used_when_one_fails()
@@ -167,7 +207,7 @@ class VehicleAdviceTest extends TestCase
         $this->assertSame('key-b', end($used));
     }
 
-    public function test_the_dashboard_shows_the_tips_without_the_dismissed_ones()
+    public function test_the_dashboard_shows_the_tips_the_most_important_first()
     {
         VehicleAdvisor::fake([$this->answer([
             $this->suggestion(['priority' => 'low', 'key' => 'washing', 'category' => 'season', 'action' => 'none']),
@@ -180,38 +220,105 @@ class VehicleAdviceTest extends TestCase
         $this->get(route('dashboard'))
             ->assertInertia(fn (Assert $page) => $page
                 ->loadDeferredProps('advice', fn (Assert $reload) => $reload
-                    // The most important first.
                     ->where('vehicleAdvice.advice.suggestions.0.key', 'timing_belt')
                     ->where('vehicleAdvice.advice.suggestions.0.icon', 'mdi:car-wrench')
                     ->where('vehicleAdvice.advice.suggestions.0.url', route('maintenances.create'))
                     ->where('vehicleAdvice.advice.suggestions.0.due', '1 March 2027')
                     ->where('vehicleAdvice.advice.suggestions.1.url', null)
                     ->where('vehicleAdvice.canGenerate', false)
+                    ->where('vehicleAdvice.overviewUrl', route('tips'))
                     ->etc()));
+    }
 
-        $this->post(route('vehicle-advice.dismiss'), ['key' => 'timing_belt', 'reason' => 'done'])->assertSessionHasNoErrors();
+    public function test_a_tip_done_or_kept_leaves_the_dashboard_for_the_overview()
+    {
+        VehicleAdvisor::fake([$this->answer([
+            $this->suggestion(['key' => 'timing_belt']),
+            $this->suggestion(['key' => 'winter_tires', 'title' => 'Winterbanden']),
+            $this->suggestion(['key' => 'washing', 'title' => 'Wassen']),
+            $this->suggestion(['key' => 'insurance_comparison', 'title' => 'Verzekering']),
+        ])]);
 
-        $this->assertDatabaseHas('vehicle_advice_dismissals', [
+        $vehicle = $this->signInWithVehicle();
+        app(VehicleAdviceService::class)->generate($vehicle, 'en');
+
+        foreach (['timing_belt' => 'done', 'winter_tires' => 'kept', 'washing' => 'not_relevant'] as $key => $status) {
+            $this->post(route('vehicle-advice.status'), ['key' => $key, 'status' => $status])->assertSessionHasNoErrors();
+        }
+
+        $this->assertDatabaseHas('vehicle_tips', [
             'vehicle_id' => $vehicle->id,
             'key' => 'timing_belt',
-            'reason' => 'done',
+            'status' => 'done',
             'title' => 'Laat de distributieriem vervangen',
+            'body' => 'Bij deze motor gaat de riem meestal 120.000 km of 6 jaar mee.',
         ]);
 
         $this->get(route('dashboard'))
             ->assertInertia(fn (Assert $page) => $page
                 ->loadDeferredProps('advice', fn (Assert $reload) => $reload
                     ->has('vehicleAdvice.advice.suggestions', 1)
-                    ->where('vehicleAdvice.advice.suggestions.0.key', 'washing')
+                    ->where('vehicleAdvice.advice.suggestions.0.key', 'insurance_comparison')
                     ->etc()));
+
+        // Not relevant is gone altogether.
+        $this->get(route('tips'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Tips')
+                ->has('tips.advice.suggestions', 1)
+                ->has('tips.kept', 1)
+                ->where('tips.kept.0.key', 'winter_tires')
+                ->where('tips.kept.0.handledAt', '17 October 2026')
+                ->has('tips.done', 1)
+                ->where('tips.done.0.key', 'timing_belt'));
     }
 
-    public function test_a_dismissal_needs_a_known_reason()
+    public function test_a_handled_tip_stays_in_the_overview_after_its_advice_is_pruned()
+    {
+        VehicleAdvisor::fake([$this->answer(), ['suggestions' => []]]);
+
+        $vehicle = $this->signInWithVehicle();
+        app(VehicleAdviceService::class)->generate($vehicle, 'en');
+        $this->post(route('vehicle-advice.status'), ['key' => 'timing_belt', 'status' => 'kept']);
+
+        $this->travel(4)->months();
+        $this->artisan('model:prune', ['--model' => [VehicleAdvice::class]]);
+        app(VehicleAdviceService::class)->generate($vehicle, 'en');
+
+        $this->assertSame(1, $vehicle->vehicleAdvices()->count());
+        $this->get(route('tips'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('tips.advice.suggestions', 0)
+                ->where('tips.kept.0.title', 'Laat de distributieriem vervangen')
+                ->where('tips.kept.0.url', route('maintenances.create')));
+    }
+
+    public function test_a_tip_in_the_overview_can_be_done_after_all_or_removed()
+    {
+        VehicleAdvisor::fake([$this->answer()]);
+
+        $vehicle = $this->signInWithVehicle();
+        app(VehicleAdviceService::class)->generate($vehicle, 'en');
+
+        $this->post(route('vehicle-advice.status'), ['key' => 'timing_belt', 'status' => 'kept']);
+        $this->post(route('vehicle-advice.status'), ['key' => 'timing_belt', 'status' => 'done']);
+        $this->assertSame('done', VehicleTip::query()->sole()->status);
+
+        $this->post(route('vehicle-advice.status'), ['key' => 'timing_belt', 'status' => 'not_relevant']);
+
+        $this->get(route('tips'))
+            ->assertInertia(fn (Assert $page) => $page->has('tips.kept', 0)->has('tips.done', 0));
+    }
+
+    public function test_a_tip_needs_a_known_status_and_has_to_exist()
     {
         $this->signInWithVehicle();
 
-        $this->post(route('vehicle-advice.dismiss'), ['key' => 'timing_belt', 'reason' => 'later'])
-            ->assertSessionHasErrors('reason');
+        $this->post(route('vehicle-advice.status'), ['key' => 'timing_belt', 'status' => 'later'])
+            ->assertSessionHasErrors('status');
+
+        $this->post(route('vehicle-advice.status'), ['key' => 'timing_belt', 'status' => 'done'])
+            ->assertSessionHasErrors('key');
     }
 
     public function test_an_important_tip_that_is_due_soon_needs_attention()
