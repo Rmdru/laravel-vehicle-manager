@@ -71,7 +71,7 @@ class VehicleAdviceFacts
             'latest_reconditioning_by_type' => $vehicle->reconditionings
                 ->sortByDesc('date')
                 ->unique(fn ($reconditioning) => self::scalar($reconditioning->type))
-                ->mapWithKeys(fn ($reconditioning) => [(string) self::scalar($reconditioning->type) => $reconditioning->date?->toDateString()])
+                ->mapWithKeys(fn ($reconditioning) => [(string) self::scalar($reconditioning->type) => $reconditioning->date->toDateString()])
                 ->all(),
             'insurance' => $this->insurance($vehicle),
             'road_tax_paid_until' => $vehicle->taxes->where('start_date', '<=', today())->sortByDesc('start_date')->first()?->end_date?->toDateString(),
@@ -170,13 +170,13 @@ class VehicleAdviceFacts
      */
     private function usage(Vehicle $vehicle): ?array
     {
-        $refuelings = $vehicle->refuelings->sortByDesc(fn (Refueling $refueling) => $refueling->date?->toDateString().' '.$refueling->created_at)->values();
+        $refuelings = $vehicle->refuelings->sortByDesc(fn (Refueling $refueling) => $refueling->date->toDateString().' '.$refueling->created_at)->values();
 
         if ($refuelings->isEmpty()) {
             return null;
         }
 
-        $pastYear = $refuelings->filter(fn (Refueling $refueling) => $refueling->date?->gte(today()->subYear()));
+        $pastYear = $refuelings->filter(fn (Refueling $refueling) => $refueling->date->gte(today()->subYear()));
         $first = $pastYear->last();
         $months = $first ? max(1, (int) $first->date->diffInMonths(today())) : null;
         $distance = $pastYear->sum(fn (Refueling $refueling) => max(0, (int) $refueling->mileage_end - (int) $refueling->mileage_begin));
@@ -187,7 +187,7 @@ class VehicleAdviceFacts
             'fuel_consumption_recent' => $consumption($refuelings->take(self::RECENT_REFUELINGS)),
             'fuel_consumption_before' => $consumption($refuelings->slice(self::RECENT_REFUELINGS, self::EARLIER_REFUELINGS)),
             'consumption_unit' => trans('powertrains')[$vehicle->powertrain]['consumption_unit'] ?? null,
-            'latest_refueling_date' => $refuelings->first()->date?->toDateString(),
+            'latest_refueling_date' => $refuelings->first()->date->toDateString(),
             'tires_at_latest_refueling' => self::scalar($refuelings->first()->tires),
             'usual_driving_style' => $this->mostCommon($refuelings->take(self::EARLIER_REFUELINGS), 'driving_style'),
             'usual_routes' => $this->mostCommon($refuelings->take(self::EARLIER_REFUELINGS), 'routes'),
@@ -244,7 +244,7 @@ class VehicleAdviceFacts
             ->sortByDesc('date')
             ->take(self::MAINTENANCES)
             ->map(fn (Maintenance $maintenance) => array_filter([
-                'date' => $maintenance->date?->toDateString(),
+                'date' => $maintenance->date->toDateString(),
                 'mileage_km' => $maintenance->mileage ?: null,
                 'type' => self::scalar($maintenance->type_maintenance),
                 'mot' => $maintenance->apk ?: null,

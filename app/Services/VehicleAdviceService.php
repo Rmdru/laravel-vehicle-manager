@@ -198,7 +198,7 @@ class VehicleAdviceService
      */
     public function dismiss(Vehicle $vehicle, string $key, string $reason): void
     {
-        $suggestion = collect($this->latest($vehicle, app()->getLocale())?->suggestions ?? [])->firstWhere('key', $key);
+        $suggestion = collect($this->latest($vehicle, app()->getLocale())->suggestions ?? [])->firstWhere('key', $key);
 
         VehicleAdviceDismissal::query()->updateOrCreate(
             ['vehicle_id' => $vehicle->id, 'key' => $key],
