@@ -10,9 +10,15 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Left behind by a first run that failed on the foreign key, which
+        // vehicles.id (without an index everywhere) cannot take.
+        Schema::dropIfExists('fuel_advice');
+
         Schema::create('fuel_advice', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignUuid('vehicle_id')->references('id')->on('vehicles')->cascadeOnDelete();
+            // No foreign key, as with the other records of a vehicle: vehicles
+            // are soft deleted, so a cascade would not apply anyway.
+            $table->foreignUuid('vehicle_id');
             $table->string('locale', 5);
             $table->string('action');
             $table->string('country')->nullable();
