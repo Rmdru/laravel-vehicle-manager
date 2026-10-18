@@ -33,6 +33,7 @@ class UserFactory extends Factory
             'two_factor_secret' => null,
             'two_factor_recovery_codes' => null,
             'two_factor_confirmed_at' => null,
+            'last_login_at' => now(),
         ];
     }
 
@@ -45,6 +46,16 @@ class UserFactory extends Factory
             'two_factor_secret' => encrypt('secret'),
             'two_factor_recovery_codes' => encrypt(json_encode(['recovery-code-1'])),
             'two_factor_confirmed_at' => now(),
+        ]);
+    }
+
+    /**
+     * Indicate that the user has not logged in for over a month.
+     */
+    public function inactive(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'last_login_at' => now()->subMonth()->subDay(),
         ]);
     }
 

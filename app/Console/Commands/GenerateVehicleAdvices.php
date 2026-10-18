@@ -24,7 +24,7 @@ class GenerateVehicleAdvices extends Command
 
         Vehicle::query()
             ->where('status', VehicleStatus::Drivable->value)
-            ->whereHas('user')
+            ->whereHas('user', fn ($query) => $query->recentlyLoggedIn())
             ->with('user')
             ->chunkById(50, function ($vehicles) use ($advices, &$asked) {
                 foreach ($vehicles as $vehicle) {

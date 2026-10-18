@@ -15,10 +15,13 @@ use App\Models\Refueling;
 use App\Models\Service;
 use App\Models\Tax;
 use App\Models\Toll;
+use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\Vignette;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -39,6 +42,20 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->flushCachedStatisticsOnChanges();
+        $this->rememberLastLogin();
+    }
+
+    /**
+     * The AI features are only generated for users who logged in lately. Logging in
+     * by the remember me cookie counts as well.
+     */
+    protected function rememberLastLogin(): void
+    {
+        Event::listen(Login::class, function (Login $event) {
+            if ($event->user instanceof User) {
+                $event->user->forceFill(['last_login_at' => now()])->saveQuietly();
+            }
+        });
     }
 
     /**
