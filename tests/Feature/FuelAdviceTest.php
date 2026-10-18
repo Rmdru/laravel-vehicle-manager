@@ -623,6 +623,19 @@ class FuelAdviceTest extends TestCase
         $this->assertSame(1, $vehicle->fuelAdvices()->where('locale', 'en')->count());
     }
 
+    public function test_an_advice_can_be_generated_by_hand_whenever_the_owner_last_logged_in()
+    {
+        FuelAdvisor::fake([$this->answer()]);
+
+        $vehicle = $this->signInWithVehicle();
+        $vehicle->user->forceFill(['last_login_at' => now()->subYear()])->save();
+        $this->prices();
+
+        $this->post(route('fuel-advice.store'));
+
+        $this->assertSame(1, $vehicle->fuelAdvices()->count());
+    }
+
     public function test_an_advice_is_not_generated_by_hand_again_within_minutes()
     {
         FuelAdvisor::fake([$this->answer(), $this->answer()]);
@@ -662,6 +675,7 @@ class FuelAdviceTest extends TestCase
         $electric = Vehicle::factory()->create(['status' => 'drivable', 'powertrain' => 'electricity']);
         $done = Vehicle::factory()->for(User::factory()->create(['language' => 'nl']))->create(['status' => 'drivable', 'powertrain' => 'gasoline']);
         $done->fuelAdvices()->create([...$this->advice(), 'locale' => 'nl']);
+        $inactive = Vehicle::factory()->for(User::factory()->inactive()->create())->create(['status' => 'drivable', 'powertrain' => 'gasoline', 'fuel_types' => ['Unleaded 95 (E10)'], 'country_registration' => 'netherlands']);
 
         $this->artisan('generate:fuel-advices')->assertExitCode(0);
 
@@ -670,6 +684,7 @@ class FuelAdviceTest extends TestCase
         $this->assertSame(0, $sold->fuelAdvices()->count());
         $this->assertSame(0, $electric->fuelAdvices()->count());
         $this->assertSame(1, $done->fuelAdvices()->count());
+        $this->assertSame(0, $inactive->fuelAdvices()->count());
         FuelAdvisor::assertPromptedTimes(2);
         Sleep::assertSleptTimes(1);
     }

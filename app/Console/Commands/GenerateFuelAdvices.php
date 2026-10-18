@@ -25,7 +25,7 @@ class GenerateFuelAdvices extends Command
         Vehicle::query()
             ->where('status', VehicleStatus::Drivable->value)
             ->whereNotIn('powertrain', ['electricity', 'hydrogen'])
-            ->whereHas('user')
+            ->whereHas('user', fn ($query) => $query->recentlyLoggedIn())
             ->with('user')
             ->chunkById(50, function ($vehicles) use ($advices, &$first) {
                 foreach ($vehicles as $vehicle) {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -60,9 +61,18 @@ class User extends Authenticatable implements PasskeyUser
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
+            'last_login_at' => 'datetime',
             'latitude' => 'float',
             'longitude' => 'float',
         ];
+    }
+
+    /**
+     * Only users who logged in the last month get the AI features generated for them.
+     */
+    public function scopeRecentlyLoggedIn(Builder $query): void
+    {
+        $query->where('last_login_at', '>=', now()->subMonth());
     }
 
     /**

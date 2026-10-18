@@ -349,10 +349,12 @@ class VehicleAdviceTest extends TestCase
 
         $vehicle = Vehicle::factory()->for(User::factory()->create(['language' => 'de']))->create(['status' => 'drivable', 'powertrain' => 'electricity', 'rdw_data' => null]);
         $sold = Vehicle::factory()->create(['status' => 'sold']);
+        $inactive = Vehicle::factory()->for(User::factory()->inactive()->create())->create(['status' => 'drivable']);
 
         $this->artisan('generate:vehicle-advices')->assertExitCode(0);
         $this->assertSame(['de'], $vehicle->vehicleAdvices()->pluck('locale')->all());
         $this->assertSame(0, $sold->vehicleAdvices()->count());
+        $this->assertSame(0, $inactive->vehicleAdvices()->count());
 
         // Nothing changed.
         $this->travel(1)->day();
@@ -369,6 +371,18 @@ class VehicleAdviceTest extends TestCase
         $this->artisan('generate:vehicle-advices');
         $this->assertSame(3, $vehicle->vehicleAdvices()->count());
         VehicleAdvisor::assertPromptedTimes(3);
+    }
+
+    public function test_the_tips_can_be_generated_by_hand_whenever_the_owner_last_logged_in()
+    {
+        VehicleAdvisor::fake([$this->answer()]);
+
+        $vehicle = $this->signInWithVehicle();
+        $vehicle->user->forceFill(['last_login_at' => now()->subYear()])->save();
+
+        $this->post(route('vehicle-advice.store'));
+
+        $this->assertSame(1, $vehicle->vehicleAdvices()->count());
     }
 
     public function test_the_tips_are_not_generated_by_hand_again_within_minutes()
