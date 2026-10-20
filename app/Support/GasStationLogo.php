@@ -27,14 +27,22 @@ class GasStationLogo
      */
     public static function url(?string $gasStation): string
     {
+        return self::known($gasStation) ?? asset('images/gas-stations/'.config('refuelings.gas_station_logos')['default']);
+    }
+
+    /**
+     * The URL of the logo of a gas station, or nothing when its brand has none.
+     */
+    public static function known(?string $gasStation): ?string
+    {
         $logos = config('refuelings.gas_station_logos');
         $brand = (string) str((string) $gasStation)->lower()->explode(' ')->first();
 
-        if (isset($logos[$brand])) {
+        if ($brand !== 'default' && isset($logos[$brand])) {
             return asset('images/gas-stations/'.$logos[$brand]);
         }
 
-        return self::icon($brand) ?? asset('images/gas-stations/'.$logos['default']);
+        return self::icon($brand);
     }
 
     private static function icon(string $brand): ?string

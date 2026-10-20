@@ -13,6 +13,7 @@ use App\Traits\VehicleStats;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * The facts a fuel advice is based on, calculated rather than left to the AI
@@ -112,8 +113,9 @@ class FuelAdviceFacts
             'super_plus_due' => $superPlus,
             'old_fuel' => $oldFuel,
             'home_country' => $home,
+            // Where the driver lives, not where the driver is now: that is never known.
             'driver_location' => $location
-                ? ['city' => $user->city, 'known' => true]
+                ? array_filter(['city' => $user->city, 'country' => $this->countryOf((string) $user->city), 'known' => true], fn ($value) => $value !== null)
                 : ['city' => 'unknown', 'country' => $home, 'known' => false],
             'vehicle' => array_filter([
                 'tank_capacity_liters' => $vehicle->tank_capacity ?: null,
@@ -128,6 +130,15 @@ class FuelAdviceFacts
             // What a gas station costs compared to the average hardly depends on the fuel.
             'own_gas_stations' => $this->gasStations($vehicle, array_values(array_unique([...$candidates, $usual, ...self::COMPARABLE[$usual] ?? []]))),
         ];
+    }
+
+    /**
+     * The country a city is in, as the profile located it.
+     */
+    private function countryOf(string $city): ?string
+    {
+        return Cache::remember('fuel-advice:city-country:'.md5(mb_strtolower(trim($city))), now()->addMonth(),
+            fn () => app(OpenMeteoService::class)->geocode($city)['country'] ?? null);
     }
 
     /**

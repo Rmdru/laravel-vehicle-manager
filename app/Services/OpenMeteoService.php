@@ -10,9 +10,10 @@ use Illuminate\Support\Facades\Log;
 class OpenMeteoService
 {
     /**
-     * The coordinates of a city, or nothing when it is not found.
+     * The coordinates of a city and the country it is in (a key of the
+     * countries config, when known), or nothing when it is not found.
      *
-     * @return array{lat: float, lon: float}|null
+     * @return array{lat: float, lon: float, country: string|null}|null
      */
     public function geocode(string $city): ?array
     {
@@ -28,7 +29,9 @@ class OpenMeteoService
             $result = $response->json('results.0');
 
             if (isset($result['latitude'], $result['longitude'])) {
-                return ['lat' => (float) $result['latitude'], 'lon' => (float) $result['longitude']];
+                $country = collect(config('countries'))->search(fn (array $country) => strcasecmp($country['iso_code'] ?? '', (string) ($result['country_code'] ?? '')) === 0);
+
+                return ['lat' => (float) $result['latitude'], 'lon' => (float) $result['longitude'], 'country' => $country === false ? null : (string) $country];
             }
         } catch (\Throwable $exception) {
             Log::channel('openmeteo-api')->warning('OpenMeteo geocoding call failed.', [

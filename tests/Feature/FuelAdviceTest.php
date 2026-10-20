@@ -12,8 +12,10 @@ use App\Services\FuelAdviceService;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Sleep;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Ai\Exceptions\RateLimitedException;
@@ -139,6 +141,9 @@ class FuelAdviceTest extends TestCase
     {
         FuelAdvisor::fake([$this->answer(['action' => 'refuel_abroad', 'country' => 'germany'])]);
 
+        Http::swap(new Factory);
+        Http::fake(['*geocoding*' => Http::response(['results' => [['latitude' => 51.37, 'longitude' => 6.17, 'country_code' => 'NL']]])]);
+
         // Venlo, some 8 km by road from Kaldenkirchen.
         $vehicle = $this->signInWithVehicle();
         $vehicle->user->update(['city' => 'Venlo', 'latitude' => 51.37, 'longitude' => 6.17]);
@@ -148,7 +153,7 @@ class FuelAdviceTest extends TestCase
         $advice = app(FuelAdviceService::class)->generate($vehicle->refresh(), 'en');
         $germany = $advice->facts['countries'][0];
 
-        $this->assertSame(['city' => 'Venlo', 'known' => true], $advice->facts['driver_location']);
+        $this->assertSame(['city' => 'Venlo', 'country' => 'netherlands', 'known' => true], $advice->facts['driver_location']);
         $this->assertSame(8, $germany['distance_from_driver_km']);
         // € 15 cheaper per tank, minus 2 x 8 km at € 0.12 per kilometer.
         $this->assertEquals(13.08, $germany['net_savings_per_full_tank_eur']);

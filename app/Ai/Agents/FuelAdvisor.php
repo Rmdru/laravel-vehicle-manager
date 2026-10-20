@@ -85,8 +85,10 @@ class FuelAdvisor implements Agent, HasStructuredOutput, HasTools
 
         $abroad = $this->abroad === []
             ? 'Refueling abroad is not worth the detour for this driver (or where the driver lives is unknown): base the '
-                .'action, the country and the date on the home country. You may mention a cheaper country only as an '
-                .'option for when the driver happens to be there anyway.'
+                .'action, the country and the date on the home country. You may mention a cheaper country only '
+                .'conditionally, as in "if you happen to be in <country>, refueling there is cheaper". driver_location is '
+                .'where the driver lives; where the driver is now is never known, so never say or suggest that the driver '
+                .'is in a country now.'
             : 'Refueling in '.implode(' or ', $this->abroad).' is worth the detour from where the driver lives: the net '
                 .'savings (the savings on a full tank minus the fuel to get there and back) are positive. Weigh those net '
                 .'savings against the trouble of the trip; small net savings are not worth a special trip.';

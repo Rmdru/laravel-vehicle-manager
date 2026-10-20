@@ -1,0 +1,72 @@
+{
+    "green-600_none": {
+        "x": 0,
+        "y": 0,
+        "width": 20,
+        "height": 18,
+        "pixelRatio": 1,
+        "stretchX": [[4, 16]],
+        "stretchY": [[4, 14]],
+        "content": [3, 2, 17, 16]
+    },
+    "white_gray-400": {
+        "x": 20,
+        "y": 0,
+        "width": 20,
+        "height": 18,
+        "pixelRatio": 1,
+        "stretchX": [[4, 16]],
+        "stretchY": [[4, 14]],
+        "content": [3, 2, 17, 16]
+    },
+    "red-500_none": {
+        "x": 40,
+        "y": 0,
+        "width": 20,
+        "height": 18,
+        "pixelRatio": 1,
+        "stretchX": [[4, 16]],
+        "stretchY": [[4, 14]],
+        "content": [3, 2, 17, 16]
+    },
+    "yellow-500_none": {
+        "x": 60,
+        "y": 0,
+        "width": 20,
+        "height": 18,
+        "pixelRatio": 1,
+        "stretchX": [[4, 16]],
+        "stretchY": [[4, 14]],
+        "content": [3, 2, 17, 16]
+    },
+    "white_black": {
+        "x": 80,
+        "y": 0,
+        "width": 20,
+        "height": 18,
+        "pixelRatio": 1,
+        "stretchX": [[4, 16]],
+        "stretchY": [[4, 14]],
+        "content": [3, 2, 17, 16]
+    },
+    "blue-500_none": {
+        "x": 100,
+        "y": 0,
+        "width": 20,
+        "height": 18,
+        "pixelRatio": 1,
+        "stretchX": [[4, 16]],
+        "stretchY": [[4, 14]],
+        "content": [3, 2, 17, 16]
+    },
+    "orange-500_none": {
+        "x": 120,
+        "y": 0,
+        "width": 20,
+        "height": 18,
+        "pixelRatio": 1,
+        "stretchX": [[4, 16]],
+        "stretchY": [[4, 14]],
+        "content": [3, 2, 17, 16]
+    }
+}

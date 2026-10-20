@@ -477,19 +477,8 @@ defineExpose({ show: () => (open.value = true) });
             </section>
 
             <div
-                class="flex flex-wrap items-center justify-between gap-3 border-t pt-4"
+                class="flex flex-wrap items-center justify-end gap-3 border-t pt-4"
             >
-                <p
-                    class="min-w-0 flex-1 basis-64 text-xs text-muted-foreground"
-                >
-                    {{
-                        t('Generated on :date by :model.', {
-                            date: data.advice.generatedAt,
-                            model: data.advice.model,
-                        })
-                    }}
-                    {{ t('Indicative: check the price at the pump.') }}
-                </p>
                 <Button
                     variant="outline"
                     size="sm"
