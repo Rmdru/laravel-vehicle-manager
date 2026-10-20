@@ -83,6 +83,14 @@ class User extends Authenticatable implements PasskeyUser
         return $this->hasMany(Vehicle::class);
     }
 
+    /**
+     * @return HasMany<Trip, $this>
+     */
+    public function trips(): HasMany
+    {
+        return $this->hasMany(Trip::class);
+    }
+
     public function defaultVehicle(): ?Vehicle
     {
         return $this->vehicles()->latest()->first();

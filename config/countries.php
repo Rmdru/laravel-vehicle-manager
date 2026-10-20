@@ -136,7 +136,7 @@ return [
             ],
             'secondary' => [
                 'border' => null,
-                'color' => 'text-black',
+                'color' => 'text-white',
                 'background_color' => 'bg-red-500',
                 'prefix' => 'N',
             ],

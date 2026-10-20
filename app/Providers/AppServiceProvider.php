@@ -18,6 +18,8 @@ use App\Models\Toll;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\Vignette;
+use App\Services\TripPlanner\RoutingProvider;
+use App\Services\TripPlanner\TomTomRoutingService;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -32,7 +34,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(RoutingProvider::class, TomTomRoutingService::class);
     }
 
     /**

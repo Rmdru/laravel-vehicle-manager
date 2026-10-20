@@ -18,6 +18,7 @@ use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\TaxController;
 use App\Http\Controllers\TimelineController;
 use App\Http\Controllers\TollController;
+use App\Http\Controllers\TripController;
 use App\Http\Controllers\VehicleAdviceController;
 use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\VignetteController;
@@ -42,6 +43,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('fuel-advice', [FuelAdviceController::class, 'store'])->name('fuel-advice.store');
         Route::post('vehicle-advice', [VehicleAdviceController::class, 'store'])->name('vehicle-advice.store');
         Route::post('vehicle-advice/status', [VehicleAdviceController::class, 'status'])->name('vehicle-advice.status');
+
+        Route::get('trips/geocode', [TripController::class, 'geocode'])->name('trips.geocode');
+        Route::get('trips/reverse-geocode', [TripController::class, 'reverseGeocode'])->name('trips.reverse-geocode');
+        Route::get('trips/logo', [TripController::class, 'logo'])->name('trips.logo');
+        Route::patch('trips/{trip}/route', [TripController::class, 'selectRoute'])->name('trips.route');
+        Route::patch('trips/{trip}/stops', [TripController::class, 'stops'])->name('trips.stops');
+        Route::post('trips/{trip}/tips', [TripController::class, 'tips'])->name('trips.tips');
+        Route::resource('trips', TripController::class)->except('edit');
 
         Route::post('maintenances/small-check', [MaintenanceController::class, 'smallCheck'])->name('maintenances.small-check');
 

@@ -158,21 +158,10 @@ defineExpose({
                     }}
                 </p>
                 <div
-                    class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t px-4 py-2"
+                    v-if="onDashboard"
+                    class="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 border-t px-4 py-2"
                 >
-                    <p
-                        class="min-w-0 flex-1 basis-64 py-1 text-xs text-muted-foreground"
-                    >
-                        {{
-                            t('Generated on :date by :model.', {
-                                date: data.advice.generatedAt,
-                                model: data.advice.model,
-                            })
-                        }}
-                        {{ t('Indicative: check a tip before acting on it.') }}
-                    </p>
                     <Link
-                        v-if="onDashboard"
                         :href="data.overviewUrl"
                         class="inline-flex min-h-9 items-center gap-1 text-sm font-semibold"
                     >
