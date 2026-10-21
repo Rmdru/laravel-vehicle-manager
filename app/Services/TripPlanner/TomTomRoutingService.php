@@ -100,6 +100,11 @@ class TomTomRoutingService implements RoutingProvider
      */
     private function congestion(array $routes, array $data): void
     {
+        // It takes many calls: left out when the daily limit is near.
+        if (ApiUsage::tomTomSaving()) {
+            return;
+        }
+
         $night = CarbonImmutable::now(config('trip_planner.timezone'))->addDay()->setTime(self::NIGHT, 0)->format('Y-m-d\TH:i:sP');
         $query = http_build_query([
             'key' => config('trip_planner.tomtom.key'),

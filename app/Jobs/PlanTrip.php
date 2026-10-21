@@ -9,7 +9,6 @@ use App\Services\TripPlanner\RoutingException;
 use App\Services\TripPlanner\TripPlanner;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Support\Facades\Cache;
 use Throwable;
 
 /**
@@ -25,20 +24,34 @@ class PlanTrip implements ShouldQueue
 
     public int $timeout = 900;
 
-    public function __construct(public Trip $trip) {}
+    /** The version of the trip this planning is for. */
+    private int $version;
+
+    /**
+     * @param  bool  $fresh  The routes, the traffic and the fuel prices are asked anew, rather than taken from what was kept.
+     */
+    public function __construct(public Trip $trip, public bool $fresh = false)
+    {
+        $this->version = $trip->plan_version;
+    }
 
     public function handle(TripPlanner $planner): void
     {
         // The version of the trip this planning is for: a trip that changed in the meantime is planned again anyway.
-        $version = $this->trip->plan_version;
-        $this->progress(0.02);
+        $version = $this->version = $this->trip->plan_version;
+        $this->progress(0.02, 'routes');
         // The traffic is told in the language of the driver.
         app()->setLocale((string) ($this->trip->user?->language ?: config('app.locale')));
 
+        if ($this->fresh) {
+            $planner->freshPrices();
+        }
+
         try {
-            $routes = $planner->routes($this->trip);
-            $traffic = $planner->traffic($this->trip, $routes);
-            $this->progress(0.1);
+            $routes = $planner->routes($this->trip, $this->fresh);
+            $this->progress(0.06, 'traffic');
+            $traffic = $planner->traffic($this->trip, $routes, $this->fresh);
+            $this->progress(0.1, 'places');
 
             if (! $this->save($version, [
                 'status' => Trip::STATUS_ROUTED,
@@ -50,8 +63,14 @@ class PlanTrip implements ShouldQueue
                 return;
             }
 
-            // Fetching the places takes the most time: from 10% to 95%.
-            $places = $planner->places($routes, fn (float $done) => $this->progress(0.1 + 0.85 * $done));
+            // Fetching the places takes the most time: from 10% to 95%. It
+            // stops in time for the job to finish: what is fetched is kept.
+            $places = $planner->places(
+                $routes,
+                fn (float $done, string $stage, int $count, int $total) => $this->progress(0.1 + 0.85 * $done, $stage, $count, $total),
+                microtime(true) + (int) config('trip_planner.overpass.budget'),
+            );
+            $this->progress(0.96, 'stops');
 
             $this->save($version, [
                 'status' => Trip::STATUS_PLANNED,
@@ -63,22 +82,34 @@ class PlanTrip implements ShouldQueue
         } catch (Throwable $exception) {
             report($exception);
             $this->save($version, ['status' => Trip::STATUS_FAILED, 'error' => 'The trip could not be planned. Please try again later.']);
-        } finally {
-            Cache::forget(self::progressKey($this->trip));
         }
     }
 
     /**
-     * Where the progress of the planning of a trip is kept, for the page to show.
+     * The job did not finish: it took too long, or the worker stopped.
      */
-    public static function progressKey(Trip $trip): string
+    public function failed(?Throwable $exception): void
     {
-        return "trip-planner:progress:{$trip->getKey()}";
+        $this->save($this->version, ['status' => Trip::STATUS_FAILED, 'error' => 'The trip could not be planned. Please try again later.']);
     }
 
-    private function progress(float $done): void
+    /**
+     * Keeps how far the planning is with the trip, for the page to show.
+     */
+    private function progress(float $done, string $stage, ?int $count = null, ?int $total = null): void
     {
-        Cache::put(self::progressKey($this->trip), round(min(1, $done), 3), now()->addHour());
+        Trip::whereKey($this->trip->getKey())
+            ->where('plan_version', $this->version)
+            ->update([
+                'progress' => json_encode(array_filter([
+                    'value' => round(min(1, $done), 3),
+                    'stage' => $stage,
+                    'done' => $count,
+                    'total' => $total,
+                ], fn ($value) => $value !== null)),
+                // A planning that is no longer heard of has stopped.
+                'updated_at' => now(),
+            ]);
     }
 
     /**
@@ -90,6 +121,11 @@ class PlanTrip implements ShouldQueue
     {
         if (isset($attributes['plan'])) {
             $attributes['plan'] = json_encode($attributes['plan']);
+        }
+
+        // Once it is planned or failed, there is no progress any more.
+        if (in_array($attributes['status'] ?? null, [Trip::STATUS_PLANNED, Trip::STATUS_FAILED], true)) {
+            $attributes['progress'] = null;
         }
 
         return Trip::whereKey($this->trip->getKey())

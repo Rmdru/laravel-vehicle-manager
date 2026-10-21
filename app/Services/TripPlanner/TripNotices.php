@@ -76,13 +76,13 @@ class TripNotices
         $this->papers($vehicle, $arrival, $add);
 
         foreach ($vignettes as $country) {
-            if (! $this->valid($vehicle->vignettes, $country, $departure, $arrival)) {
+            if (! $this->holds($vehicle->vignettes, $country, $departure, $arrival)) {
                 $add('warning', 'vignette', ['country' => $country]);
             }
         }
 
         foreach (array_unique(array_intersect($destinations, self::STICKER_COUNTRIES)) as $country) {
-            if (! $this->valid($vehicle->environmentalStickers, $country, $departure, $arrival)) {
+            if (! $this->holds($vehicle->environmentalStickers, $country, $departure, $arrival)) {
                 $add('info', 'sticker', ['country' => $country]);
             }
         }
@@ -157,7 +157,7 @@ class TripNotices
      *
      * @param  iterable<object>  $records
      */
-    private function valid(iterable $records, string $country, CarbonImmutable $departure, CarbonImmutable $arrival): bool
+    public function holds(iterable $records, string $country, CarbonImmutable $departure, CarbonImmutable $arrival): bool
     {
         $key = collect(config('countries'))->search(fn (array $config) => $config['iso_code'] === $country);
 

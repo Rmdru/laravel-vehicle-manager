@@ -8,12 +8,14 @@ use App\Models\PoiTile;
 use App\Models\Trip;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Services\TripPlanner\ApiUsage;
 use App\Services\TripPlanner\TripPlanner;
 use App\Support\Roads;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -590,5 +592,142 @@ class TripPlannerTest extends TestCase
                 ->where('navigation', fn ($groups) => collect($groups)->contains(
                     fn ($group) => collect($group['items'])->pluck('href')->contains('/trips/create'),
                 )));
+    }
+
+    public function test_the_fuel_prices_and_the_traffic_are_refreshed_on_request()
+    {
+        $this->fakeApis();
+        $vehicle = $this->signInWithVehicle();
+        $trip = $this->plan($this->trip($vehicle));
+        Queue::fake();
+
+        $this->post(route('trips.refresh', $trip))->assertRedirect();
+
+        $this->assertSame(Trip::STATUS_PLANNING, $trip->refresh()->status);
+        Queue::assertPushed(PlanTrip::class, fn (PlanTrip $job) => $job->trip->is($trip) && $job->fresh);
+
+        // Not again while it is being planned.
+        $this->post(route('trips.refresh', $trip))->assertRedirect();
+        Queue::assertPushed(PlanTrip::class, 1);
+    }
+
+    public function test_choosing_a_stop_plans_again_with_the_same_routes()
+    {
+        $this->fakeApis();
+        $vehicle = $this->signInWithVehicle();
+        $trip = $this->plan($this->trip($vehicle));
+        $routing = fn () => Http::recorded(fn (Request $request) => str_contains($request->url(), 'calculateRoute'))->count();
+        $calls = $routing();
+
+        $this->plan($trip);
+        $this->assertSame($calls, $routing());
+
+        // Refreshing asks TomTom again.
+        (new PlanTrip($trip, fresh: true))->handle(app(TripPlanner::class));
+        $this->assertGreaterThan($calls, $routing());
+    }
+
+    public function test_the_progress_of_the_planning_is_kept_with_the_trip()
+    {
+        $seen = [];
+        $this->fake([
+            '*api.tomtom.com/routing/*' => Http::response(['routes' => [$this->tomTomRoute()]]),
+            '*/api/interpreter' => function () use (&$seen) {
+                $seen[] = Trip::sole()->progress;
+
+                return Http::response(['elements' => $this->overpassElements()]);
+            },
+        ]);
+        $trip = $this->plan($this->trip($this->signInWithVehicle()));
+
+        $this->assertSame('places', $seen[0]['stage']);
+        $this->assertSame(0, $seen[0]['done']);
+        $this->assertGreaterThan(0, $seen[0]['total']);
+        // Done: no progress any more.
+        $this->assertSame(Trip::STATUS_PLANNED, $trip->status);
+        $this->assertNull($trip->progress);
+    }
+
+    public function test_a_planning_that_is_no_longer_heard_of_has_failed()
+    {
+        $this->fake();
+        $vehicle = $this->signInWithVehicle();
+        $trip = $this->trip($vehicle, ['status' => Trip::STATUS_ROUTED, 'progress' => ['value' => 0.4, 'stage' => 'places']]);
+        Trip::whereKey($trip->id)->update(['updated_at' => now()->subMinutes(Trip::STALE_AFTER_MINUTES + 1)]);
+
+        $this->get(route('trips.show', $trip))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('trip.status', 'failed')
+                ->where('trip.error', 'Planning the trip took too long. Please try again.'));
+    }
+
+    public function test_a_job_that_did_not_finish_fails_the_trip()
+    {
+        $this->fake();
+        $trip = $this->trip($this->signInWithVehicle(), ['status' => Trip::STATUS_ROUTED]);
+
+        (new PlanTrip($trip))->failed(new \RuntimeException('Timed out'));
+
+        $this->assertSame(Trip::STATUS_FAILED, $trip->refresh()->status);
+    }
+
+    public function test_fetching_the_places_stops_in_time()
+    {
+        config(['trip_planner.overpass.budget' => 0]);
+        $this->fakeApis();
+        $trip = $this->plan($this->trip($this->signInWithVehicle()));
+
+        // Planned without places, rather than not at all.
+        $this->assertSame(Trip::STATUS_PLANNED, $trip->status);
+        $this->assertSame(['no_places'], $trip->plan['routes'][0]['warnings']);
+        $this->assertSame(0, $this->overpassRequests());
+    }
+
+    public function test_the_costs_of_a_route_are_estimated()
+    {
+        $this->fakeApis([
+            ['geom' => ['lat' => 49.8005, 'lon' => 4.9975], 'e10_prix' => 2.00, 'e10_maj' => '2026-10-19T08:00:00+00:00'],
+            ['geom' => ['lat' => 49.60, 'lon' => 5.02], 'e10_prix' => 1.80, 'e10_maj' => '2026-10-19T08:00:00+00:00'],
+        ]);
+        $vehicle = $this->signInWithVehicle(['tank_capacity' => 50, 'powertrain' => 'gasoline']);
+        $costs = $this->plan($this->trip($vehicle, ['fuel_level' => 60]))->plan['routes'][0]['costs'];
+
+        // 445 km at the consumption of the vehicle, at the price of the fuel stop.
+        $this->assertGreaterThan(0, $costs['energy']);
+        $this->assertSame(1.8, $costs['fuel_price']);
+        $this->assertEqualsWithDelta($costs['energy'] * 1.8, $costs['fuel'], 0.01);
+        // The toll of the French motorway is not known.
+        $this->assertFalse($costs['complete']);
+        $this->assertSame($costs['fuel'], $costs['total']);
+    }
+
+    public function test_the_traffic_is_left_out_near_the_daily_limit_of_tomtom()
+    {
+        $this->fakeApis();
+        DB::table('trip_planner_api_calls')->insert([
+            'date' => now('UTC')->toDateString(), 'service' => ApiUsage::TOMTOM, 'kind' => 'routing',
+            'succeeded' => 2400, 'failed' => 0, 'milliseconds' => 0, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $trip = $this->plan($this->trip($this->signInWithVehicle()));
+
+        $this->assertTrue($trip->plan['traffic_skipped']);
+        $this->assertSame(0, Http::recorded(fn (Request $request) => str_contains($request->url(), '/traffic/'))->count());
+        // The route itself is still planned.
+        $this->assertSame(Trip::STATUS_PLANNED, $trip->status);
+    }
+
+    public function test_the_calls_to_tomtom_and_overpass_are_counted()
+    {
+        Http::globalMiddleware(ApiUsage::middleware());
+        $this->fakeApis();
+        $this->plan($this->trip($this->signInWithVehicle()));
+
+        $this->assertGreaterThan(0, ApiUsage::tomTomToday());
+        $this->assertTrue(DB::table('trip_planner_api_calls')->where('service', ApiUsage::OVERPASS)->where('succeeded', '>', 0)->exists());
+
+        $this->artisan('trip-planner:usage')
+            ->expectsOutputToContain('TomTom today: '.ApiUsage::tomTomToday().' of 2500 calls')
+            ->assertSuccessful();
     }
 }

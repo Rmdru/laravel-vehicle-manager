@@ -11,6 +11,7 @@ use App\Support\Roads;
 use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Cache;
 
 class TripPlanner
 {
@@ -26,20 +27,40 @@ class TripPlanner
     ) {}
 
     /**
-     * The fastest route of a trip and its alternatives.
+     * Reads the prices of the gas stations anew, rather than taking them
+     * from what was kept: when the driver refreshes them.
+     */
+    public function freshPrices(): static
+    {
+        $this->prices->fresh = true;
+
+        return $this;
+    }
+
+    /**
+     * The fastest route of a trip and its alternatives. They are kept for a
+     * while: choosing another stop plans the trip again with the same routes.
      *
+     * @param  bool  $fresh  Planned anew, rather than taken from what was kept.
      * @return list<Route>
      *
      * @throws RoutingException
      */
-    public function routes(Trip $trip): array
+    public function routes(Trip $trip, bool $fresh = false): array
     {
-        $routes = $this->routing->routes(
-            $trip->waypoints->map(fn (TripWaypoint $waypoint) => [$waypoint->latitude, $waypoint->longitude])->all(),
-            $trip->time_mode,
-            CarbonImmutable::parse($trip->time_at)->setTimezone(config('trip_planner.timezone')),
-            (int) config('trip_planner.alternatives'),
-        );
+        $waypoints = $trip->waypoints->map(fn (TripWaypoint $waypoint) => [(float) $waypoint->latitude, (float) $waypoint->longitude])->all();
+        $time = CarbonImmutable::parse($trip->time_at)->setTimezone(config('trip_planner.timezone'));
+        $alternatives = (int) config('trip_planner.alternatives');
+        $key = 'trip-planner:routes:'.md5((string) json_encode([$waypoints, $trip->time_mode, $time->toIso8601String(), $alternatives]));
+        $routes = $fresh ? null : Cache::get($key);
+
+        if (! is_array($routes)) {
+            $routes = $this->routing->routes($waypoints, $trip->time_mode, $time, $alternatives);
+
+            if ($routes) {
+                Cache::put($key, $routes, now()->addMinutes((int) config('trip_planner.tomtom.routes_cache_minutes')));
+            }
+        }
 
         if (! $routes) {
             throw new RoutingException(__('There is no route between these places.'));
@@ -52,12 +73,13 @@ class TripPlanner
      * The places along routes; nothing when they could not be fetched.
      *
      * @param  list<Route>  $routes
-     * @param  (Closure(float): void)|null  $progress  Called with the part of the fetching that is done.
+     * @param  (Closure(float, string, int, int): void)|null  $progress  Called with the part of the fetching that is done, the stage and its requests done and in all.
+     * @param  float|null  $deadline  The moment (as microtime) the fetching stops: the rest is fetched another time.
      * @return Collection<int, Poi>|null
      */
-    public function places(array $routes, ?Closure $progress = null): ?Collection
+    public function places(array $routes, ?Closure $progress = null, ?float $deadline = null): ?Collection
     {
-        $pois = $this->pois->along(array_merge(...array_map(fn (Route $route) => $route->points, $routes)), $progress);
+        $pois = $this->pois->along(array_merge(...array_map(fn (Route $route) => $route->points, $routes)), $progress, $deadline);
 
         return $this->pois->failed && $pois->isEmpty() ? null : $pois;
     }
@@ -66,17 +88,18 @@ class TripPlanner
      * The road works, closures and, when leaving soon, the jams along each route.
      *
      * @param  list<Route>  $routes
+     * @param  bool  $fresh  Asked anew, rather than taken from what was kept.
      * @return list<list<array<string, mixed>>>
      */
-    public function traffic(Trip $trip, array $routes): array
+    public function traffic(Trip $trip, array $routes, bool $fresh = false): array
     {
-        return array_map(function (Route $route) use ($trip) {
+        return array_map(function (Route $route) use ($trip, $fresh) {
             $departure = $trip->time_mode === 'arrival'
                 ? CarbonImmutable::parse($trip->time_at)->subSeconds((int) round($route->driveSeconds))
                 : $route->departure;
 
             // The stops are not known yet: a few hours of them at most.
-            return $this->traffic->along($route, $departure, $departure->addSeconds((int) round($route->driveSeconds))->addHours(3), app()->getLocale());
+            return $this->traffic->along($route, $departure, $departure->addSeconds((int) round($route->driveSeconds))->addHours(3), app()->getLocale(), $fresh);
         }, $routes);
     }
 
@@ -102,6 +125,8 @@ class TripPlanner
                 'electric' => str_starts_with((string) $trip->vehicle?->powertrain, 'electricity'),
             ],
             'loading' => $pois === null && ! $this->pois->failed,
+            // The daily limit of TomTom is near: the traffic was left out.
+            'traffic_skipped' => $this->traffic->skipped,
             'routes' => array_map(
                 fn (Route $route, int $index) => [...$this->route($trip, $route, $pois, $range), 'traffic' => $traffic[$index] ?? []],
                 $routes,
@@ -197,6 +222,7 @@ class TripPlanner
         }
 
         $nearby = $pois === null ? collect() : $corridor->within($pois, (float) config('trip_planner.corridor.map'));
+        $prices = $this->prices->known(array_column($candidates, 'poi_id'));
         $point = fn (int $index) => ['latitude' => $route->points[$index][0], 'longitude' => $route->points[$index][1]];
         $countries = array_values(array_unique(array_map(CountryCodes::iso2(...), array_column($route->countries, 'country'))));
         $vignettes = array_values(array_unique(array_map(CountryCodes::iso2(...), array_filter(array_column($route->vignettes, 'country')))));
@@ -269,8 +295,78 @@ class TripPlanner
                 ->map(fn (array $located) => $located['poi']->id)
                 ->values()
                 ->all(),
-            'prices' => $this->prices->known(array_column($candidates, 'poi_id')),
+            'prices' => $prices,
+            'costs' => $this->costs($trip, $route, $range, $pois === null ? null : $stops, $prices, $vignettes, $departure, $arrival),
         ];
+    }
+
+    /**
+     * What a route costs, as far as it is known: the fuel, at the prices of
+     * the fuel stops or else at those along the route, and the vignettes, at
+     * the price paid for the last one of the country. The toll is not known.
+     *
+     * @param  list<array<string, mixed>>|null  $stops  Null while the stops are not known yet.
+     * @param  array<int, array{price: float}>  $prices
+     * @param  list<string>  $vignettes  ISO 2 codes.
+     * @return array{fuel: ?float, fuel_price: ?float, energy: ?float, vignettes: list<array{country: string, price: ?float, owned: bool}>, total: ?float, complete: bool}
+     */
+    private function costs(Trip $trip, Route $route, ?VehicleRange $range, ?array $stops, array $prices, array $vignettes, CarbonImmutable $departure, CarbonImmutable $arrival): array
+    {
+        // The liters, or the kWh, the route takes.
+        $energy = $range ? round($route->distance / 1000 * $range->consumption / 100, 1) : null;
+        $price = null;
+        $fuel = null;
+
+        if ($energy !== null && ! $range->electric && $stops !== null) {
+            // The price at each fuel stop, by the fuel refueled there.
+            $paid = array_values(array_filter(array_map(
+                fn (array $stop) => isset($stop['poi_id'], $prices[$stop['poi_id']]) && in_array('fuel', (array) ($stop['needs'] ?? []), true)
+                    ? [(float) $prices[$stop['poi_id']]['price'], max(1.0, (float) ($stop['fuel_liters'] ?? 0))]
+                    : null,
+                $stops,
+            )));
+
+            $price = match (true) {
+                $paid !== [] => array_sum(array_map(fn (array $pair) => $pair[0] * $pair[1], $paid)) / array_sum(array_column($paid, 1)),
+                $prices !== [] => array_sum(array_column($prices, 'price')) / count($prices),
+                default => null,
+            };
+            $fuel = $price !== null ? round($price * $energy, 2) : null;
+        }
+
+        $vehicle = $trip->vehicle;
+        $vignetteCosts = array_map(function (string $country) use ($trip, $vehicle, $departure, $arrival) {
+            // A vignette that holds for the trip is paid for already.
+            $owned = $vehicle !== null && $this->notices->holds($vehicle->vignettes, $country, $departure, $arrival);
+
+            return ['country' => $country, 'price' => $owned ? 0.0 : $this->lastVignettePrice($trip, $country), 'owned' => $owned];
+        }, $vignettes);
+
+        $known = array_filter([$fuel, ...array_column($vignetteCosts, 'price')], fn (?float $value) => $value !== null);
+
+        return [
+            'fuel' => $fuel,
+            'fuel_price' => $price !== null ? round($price, 3) : null,
+            'energy' => $energy,
+            'vignettes' => $vignetteCosts,
+            'total' => $known !== [] ? round(array_sum($known), 2) : null,
+            'complete' => $fuel !== null && $route->tollRoads === [] && ! in_array(null, array_column($vignetteCosts, 'price'), true),
+        ];
+    }
+
+    /**
+     * The price the vehicle paid for its last vignette of a country.
+     */
+    private function lastVignettePrice(Trip $trip, string $country): ?float
+    {
+        $key = collect(config('countries'))->search(fn (array $config) => $config['iso_code'] === $country);
+        $price = $trip->vehicle?->vignettes
+            ->where('country', $key)
+            ->whereNotNull('price')
+            ->sortByDesc('start_date')
+            ->first()?->price;
+
+        return $price !== null ? (float) $price : null;
     }
 
     /**

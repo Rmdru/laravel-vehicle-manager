@@ -50,6 +50,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('trips/{trip}/route', [TripController::class, 'selectRoute'])->name('trips.route');
         Route::patch('trips/{trip}/stops', [TripController::class, 'stops'])->name('trips.stops');
         Route::post('trips/{trip}/tips', [TripController::class, 'tips'])->name('trips.tips');
+        Route::post('trips/{trip}/refresh', [TripController::class, 'refresh'])->name('trips.refresh');
         Route::resource('trips', TripController::class)->except('edit');
 
         Route::post('maintenances/small-check', [MaintenanceController::class, 'smallCheck'])->name('maintenances.small-check');

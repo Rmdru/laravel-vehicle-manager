@@ -22,14 +22,15 @@ class PoiRepository
      * that were not fetched yet or too long ago.
      *
      * @param  list<array{float, float}>  $points
-     * @param  (Closure(float): void)|null  $progress  Called with the part of the fetching that is done.
+     * @param  (Closure(float, string, int, int): void)|null  $progress  Called with the part of the fetching that is done, the stage and its requests done and in all.
+     * @param  float|null  $deadline  The moment (as microtime) the fetching stops: the rest is fetched another time.
      * @return Collection<int, Poi>
      */
-    public function along(array $points, ?Closure $progress = null): Collection
+    public function along(array $points, ?Closure $progress = null, ?float $deadline = null): Collection
     {
         $tiles = Geo::tilesAlong($points, (float) config('trip_planner.corridor.fetch'));
 
-        $this->fetchGroups($this->groups(array_values(array_diff($tiles, $this->fresh($tiles, (int) config('trip_planner.tile_ttl_days'))))), $progress);
+        $this->fetchGroups($this->groups(array_values(array_diff($tiles, $this->fresh($tiles, (int) config('trip_planner.tile_ttl_days'))))), $progress, $deadline);
 
         return Poi::whereIn('tile', $tiles)->get();
     }
@@ -54,11 +55,11 @@ class PoiRepository
 
     /**
      * @param  list<list<string>>  $groups
-     * @param  (Closure(float): void)|null  $progress
+     * @param  (Closure(float, string, int, int): void)|null  $progress
      */
-    private function fetchGroups(array $groups, ?Closure $progress = null): void
+    private function fetchGroups(array $groups, ?Closure $progress = null, ?float $deadline = null): void
     {
-        $this->failed = array_merge(...$this->overpass->fetch($groups, $this->store(...), $progress) ?: [[]]);
+        $this->failed = array_merge(...$this->overpass->fetch($groups, $this->store(...), $progress, $deadline) ?: [[]]);
     }
 
     /**

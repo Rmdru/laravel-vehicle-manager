@@ -42,6 +42,12 @@ class FuelPrices
     /** @var array<int, array{price: float, source: string, updated_at: ?string, fuel_type: ?string}|null> The prices found, by place. */
     private array $known = [];
 
+    /** Whether the prices of the stations are read anew, rather than taken from what was kept. */
+    public bool $fresh = false;
+
+    /** @var array<string, true> The cells read anew so far. */
+    private array $refreshed = [];
+
     public function __construct()
     {
         foreach ([new Tankerkoenig, new PrixCarburants, new EControl, new Minetur, new UkRetailers] as $source) {
@@ -155,8 +161,16 @@ class FuelPrices
         $cellLat = round($latitude / self::CELL) * self::CELL;
         $cellLon = round($longitude / self::CELL) * self::CELL;
 
+        $key = 'trip-planner:prices:'.class_basename($source).":{$country}:{$fuel}:{$cellLat}:{$cellLon}";
+
+        // Read anew once, when the prices are refreshed.
+        if ($this->fresh && ! isset($this->refreshed[$key])) {
+            Cache::forget($key);
+            $this->refreshed[$key] = true;
+        }
+
         $stations = Cache::remember(
-            'trip-planner:prices:'.class_basename($source).":{$country}:{$fuel}:{$cellLat}:{$cellLon}",
+            $key,
             now()->addMinutes((int) config('trip_planner.prices.cache_minutes')),
             function () use ($source, $cellLat, $cellLon, $fuel, $country) {
                 try {

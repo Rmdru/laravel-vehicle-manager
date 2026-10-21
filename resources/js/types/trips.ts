@@ -5,6 +5,15 @@ export type Place = {
     stayMinutes?: number;
 };
 
+// What the driver enters to plan a trip.
+export type TripFormData = {
+    name: string;
+    timeMode: 'departure' | 'arrival';
+    timeAt: string;
+    fuelLevel: number;
+    waypoints: (Place | null)[];
+};
+
 export type TripNeed = 'hotel' | 'break' | 'meal' | 'toilet' | 'fuel';
 
 // A road number with the classes of its sign.
@@ -83,6 +92,31 @@ export type TripRoute = {
     traffic: TrafficIncident[];
     // Where it is usually busy at the time it is driven.
     congestion?: TripCongestion[];
+    // What the route costs, as far as it is known; missing in a trip planned before.
+    costs?: TripCosts;
+};
+
+export type TripCosts = {
+    // The fuel, at the prices of the fuel stops or else of those along the route.
+    fuel: number | null;
+    fuel_price: number | null;
+    // The liters, or the kWh, the route takes.
+    energy: number | null;
+    // A vignette that is owned already costs nothing; one never bought has no known price.
+    vignettes: { country: string; price: number | null; owned: boolean }[];
+    // The costs that are known.
+    total: number | null;
+    // Whether the total holds everything: not with toll or a vignette of unknown price.
+    complete: boolean;
+};
+
+// How far the planning is, while it is planned.
+export type TripProgress = {
+    value: number;
+    stage: 'routes' | 'traffic' | 'places' | 'amenities' | 'stops';
+    // The requests of the stage done, and in all.
+    done?: number;
+    total?: number;
 };
 
 export type TripCongestion = {
@@ -142,6 +176,8 @@ export type TripPlan = {
         electric?: boolean;
     };
     loading: boolean;
+    // The daily limit of TomTom was near: the traffic was left out.
+    traffic_skipped?: boolean;
     routes: TripRoute[];
 };
 
