@@ -30,12 +30,13 @@ class OverpassService
      *
      * @param  list<list<string>>  $blocks  The tiles of each block; together they form a rectangle.
      * @param  Closure(list<string>, list<array<string, mixed>>): void  $store  Called with the tiles and the elements of each block that is fetched.
-     * @param  (Closure(float): void)|null  $progress  Called with the part that is done so far.
+     * @param  (Closure(float, string, int, int): void)|null  $progress  Called with the part that is done so far, the stage ("places" or "amenities") and the requests of it done and in all.
+     * @param  float|null  $deadline  No request is sent after this moment (as microtime): what is fetched by then is stored.
      * @return list<list<string>> The blocks that could not be fetched.
      */
-    public function fetch(array $blocks, Closure $store, ?Closure $progress = null): array
+    public function fetch(array $blocks, Closure $store, ?Closure $progress = null, ?float $deadline = null): array
     {
-        $places = $this->run(array_map(fn (array $tiles) => $this->placesQuery($tiles), $blocks), $progress, 0, 0.6);
+        $places = $this->run(array_map(fn (array $tiles) => $this->placesQuery($tiles), $blocks), $progress, 0, 0.6, 'places', $deadline);
 
         $areaQueries = [];
 
@@ -47,7 +48,7 @@ class OverpassService
             }
         }
 
-        $amenities = $this->run($areaQueries, $progress, 0.6, 1);
+        $amenities = $this->run($areaQueries, $progress, 0.6, 1, 'amenities', $deadline);
 
         foreach ($places as $block => $elements) {
             // Without the amenities, the places themselves are still of use.
@@ -62,17 +63,25 @@ class OverpassService
      * another server.
      *
      * @param  array<int, string>  $queries
-     * @param  (Closure(float): void)|null  $progress  Called with the part that is done so far, from one part to another.
+     * @param  (Closure(float, string, int, int): void)|null  $progress  Called with the part that is done so far, from one part to another.
      * @return array<int, list<array<string, mixed>>> The elements, by the key of each query that succeeded.
      */
-    private function run(array $queries, ?Closure $progress = null, float $from = 0, float $to = 1): array
+    private function run(array $queries, ?Closure $progress = null, float $from = 0, float $to = 1, string $stage = 'places', ?float $deadline = null): array
     {
         $servers = array_values(config('trip_planner.overpass.servers'));
         $tried = array_fill_keys(array_keys($queries), []);
         $pending = array_keys($queries);
         $results = [];
 
+        $progress && $queries && $progress($from, $stage, 0, count($queries));
+
         while ($pending) {
+            if ($deadline !== null && microtime(true) >= $deadline) {
+                Log::warning('Overpass took too long: the rest is fetched another time.', ['stage' => $stage, 'left' => count($pending), 'of' => count($queries)]);
+
+                break;
+            }
+
             $batch = [];
             $load = array_fill(0, count($servers), 0);
 
@@ -125,7 +134,8 @@ class OverpassService
             }
 
             if ($progress && $queries) {
-                $progress($from + ($to - $from) * (count($queries) - count($pending)) / count($queries));
+                $done = count($queries) - count($pending);
+                $progress($from + ($to - $from) * $done / count($queries), $stage, $done, count($queries));
             }
         }
 

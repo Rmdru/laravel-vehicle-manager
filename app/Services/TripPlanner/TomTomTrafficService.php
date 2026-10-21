@@ -6,6 +6,7 @@ namespace App\Services\TripPlanner;
 
 use App\Support\Roads;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -24,11 +25,14 @@ class TomTomTrafficService
     /** Incidents that are over soon: only of interest when leaving soon. */
     private const CURRENT = ['accident', 'danger', 'jam', 'broken_down'];
 
+    /** Road works and closures without a known end are only told for a trip within this many days: later they may well be over. */
+    private const OPEN_ENDED_DAYS = 7;
+
     /** An incident this close to the route is on it, in meters. */
     private const ON_ROUTE = 60;
 
-    /** The largest box TomTom looks in, in degrees on each side: well within its 10,000 km². */
-    private const BOX = 0.8;
+    /** The largest box TomTom looks in, in degrees on each side: rounded out, still within its 10,000 km² in the south of Europe. */
+    private const BOX = 0.75;
 
     /** The kinds of traffic drawn as a line along the road: road works and closures. */
     private const LINES = ['road_works', 'lane_closed', 'closed'];
@@ -36,17 +40,31 @@ class TomTomTrafficService
     /** The most points a line of road works or a closure keeps. */
     private const MAX_LINE_POINTS = 80;
 
+    /** The boxes are rounded out to this many degrees: the alternatives and a trip planned again then ask for the same ones. */
+    private const ROUND_BOX = 0.1;
+
+    /** Whether the traffic was left out, as the daily limit of TomTom is near. */
+    public bool $skipped = false;
+
     /**
+     * @param  bool  $fresh  Asked anew, rather than taken from what was kept.
      * @return list<array{category: string, description: string, road: ?string, road_badge: array{label: string, classes: string}|null, line: list<array{float, float}>|null, from: ?string, to: ?string, delay: ?int, length: ?int, start: ?string, end: ?string, latitude: float, longitude: float, along: int}>
      */
-    public function along(Route $route, CarbonImmutable $departure, CarbonImmutable $arrival, string $locale): array
+    public function along(Route $route, CarbonImmutable $departure, CarbonImmutable $arrival, string $locale, bool $fresh = false): array
     {
+        if (ApiUsage::tomTomSaving()) {
+            $this->skipped = true;
+
+            return [];
+        }
+
         $corridor = new Corridor($route);
         $soon = $departure->lte(now()->addHours(2));
+        $near = $departure->lte(now()->addDays(self::OPEN_ENDED_DAYS));
         $incidents = [];
 
         foreach ($this->boxes($route) as $box) {
-            foreach ($this->fetch($box, $locale) as $incident) {
+            foreach ($this->fetch($box, $locale, $fresh) as $incident) {
                 $properties = $incident['properties'] ?? [];
                 $category = self::CATEGORIES[$properties['iconCategory'] ?? 0] ?? null;
                 $coordinates = $this->coordinates($incident['geometry'] ?? []);
@@ -64,6 +82,11 @@ class TomTomTrafficService
                 $end = isset($properties['endTime']) ? CarbonImmutable::parse($properties['endTime']) : null;
 
                 if (($start && $start->gt($arrival)) || ($end && $end->lt($departure))) {
+                    continue;
+                }
+
+                // Going on now without a known end: for a trip far ahead, maybe over by then.
+                if ($end === null && ! $near && ($start === null || $start->lte(now()))) {
                     continue;
                 }
 
@@ -127,15 +150,40 @@ class TomTomTrafficService
             $boxes[] = $box;
         }
 
-        // A little room around the route.
-        return array_map(fn (array $box) => [$box[0] - 0.01, $box[1] - 0.01, $box[2] + 0.01, $box[3] + 0.01], $boxes);
+        // A little room around the route, rounded out.
+        $out = fn (float $value, bool $up) => round(($up ? ceil(($value + 0.01) / self::ROUND_BOX) : floor(($value - 0.01) / self::ROUND_BOX)) * self::ROUND_BOX, 1);
+
+        return array_map(fn (array $box) => [$out($box[0], false), $out($box[1], false), $out($box[2], true), $out($box[3], true)], $boxes);
+    }
+
+    /**
+     * The incidents in a box, kept for a while.
+     *
+     * @param  array{float, float, float, float}  $box
+     * @return list<array<string, mixed>>
+     */
+    private function fetch(array $box, string $locale, bool $fresh = false): array
+    {
+        $key = 'trip-planner:traffic:'.$locale.':'.implode(',', $box);
+
+        if (! $fresh && is_array($kept = Cache::get($key))) {
+            return $kept;
+        }
+
+        $incidents = $this->request($box, $locale);
+
+        if ($incidents !== null) {
+            Cache::put($key, $incidents, now()->addMinutes((int) config('trip_planner.tomtom.traffic_cache_minutes')));
+        }
+
+        return $incidents ?? [];
     }
 
     /**
      * @param  array{float, float, float, float}  $box
-     * @return list<array<string, mixed>>
+     * @return list<array<string, mixed>>|null Null when TomTom did not answer.
      */
-    private function fetch(array $box, string $locale): array
+    private function request(array $box, string $locale): ?array
     {
         try {
             $response = Http::timeout(15)->get(config('trip_planner.tomtom.base_url').'traffic/services/5/incidentDetails', [
@@ -148,10 +196,10 @@ class TomTomTrafficService
         } catch (Throwable $exception) {
             Log::warning('TomTom traffic call failed.', ['message' => $exception->getMessage()]);
 
-            return [];
+            return null;
         }
 
-        return $response->ok() ? (array) ($response->json('incidents') ?? []) : [];
+        return $response->ok() ? array_values((array) ($response->json('incidents') ?? [])) : null;
     }
 
     /**

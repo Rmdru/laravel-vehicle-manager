@@ -15,7 +15,7 @@ import PoiCard from '@/components/trips/PoiCard.vue';
 import TrafficCard from '@/components/trips/TrafficCard.vue';
 import { useAppearance } from '@/composables/useAppearance';
 import { iconImage, iconMarkup } from '@/lib/icons';
-import { MAP_THEMES, themedStyle } from '@/lib/map-theme';
+import { MAP_THEMES, shieldEmphasis, themedStyle } from '@/lib/map-theme';
 import type { ShieldStyles } from '@/lib/map-theme';
 import { decodePolyline } from '@/lib/polyline';
 import {
@@ -239,7 +239,23 @@ function congestionData(): FeatureCollection {
     };
 }
 
+// The road numbers of the roads of the route: placed first.
+function emphasizeRouteRoads() {
+    const emphasis = shieldEmphasis(
+        (route.value?.roads ?? []).map((road) => road.label),
+    );
+
+    for (const { id } of map?.getStyle().layers ?? []) {
+        if (id.startsWith('road-shields')) {
+            for (const [property, value] of Object.entries(emphasis)) {
+                map!.setLayoutProperty(id, property, value);
+            }
+        }
+    }
+}
+
 function updateSources() {
+    emphasizeRouteRoads();
     setSource('traffic', trafficData());
     setSource('congestion', congestionData());
     setSource('traffic-lines', trafficLinesData());
@@ -286,13 +302,18 @@ async function addLayers() {
     await addImages();
     updateSources();
 
-    // A white casing sets the routes apart from the roads of the map.
+    // A white casing sets the routes apart from the roads of the map; the
+    // alternatives are see-through, so that the chosen route stands out.
     map.addLayer({
         id: 'routes-casing',
         type: 'line',
         source: 'routes',
         layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#ffffff', 'line-width': 9 },
+        paint: {
+            'line-color': '#ffffff',
+            'line-width': 9,
+            'line-opacity': ['case', ['get', 'selected'], 1, 0.5],
+        },
     });
     map.addLayer({
         id: 'routes-alternative',
@@ -300,7 +321,11 @@ async function addLayers() {
         source: 'routes',
         filter: ['==', ['get', 'selected'], false],
         layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#64748b', 'line-width': 5 },
+        paint: {
+            'line-color': '#64748b',
+            'line-width': 5,
+            'line-opacity': 0.55,
+        },
     });
     map.addLayer({
         id: 'routes-selected',
@@ -345,6 +370,15 @@ async function addLayers() {
         },
     });
 
+    // The road numbers over the routes, but under the places along them.
+    for (const { id } of map.getStyle().layers) {
+        if (id.startsWith('road-shields')) {
+            map.moveLayer(id);
+        }
+    }
+
+    // From bottom to top: everything nearby, the places a stop could be made
+    // at, the toll roads and the traffic.
     for (const group of Object.keys(POI_GROUPS)) {
         map.addLayer({
             id: `surroundings-${group}`,
@@ -357,6 +391,9 @@ async function addLayers() {
                 'icon-allow-overlap': true,
             },
         });
+    }
+
+    for (const group of Object.keys(POI_GROUPS)) {
         map.addLayer({
             id: `places-${group}`,
             type: 'symbol',
@@ -396,6 +433,22 @@ async function addLayers() {
             'icon-image': ['concat', 'traffic-', ['get', 'category']],
             'icon-size': ['interpolate', ['linear'], ['zoom'], 6, 0.7, 11, 1],
             'icon-allow-overlap': true,
+            // What matters most on top: overlapping, the higher key wins.
+            'symbol-sort-key': [
+                'match',
+                ['get', 'category'],
+                'closed',
+                5,
+                'accident',
+                4,
+                'jam',
+                3,
+                'road_works',
+                2,
+                'lane_closed',
+                1,
+                0,
+            ],
         },
     });
 

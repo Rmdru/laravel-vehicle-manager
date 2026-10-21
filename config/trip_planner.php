@@ -18,6 +18,15 @@ return [
             'es' => 'es-ES',
             'it' => 'it-IT',
         ],
+        // The calls a day of the free tier. From this part of it on, the
+        // traffic and the congestion are left out, so that routes can still
+        // be planned.
+        'daily_limit' => (int) env('TOMTOM_DAILY_LIMIT', 2500),
+        'saving_from' => 0.8,
+        // The routes and the traffic are kept this many minutes: choosing
+        // another stop plans the trip again without calling TomTom again.
+        'routes_cache_minutes' => 30,
+        'traffic_cache_minutes' => 15,
     ],
 
     // How many routes are planned next to the fastest one.
@@ -34,6 +43,10 @@ return [
         ],
         // A request that takes longer is tried again at another server.
         'timeout' => 120,
+        // The most seconds a planning spends fetching places: the queue
+        // worker stops a job after 15 minutes. What is fetched by then is
+        // kept, the rest is fetched the next time.
+        'budget' => 540,
         // The tiles are fetched in blocks of this many tiles square, one request each.
         'block_size' => 4,
     ],

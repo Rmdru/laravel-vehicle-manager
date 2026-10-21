@@ -162,6 +162,8 @@ class TripPlannerExtrasTest extends TestCase
             ['type' => 'Feature', 'geometry' => $line(50.4, 50.5), 'properties' => ['id' => 'b', 'iconCategory' => 8, 'events' => [['description' => 'Afgesloten']]]],
             // Over before the trip.
             ['type' => 'Feature', 'geometry' => $line(50.0, 49.9), 'properties' => ['id' => 'c', 'iconCategory' => 8, 'endTime' => '2026-11-01T00:00:00Z']],
+            // Going on now without a known end: maybe over by December.
+            ['type' => 'Feature', 'geometry' => $line(50.3, 50.2), 'properties' => ['id' => 'f', 'iconCategory' => 7, 'startTime' => '2026-01-01T00:00:00Z']],
             // A jam now: of no interest for a trip in December.
             ['type' => 'Feature', 'geometry' => $line(49.8, 49.7), 'properties' => ['id' => 'd', 'iconCategory' => 6, 'delay' => 600]],
             // Elsewhere.

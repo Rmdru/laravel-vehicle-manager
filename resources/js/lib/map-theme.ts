@@ -19,6 +19,8 @@ export type MapTheme = {
     building: string;
     boundary: string;
     label: string;
+    // The names of villages and smaller places: lighter, they make way.
+    labelMuted: string;
     labelHalo: string;
     roads: Record<
         | 'motorway'
@@ -40,6 +42,7 @@ export const MAP_THEMES: Record<'light' | 'dark', MapTheme> = {
         building: '#e2ddd8',
         boundary: '#9b8fb5',
         label: '#374151',
+        labelMuted: '#8b929c',
         labelHalo: '#ffffff',
         roads: {
             motorway: { line: '#e8473e', casing: '#a8261f' },
@@ -58,10 +61,12 @@ export const MAP_THEMES: Record<'light' | 'dark', MapTheme> = {
         building: '#252c38',
         boundary: '#6b6290',
         label: '#cbd5e1',
+        labelMuted: '#7b8494',
         labelHalo: '#0f141c',
         roads: {
-            motorway: { line: '#d9443b', casing: '#7a1d18' },
-            trunk: { line: '#d9792c', casing: '#7a4113' },
+            // Less bright than in the light appearance: in the dark it glares.
+            motorway: { line: '#b4463f', casing: '#5e1d19' },
+            trunk: { line: '#b56a30', casing: '#5e3714' },
             primary: { line: '#c9a43a', casing: '#6e5715' },
             secondary: { line: '#8a7a4a', casing: '#4a4126' },
             tertiary: { line: '#4b5563', casing: '#2b313b' },
@@ -167,6 +172,63 @@ function paint(layer: LayerSpecification, properties: Record<string, unknown>) {
     };
 }
 
+// The road numbers as written on the signs, with and without a space between
+// the letters and the number: "A12" and "A 12".
+function refVariants(labels: string[]): string[] {
+    return [
+        ...new Set(
+            labels.flatMap((label) => {
+                const ref = label.toUpperCase().replace(/\s+/g, '');
+
+                return [ref, ref.replace(/^([A-Z]+)(\d)/, '$1 $2')];
+            }),
+        ),
+    ];
+}
+
+/**
+ * The order of placement of the road numbers: those of the roads of the
+ * route first, then the European roads and the motorways, then the rest.
+ */
+export function shieldEmphasis(routeRoads: string[]): {
+    'symbol-sort-key': ExpressionSpecification;
+} {
+    const ref: ExpressionSpecification = [
+        'upcase',
+        ['to-string', ['get', 'ref']],
+    ];
+    const onRoute: ExpressionSpecification = [
+        'in',
+        ref,
+        ['literal', refVariants(routeRoads)],
+    ];
+
+    return {
+        'symbol-sort-key': [
+            'case',
+            onRoute,
+            0,
+            ['==', ['slice', ref, 0, 1], 'E'],
+            1,
+            [
+                'match',
+                ['get', 'class'],
+                'motorway',
+                2,
+                'trunk',
+                3,
+                'primary',
+                4,
+                5,
+            ],
+        ],
+    };
+}
+
+// Below this zoom only the European roads, motorways and trunk roads have
+// their number shown: otherwise the map fills up with numbers.
+const SHIELDS_ALL_FROM_ZOOM = 9;
+
 // The road numbers as the road signs of their country show them: one layer
 // per country, limited to its borders, above one for all other roads.
 function shieldLayers(shields: ShieldStyles): LayerSpecification[] {
@@ -187,6 +249,20 @@ function shieldLayers(shields: ShieldStyles): LayerSpecification[] {
         ['slice', ['upcase', ['to-string', ['get', 'ref']]], 0, prefix.length],
         prefix,
     ];
+    const main: ExpressionSpecification = [
+        'any',
+        startsWith('E'),
+        ['match', ['get', 'class'], ['motorway', 'trunk'], true, false],
+    ];
+    // Nothing, for the other roads when zoomed out.
+    const mainOnly = (value: ExpressionSpecification | string) =>
+        [
+            'step',
+            ['zoom'],
+            ['case', main, value, ''],
+            SHIELDS_ALL_FROM_ZOOM,
+            value,
+        ] as unknown as ExpressionSpecification;
     const layer = (
         id: string,
         filter: ExpressionSpecification,
@@ -200,16 +276,17 @@ function shieldLayers(shields: ShieldStyles): LayerSpecification[] {
         filter,
         minzoom: 6,
         layout: {
-            'icon-image': image,
+            'icon-image': mainOnly(image),
             'icon-text-fit': 'both',
             'icon-text-fit-padding': [1, 2, 1, 2],
             'icon-rotation-alignment': 'viewport',
             'symbol-placement': ['step', ['zoom'], 'point', 10, 'line'],
-            'symbol-spacing': 250,
-            'text-field': ['to-string', ['get', 'ref']],
+            'symbol-spacing': 400,
+            'text-field': mainOnly(['to-string', ['get', 'ref']]),
             'text-font': ['Noto Sans Bold'],
             'text-size': 11,
             'text-rotation-alignment': 'viewport',
+            ...shieldEmphasis([]),
         },
         paint: { 'text-color': text },
     });
@@ -234,40 +311,51 @@ function shieldLayers(shields: ShieldStyles): LayerSpecification[] {
             pick({ ...shields.plain, image: sprite(shields.plain.image) }),
         ] as unknown as ExpressionSpecification;
 
-    // Placed first, so that the shield of a country takes its place.
+    const countries = Object.entries(shields.countries).flatMap(
+        ([country, rules]) => {
+            const shape = (shapes as Record<string, MultiPolygon>)[country];
+
+            return shape ? [{ country, rules, shape }] : [];
+        },
+    );
+    const within = (geometry: MultiPolygon) =>
+        [
+            'within',
+            { type: 'Feature', properties: {}, geometry },
+        ] as unknown as ExpressionSpecification;
+
+    // Only for the roads outside the countries with shields of their own:
+    // otherwise a plain one shows up wherever that of the country makes way.
     const layers = [
         layer(
             'road-shields',
-            hasRef,
+            [
+                'all',
+                hasRef,
+                [
+                    '!',
+                    within({
+                        type: 'MultiPolygon',
+                        coordinates: countries.flatMap(
+                            ({ shape }) => shape.coordinates,
+                        ),
+                    }),
+                ],
+            ] as unknown as ExpressionSpecification,
             choose([], (rule) => rule.image),
             choose([], (rule) => rule.text),
         ),
     ];
 
-    for (const [country, rules] of Object.entries(shields.countries)) {
-        const shape = (shapes as Record<string, MultiPolygon>)[country];
-
-        if (shape) {
-            layers.push(
-                layer(
-                    `road-shields-${country}`,
-                    [
-                        'all',
-                        hasRef,
-                        [
-                            'within',
-                            {
-                                type: 'Feature',
-                                properties: {},
-                                geometry: shape,
-                            },
-                        ],
-                    ] as unknown as ExpressionSpecification,
-                    choose(rules, (rule) => rule.image),
-                    choose(rules, (rule) => rule.text),
-                ),
-            );
-        }
+    for (const { country, rules, shape } of countries) {
+        layers.push(
+            layer(
+                `road-shields-${country}`,
+                ['all', hasRef, within(shape)] as ExpressionSpecification,
+                choose(rules, (rule) => rule.image),
+                choose(rules, (rule) => rule.text),
+            ),
+        );
     }
 
     return layers;
@@ -326,10 +414,17 @@ export function themedStyle(
             layer.layout?.['text-field'] &&
             sourceLayer !== 'water_name'
         ) {
+            // Villages and smaller places lighter, and only when zoomed in.
+            const minor = id === 'label_village' || id === 'label_other';
+
             paint(layer, {
-                'text-color': theme.label,
+                'text-color': minor ? theme.labelMuted : theme.label,
                 'text-halo-color': theme.labelHalo,
             });
+
+            if (minor) {
+                layer.minzoom = Math.max(layer.minzoom ?? 0, 10);
+            }
         } else if (isRoad(layer)) {
             const casing = id.includes('casing');
             const major = classesOf(layer).every((kind) => kind in WIDTHS);

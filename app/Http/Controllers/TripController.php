@@ -19,7 +19,6 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -98,6 +97,7 @@ class TripController extends Controller
     public function show(Request $request, Trip $trip): Response
     {
         $this->authorizeTrip($request, $trip);
+        $this->expireStalePlanning($trip);
         $trip->load('waypoints');
 
         return $this->planner($trip, [
@@ -167,6 +167,30 @@ class TripController extends Controller
         ]);
 
         PlanTrip::dispatch($trip);
+
+        return back();
+    }
+
+    /**
+     * Plans the trip again as it is, with the fuel prices and the traffic
+     * of this moment.
+     */
+    public function refresh(Request $request, Trip $trip): RedirectResponse
+    {
+        $this->authorizeTrip($request, $trip);
+
+        if (in_array($trip->status, [Trip::STATUS_PLANNING, Trip::STATUS_ROUTED], true)) {
+            return back();
+        }
+
+        $trip->update([
+            'status' => Trip::STATUS_PLANNING,
+            'progress' => null,
+            'error' => null,
+            'plan_version' => $trip->plan_version + 1,
+        ]);
+
+        PlanTrip::dispatch($trip, fresh: true);
 
         return back();
     }
@@ -305,10 +329,13 @@ class TripController extends Controller
                 'id' => $trip->id,
                 'name' => $this->name($trip),
                 'status' => $trip->status,
-                // The part of the planning that is done, while it is being planned.
+                // How far the planning is, while it is being planned.
                 'progress' => in_array($trip->status, [Trip::STATUS_PLANNING, Trip::STATUS_ROUTED], true)
-                    ? (float) Cache::get(PlanTrip::progressKey($trip), 0)
+                    ? ['value' => 0, 'stage' => 'routes', ...(array) $trip->progress]
                     : null,
+                // When the fuel prices and the traffic were last asked for.
+                'plannedAt' => $trip->planned_at?->toIso8601String(),
+                'refreshUrl' => route('trips.refresh', $trip),
                 'error' => $trip->error ? __($trip->error) : null,
                 'selectedRoute' => $trip->selected_route,
                 'plan' => $plan ? [
@@ -462,6 +489,22 @@ class TripController extends Controller
     private function local(mixed $time): CarbonImmutable
     {
         return CarbonImmutable::parse($time)->setTimezone(config('trip_planner.timezone'));
+    }
+
+    /**
+     * A planning that has not been heard of for a while has stopped, for
+     * instance when the queue worker was restarted: it failed.
+     */
+    private function expireStalePlanning(Trip $trip): void
+    {
+        if (in_array($trip->status, [Trip::STATUS_PLANNING, Trip::STATUS_ROUTED], true)
+            && $trip->updated_at?->lt(now()->subMinutes(Trip::STALE_AFTER_MINUTES))) {
+            $trip->update([
+                'status' => Trip::STATUS_FAILED,
+                'progress' => null,
+                'error' => 'Planning the trip took too long. Please try again.',
+            ]);
+        }
     }
 
     private function authorizeTrip(Request $request, Trip $trip): void

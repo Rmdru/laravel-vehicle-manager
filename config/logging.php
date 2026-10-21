@@ -55,7 +55,9 @@ return [
         'stack' => [
             'driver' => 'stack',
             'channels' => explode(',', (string) env('LOG_STACK', 'single')),
-            'ignore_exceptions' => false,
+            // A log that cannot be written to, for instance by the queue
+            // worker for lack of permission, must not make a job fail.
+            'ignore_exceptions' => true,
         ],
 
         'single' => [

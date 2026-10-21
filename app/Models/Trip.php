@@ -28,6 +28,9 @@ class Trip extends Model
 
     public const STATUS_FAILED = 'failed';
 
+    /** A planning that has not been heard of for this many minutes has stopped: the worker gives up on a job after 15. */
+    public const STALE_AFTER_MINUTES = 20;
+
     protected $fillable = [
         'user_id',
         'vehicle_id',
@@ -36,6 +39,7 @@ class Trip extends Model
         'time_at',
         'fuel_level',
         'status',
+        'progress',
         'plan',
         'selected_route',
         'pinned_stops',
@@ -54,6 +58,7 @@ class Trip extends Model
         'time_at' => 'datetime',
         'plan_version' => 'integer',
         'plan' => 'array',
+        'progress' => 'array',
         'pinned_stops' => 'array',
         'excluded_stops' => 'array',
         'tips' => 'array',
