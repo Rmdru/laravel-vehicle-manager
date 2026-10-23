@@ -9,6 +9,7 @@ use App\Http\Controllers\FuelAdviceController;
 use App\Http\Controllers\InsuranceController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\MaintenanceController;
+use App\Http\Controllers\MaintenancePlanController;
 use App\Http\Controllers\ManifestController;
 use App\Http\Controllers\ParkingController;
 use App\Http\Controllers\ProductController;
@@ -54,6 +55,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('trips', TripController::class)->except('edit');
 
         Route::post('maintenances/small-check', [MaintenanceController::class, 'smallCheck'])->name('maintenances.small-check');
+
+        Route::get('maintenance-plan', [MaintenancePlanController::class, 'index'])->name('maintenance-plan');
+        Route::post('maintenance-plan/propose', [MaintenancePlanController::class, 'propose'])->name('maintenance-plan.propose');
+        Route::post('maintenance-plan/classify', [MaintenancePlanController::class, 'classify'])->name('maintenance-plan.classify');
+        Route::post('maintenance-plan/assign', [MaintenancePlanController::class, 'assign'])->name('maintenance-plan.assign');
+        Route::patch('maintenance-plan/{key}', [MaintenancePlanController::class, 'update'])->name('maintenance-plan.update');
 
         $records = [
             'maintenances' => MaintenanceController::class,

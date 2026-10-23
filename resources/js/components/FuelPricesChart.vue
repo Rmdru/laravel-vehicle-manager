@@ -129,18 +129,45 @@ const path = (series: Series) =>
 
 const hovered = ref<string | null>(null);
 
+// The price of a series where its line is on a day: the imported one, or
+// between two imports the one on the line connecting them (the prices of a
+// country are not all imported as often). Null outside the series.
+function priceAt(series: Series, date: string) {
+    const exact = series.points.find((point) => point.date === date);
+
+    if (exact) {
+        return { price: exact.price, exact: true };
+    }
+
+    const next = series.points.findIndex((point) => point.date > date);
+
+    if (next <= 0) {
+        return null;
+    }
+
+    const from = series.points[next - 1];
+    const until = series.points[next];
+    const fraction =
+        (time(date) - time(from.date)) / (time(until.date) - time(from.date));
+
+    return {
+        price: from.price + (until.price - from.price) * fraction,
+        exact: false,
+    };
+}
+
 // The prices of every fuel type on the day the pointer is closest to.
-const readout = computed(() =>
-    hovered.value === null
+const readout = computed(() => {
+    const date = hovered.value;
+
+    return date === null
         ? []
         : country.value.series.flatMap((series) => {
-              const point = series.points.find(
-                  (point) => point.date === hovered.value,
-              );
+              const point = priceAt(series, date);
 
-              return point ? [{ series, point }] : [];
-          }),
-);
+              return point ? [{ series, ...point }] : [];
+          });
+});
 
 function hover(event: PointerEvent) {
     const plot = (event.currentTarget as HTMLElement).getBoundingClientRect();
@@ -294,12 +321,12 @@ function select(key: string) {
                         :style="{ left: `${x(hovered)}%` }"
                     />
                     <span
-                        v-for="{ series, point } in readout"
+                        v-for="{ series, price } in readout"
                         :key="series.key"
                         class="pointer-events-none absolute size-2.5 -translate-1/2 rounded-full ring-2 ring-card"
                         :style="{
-                            left: `${x(point.date)}%`,
-                            top: `${y(point.price)}%`,
+                            left: `${x(hovered)}%`,
+                            top: `${y(price)}%`,
                             background: color(series),
                         }"
                     />
@@ -315,7 +342,7 @@ function select(key: string) {
                     >
                         <div class="mb-1 font-semibold">{{ day(hovered) }}</div>
                         <div
-                            v-for="{ series, point } in readout"
+                            v-for="{ series, price, exact } in readout"
                             :key="series.key"
                             class="flex items-center gap-1.5"
                         >
@@ -323,8 +350,9 @@ function select(key: string) {
                                 class="h-0.5 w-3 shrink-0 rounded-full"
                                 :style="{ background: color(series) }"
                             />
+                            <!-- Between two imports: on the line, not a price that was imported. -->
                             <span class="font-semibold tabular-nums">
-                                {{ money(point.price) }}
+                                {{ exact ? '' : '≈ ' }}{{ money(price) }}
                             </span>
                             <span class="truncate text-muted-foreground">
                                 {{ series.label }}

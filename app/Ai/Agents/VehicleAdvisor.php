@@ -90,6 +90,13 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
 
             already_shown_notifications are shown to the owner already: do not repeat them. You may build on one,
             when you add something it does not say (such as what an MOT of a vehicle this old usually takes).
+            maintenance_plan are the components the app tracks, with their intervals, when they were done last and
+            when they are due again; the app shows the owner when one is due already, so a tip that only says that
+            adds nothing. A tip about a component of the plan is welcome when it adds something: a known weak spot of
+            it on this model, combining it with another job or the MOT, what to ask the garage, or how to save on
+            it. Bring up as well, from what you know about this make, model and engine, what the plan does not cover
+            or where it falls short: a part outside it, or an interval of the manufacturer that differs from the
+            plan's.
             handled_suggestions are tips the owner already did something with: done, kept (the owner knows, and
             looks the tip up when needed) or not_relevant. Do not make them again, under any key, unless the facts show
             that the situation has clearly changed since (such as a new season for a seasonal tip that was done last

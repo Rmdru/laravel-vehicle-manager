@@ -67,6 +67,7 @@ class VehicleAdviceFacts
             'rdw' => $this->rdw($vehicle),
             'usage' => $this->usage($vehicle),
             'next_maintenance' => $this->nextMaintenance($vehicle),
+            'maintenance_plan' => $this->maintenancePlan($vehicle),
             'maintenance_history' => $this->maintenances($vehicle),
             'latest_reconditioning_by_type' => $vehicle->reconditionings
                 ->sortByDesc('date')
@@ -234,6 +235,28 @@ class VehicleAdviceFacts
                 ? (int) $next['maintenance']->mileage + (int) $vehicle->maintenance_interval_distance
                 : null,
         ]);
+    }
+
+    /**
+     * The components the maintenance plan of the app tracks. Without how
+     * urgent they are today: that changes by the day, the plan does not.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function maintenancePlan(Vehicle $vehicle): array
+    {
+        return collect(app(MaintenancePlanService::class)->plan($vehicle))
+            ->map(fn (array $item) => array_filter([
+                'component' => $item['key'],
+                'interval_km' => $item['interval_km'],
+                'interval_months' => $item['interval_months'],
+                'last_done' => $item['done']['date'] ?? null,
+                'last_done_km' => $item['done']['km'] ?? null,
+                'next_due' => $item['due_date'],
+                'next_due_km' => $item['due_km'],
+            ], fn ($value) => $value !== null))
+            ->values()
+            ->all();
     }
 
     /**

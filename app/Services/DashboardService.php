@@ -38,6 +38,7 @@ class DashboardService
         private readonly FuelAdviceFacts $fuelAdviceFacts,
         private readonly FuelAdviceService $fuelAdvice,
         private readonly VehicleAdviceService $vehicleAdvice,
+        private readonly MaintenancePlanService $maintenancePlan,
     ) {
         //
     }
@@ -52,9 +53,14 @@ class DashboardService
         $notifications = collect($this->statusService->getNotifications($vehicle));
         $fuelAdvice = $this->fuelAdvice->notification($vehicle);
 
-        // The fuel advice goes on top, and the tips that are urgent follow the
-        // other warnings; then "all is well" no longer is.
-        $advice = array_values(array_filter([$fuelAdvice, ...$this->vehicleAdvice->notifications($vehicle)]));
+        // The fuel advice goes on top, and the components of the maintenance
+        // plan and the tips that are urgent follow the other warnings; then
+        // "all is well" no longer is.
+        $advice = array_values(array_filter([
+            $fuelAdvice,
+            ...$this->maintenancePlan->notifications($vehicle),
+            ...$this->vehicleAdvice->notifications($vehicle),
+        ]));
 
         if ($advice !== []) {
             $notifications = $notifications->reject(fn (array $notification) => $notification['type'] === 'success')->push(...$advice);

@@ -9,6 +9,7 @@ use App\Console\Commands\ImportVehicleData;
 use App\Console\Commands\WarmTripPlannerCache;
 use App\Models\FuelAdvice;
 use App\Models\VehicleAdvice;
+use App\Models\VehicleSummary;
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::command(ImportVehicleData::class)->daily();
@@ -19,4 +20,4 @@ Schedule::command(GenerateFuelAdvices::class)->daily()->at('02:00');
 Schedule::command(GenerateVehicleAdvices::class)->daily()->at('02:30');
 // The places along the roads for the trip planner, a part every night.
 Schedule::command(WarmTripPlannerCache::class)->daily()->at('03:00')->withoutOverlapping()->runInBackground();
-Schedule::command('model:prune', ['--model' => [FuelAdvice::class, VehicleAdvice::class]])->daily();
+Schedule::command('model:prune', ['--model' => [FuelAdvice::class, VehicleAdvice::class, VehicleSummary::class]])->daily();
