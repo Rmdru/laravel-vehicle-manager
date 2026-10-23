@@ -93,6 +93,8 @@ class VehicleTest extends TestCase
         $this->assertSame('Airco check', $next['label']);
         $this->assertSame('2027-05-01', $next['date']->toDateString());
         $this->assertArrayHasKey('airco_check', Vehicle::intervalTypeOptions());
+        // No card of its own at the top of the dashboard.
+        $this->assertNotContains('Airco check', array_column(app(DashboardService::class)->statuses($vehicle->fresh()), 'title'));
     }
 
     public function test_the_maintenance_notification_names_the_interval_that_is_due()

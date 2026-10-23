@@ -28,7 +28,7 @@ class NotificationTest extends TestCase
      */
     private function vehicle(): Vehicle
     {
-        $vehicle = $this->signInWithVehicle(['mileage_latest' => 5000]);
+        $vehicle = $this->signInWithVehicle(['mileage_latest' => 5000, 'construction_date' => '2015-01-01']);
         Maintenance::factory()->for($vehicle)->create(['type_maintenance' => 'tire_pressure_checked', 'date' => '2026-08-28', 'mileage' => 4000, 'tasks' => null, 'airco_check' => false]);
 
         return $vehicle->fresh();
@@ -45,7 +45,7 @@ class NotificationTest extends TestCase
 
         $notification = collect(app(NotificationCenter::class)->forDashboard($vehicle))->firstWhere('key', 'maintenance_plan:tire_pressure');
 
-        $this->assertSame('info', $notification['type']);
+        $this->assertSame('critical', $notification['type']);
         $this->assertSame(route('maintenance-plan.done', 'tire_pressure'), $notification['doneUrl']);
         $this->assertNotNull($this->tirePressure($vehicle));
 
@@ -68,11 +68,11 @@ class NotificationTest extends TestCase
         $this->assertNotContains('maintenance_plan:tire_pressure', $keys());
         $this->assertSame(0, collect($center->bell($vehicle, null)['items'])->where('state', 'active')->where('text', $this->tirePressure($vehicle)->text)->count());
 
-        // Overdue now: a warning rather than information, so it is back.
+        // Overdue now: another text, so it is back.
         $this->travel(10)->days();
 
         $this->assertContains('maintenance_plan:tire_pressure', $keys());
-        $this->assertSame('warning', $this->tirePressure($vehicle)->type);
+        $this->assertSame('critical', $this->tirePressure($vehicle)->type);
         $this->assertNull($this->tirePressure($vehicle)->dismissed_at);
     }
 

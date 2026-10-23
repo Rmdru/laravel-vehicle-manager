@@ -45,6 +45,7 @@ class MonthlySummaryTest extends TestCase
     {
         $vehicle = $this->signInWithVehicle([
             'purchase_date' => '2025-09-30',
+            'construction_date' => '2015-01-01',
             'mileage_start' => 10000,
             'maintenance_intervals' => [['types' => Vehicle::MAINTENANCE_TYPES, 'km' => null, 'months' => 12]],
             'rdw_data' => ['vervaldatum_apk_dt' => '2026-11-20T00:00:00.000'],
@@ -56,6 +57,10 @@ class MonthlySummaryTest extends TestCase
             'mileage_end' => $end,
             'total_price' => $price,
             'fuel_consumption' => 6.5,
+            // Filled up, so the costs per kilometer are those of what was paid.
+            'amount' => 39,
+            'percentage' => 100,
+            'costs_per_kilometer' => round($price / ($end - $begin), 3),
             'charge_time' => null,
         ]);
 

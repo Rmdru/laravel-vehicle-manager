@@ -27,6 +27,7 @@ class MaintenancePlanController extends Controller
     private const STATES = [
         MaintenancePlanService::OVERDUE => 'Overdue',
         MaintenancePlanService::DUE => 'Due',
+        MaintenancePlanService::CHECK => 'To be checked',
         MaintenancePlanService::UNKNOWN => 'Not known',
         MaintenancePlanService::SOON => 'Soon',
         MaintenancePlanService::OK => 'Done in time',
@@ -91,7 +92,10 @@ class MaintenancePlanController extends Controller
                 'price' => $done['price'] === null ? null : '€ '.number_format($done['price'], 2, ',', '.'),
                 'url' => $done['maintenance_id'] ? route('maintenances.show', $done['maintenance_id']) : null,
             ],
-            'due' => $due === null ? null : [
+            // Never recorded: counted from new, the day it was built.
+            'assumedSince' => $item['assumed_since'] ? Carbon::parse($item['assumed_since'])->isoFormat('D MMMM YYYY') : null,
+            // To be checked, it is overdue going by its age only: no date to give.
+            'due' => $due === null || $item['state'] === MaintenancePlanService::CHECK ? null : [
                 'date' => $due->isoFormat('D MMMM YYYY'),
                 'relative' => $due->isToday() ? __('Today') : $due->diffForHumans(),
                 'km' => $item['due_km'] === null ? null : $number($item['due_km']).' km',

@@ -998,5 +998,10 @@
     "With checks": "Met controles",
     ":name done.": ":name gedaan.",
     "Tire pressure check": "Bandenspanning controleren",
-    "Fluid levels check": "Vloeistoffen controleren"
+    "Fluid levels check": "Vloeistoffen controleren",
+    "To be checked": "Controleren",
+    ":component: not known when it was done last, going by its age and mileage it is due already": ":component: onbekend wanneer laatst gedaan, gezien leeftijd en km-stand al aan de beurt",
+    ":count components: not known when they were done last, going by their age and mileage they may be due already": ":count onderdelen: onbekend wanneer laatst gedaan, gezien leeftijd en km-stand mogelijk al aan de beurt",
+    "Fill in when": "Datum invullen",
+    "Not recorded: counted from new (:date). Fill in when it was done if you know.": "Niet vastgelegd: gerekend vanaf nieuw (:date). Vul in wanneer het gedaan is als je dat weet."
 }

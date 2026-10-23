@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { Check, Pencil, RefreshCw } from '@lucide/vue';
-import { ref, watch } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import AppIcon from '@/components/AppIcon.vue';
 import ColorBadge from '@/components/ColorBadge.vue';
 import SectionCard from '@/components/SectionCard.vue';
@@ -17,7 +17,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useT } from '@/composables/useT';
 
-type State = 'overdue' | 'due' | 'unknown' | 'soon' | 'ok' | 'no_interval';
+// check: never recorded, and counted from new it is overdue already.
+type State =
+    | 'overdue'
+    | 'due'
+    | 'check'
+    | 'unknown'
+    | 'soon'
+    | 'ok'
+    | 'no_interval';
 
 type Component = {
     key: string;
@@ -38,6 +46,8 @@ type Component = {
     recordUrl: string;
     // A check, such as the tire pressure, rather than a replacement.
     isCheck: boolean;
+    // Never recorded: the day it was built, which it is counted from.
+    assumedSince: string | null;
     ownDoneKm: number | null;
     done: {
         date: string;
@@ -79,6 +89,7 @@ const { t } = useT();
 const colors: Record<State, string> = {
     overdue: 'danger',
     due: 'warning',
+    check: 'warning',
     unknown: 'info',
     soon: 'warning',
     ok: 'success',
@@ -137,6 +148,16 @@ const form = useForm({
     interval_months: undefined as number | undefined,
     done_date: undefined as string | undefined,
     done_km: undefined as number | undefined,
+});
+
+// From a notification of a component to be checked: its form opens at once.
+onMounted(() => {
+    const key = new URLSearchParams(window.location.search).get('edit');
+    const component = props.components.find((item) => item.key === key);
+
+    if (component) {
+        edit(component);
+    }
 });
 
 function edit(component: Component) {
@@ -379,6 +400,14 @@ function activate(key: string) {
                                 <template v-if="component.done.price">
                                     · {{ component.done.price }}
                                 </template>
+                            </template>
+                            <template v-else-if="component.assumedSince">
+                                {{
+                                    t(
+                                        'Not recorded: counted from new (:date). Fill in when it was done if you know.',
+                                        { date: component.assumedSince },
+                                    )
+                                }}
                             </template>
                             <template v-else>
                                 {{

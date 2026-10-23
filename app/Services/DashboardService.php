@@ -80,8 +80,13 @@ class DashboardService
     {
         $statuses = [];
 
-        // A card per maintenance interval, such as the inspection service and the oil service.
+        // A card per maintenance interval, such as the inspection service and the oil service; not
+        // for one of the airco check only, which the maintenance plan and its notifications cover.
         foreach ($vehicle->nextMaintenances() as $maintenance) {
+            if ($maintenance['types'] === [Vehicle::AIRCO_CHECK]) {
+                continue;
+            }
+
             $byTime = $maintenance['date']->isFuture() ? str($maintenance['date']->diffForHumans())->ucfirst()->toString() : __('Now');
             $byDistance = $maintenance['daysTillDistance'] === null ? null : __('About :distance km (:timeTillDistanceDeadlineHumans)', [
                 'distance' => $maintenance['distance'],
