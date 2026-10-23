@@ -176,11 +176,12 @@ class DashboardTest extends TestCase
 
     public function test_old_e10_fuel_is_reported_and_other_fuel_is_not()
     {
-        $vehicle = $this->signInWithVehicle();
+        $vehicle = $this->signInWithVehicle(['tank_capacity' => 50]);
 
         $refueling = Refueling::factory()->for($vehicle)->create([
             'date' => now()->subMonths(2)->toDateString(),
             'fuel_type' => 'Unleaded 95 (E10)',
+            'amount' => 50,
             'charge_time' => null,
         ]);
 
@@ -191,6 +192,89 @@ class DashboardTest extends TestCase
         $refueling->update(['fuel_type' => 'Super Plus (E5)']);
 
         $this->assertNotContains('old_fuel', $keys());
+    }
+
+    public function test_old_e10_fuel_is_not_made_new_by_topping_up_a_little()
+    {
+        $vehicle = $this->signInWithVehicle(['tank_capacity' => 50]);
+
+        foreach ([[80, 'Unleaded 95 (E10)', 10], [70, 'Unleaded 95 (E5)', 30], [65, 'Unleaded 95 (E10)', 30], [1, 'Super Plus (E10)', 5]] as [$daysAgo, $fuelType, $amount]) {
+            Refueling::factory()->for($vehicle)->create([
+                'date' => now()->subDays($daysAgo)->toDateString(),
+                'fuel_type' => $fuelType,
+                'amount' => $amount,
+                'charge_time' => null,
+            ]);
+        }
+
+        // 5 + 30 liters is no full tank yet: the fuel dates from 70 days ago, E5 included.
+        $this->assertSame(0, $vehicle->fresh()->fuel_status['time']);
+
+        Refueling::factory()->for($vehicle)->create([
+            'date' => now()->toDateString(),
+            'fuel_type' => 'Unleaded 95 (E10)',
+            'amount' => 20,
+            'charge_time' => null,
+        ]);
+
+        // 20 + 5 + 30 liters fill the tank: the fuel dates from 65 days ago.
+        $this->assertSame(0, $vehicle->fresh()->fuel_status['time']);
+
+        Refueling::factory()->for($vehicle)->create([
+            'date' => now()->toDateString(),
+            'fuel_type' => 'Unleaded 95 (E10)',
+            'amount' => 30,
+            'charge_time' => null,
+        ]);
+
+        // 30 + 20 liters today fill the tank: the fuel is new.
+        $this->assertGreaterThan(55, $vehicle->fresh()->fuel_status['time']);
+    }
+
+    public function test_old_e10_fuel_is_not_reported_before_a_full_tank_was_refueled_in_all()
+    {
+        // A new vehicle came with fuel of its own.
+        $vehicle = $this->signInWithVehicle(['tank_capacity' => 50]);
+
+        foreach ([[90, 20], [70, 25]] as [$daysAgo, $amount]) {
+            Refueling::factory()->for($vehicle)->create([
+                'date' => now()->subDays($daysAgo)->toDateString(),
+                'fuel_type' => 'Unleaded 95 (E10)',
+                'amount' => $amount,
+                'charge_time' => null,
+            ]);
+        }
+
+        $keys = fn () => collect(app(DashboardService::class)->notifications($vehicle->fresh()))->pluck('key');
+
+        $this->assertSame([], $vehicle->fresh()->fuel_status);
+        $this->assertNotContains('old_fuel', $keys());
+
+        // 5 liters more make a full tank in all: from the first refueling on.
+        Refueling::factory()->for($vehicle)->create([
+            'date' => now()->subDays(65)->toDateString(),
+            'fuel_type' => 'Unleaded 95 (E10)',
+            'amount' => 5,
+            'charge_time' => null,
+        ]);
+
+        $this->assertContains('old_fuel', $keys());
+    }
+
+    public function test_without_a_tank_capacity_the_latest_refueling_dates_the_fuel()
+    {
+        $vehicle = $this->signInWithVehicle(['tank_capacity' => null]);
+
+        foreach ([[70, 40], [1, 5]] as [$daysAgo, $amount]) {
+            Refueling::factory()->for($vehicle)->create([
+                'date' => now()->subDays($daysAgo)->toDateString(),
+                'fuel_type' => 'Unleaded 95 (E10)',
+                'amount' => $amount,
+                'charge_time' => null,
+            ]);
+        }
+
+        $this->assertGreaterThan(55, $vehicle->fresh()->fuel_status['time']);
     }
 
     public function test_the_newest_refueling_is_the_one_refueled_last_not_the_one_entered_last()

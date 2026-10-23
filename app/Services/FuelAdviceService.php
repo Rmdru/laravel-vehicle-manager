@@ -71,6 +71,7 @@ class FuelAdviceService
         $abroad = collect((array) $facts['countries'])->where('worth_the_detour', true)->pluck('country')->map(fn ($country) => (string) $country)->values()->all();
         $advisor = fn (bool $search = false, array $sources = [], ?string $key = null) => new FuelAdvisor(
             self::LANGUAGES[$locale] ?? 'English', $facts['home_country'], $abroad, $search, $sources, $key, (bool) ($facts['old_fuel'] ?? false),
+            (bool) ($facts['super_plus_due'] ?? false),
         );
 
         [$response, $grounded] = $this->ask($facts, $advisor);
@@ -284,7 +285,7 @@ class FuelAdviceService
                 'distance' => '± '.$country['distance_from_driver_km'].' km',
                 'savings' => $money((float) $country['net_savings_per_full_tank_eur'], 2),
             ] : null,
-            'cheapestStation' => ($station = $this->cheapestStation($facts)) ? [
+            'cheapestStation' => ($station = $this->cheapestStation($facts, $advice->country ?? ($facts['home_country'] ?? null))) ? [
                 'name' => $station['name'],
                 'difference' => $money(abs((float) $station['average_difference_with_country_average'])).'/l',
             ] : null,
@@ -304,10 +305,10 @@ class FuelAdviceService
      * @param  array<string, mixed>  $facts
      * @return array<string, mixed>|null
      */
-    private function cheapestStation(array $facts): ?array
+    private function cheapestStation(array $facts, ?string $country): ?array
     {
         return collect((array) ($facts['own_gas_stations'] ?? []))
-            ->filter(fn (array $station) => $station['average_difference_with_country_average'] < 0)
+            ->filter(fn (array $station) => $station['country'] === $country && $station['average_difference_with_country_average'] < 0)
             ->first();
     }
 

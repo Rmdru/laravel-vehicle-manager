@@ -43,6 +43,7 @@ class FuelAdvisor implements Agent, HasStructuredOutput, HasTools
      * @param  array<int, string>  $sources  Pages to read for news.
      * @param  string|null  $key  The API key to use, one of those configured; null for the configured one.
      * @param  bool  $oldFuel  The E10 in the tank is getting old: the detour is no objection.
+     * @param  bool  $superPlus  The next refueling is the one in four with Super Plus.
      */
     public function __construct(
         private readonly string $language,
@@ -52,6 +53,7 @@ class FuelAdvisor implements Agent, HasStructuredOutput, HasTools
         private readonly array $sources = [],
         private readonly ?string $key = null,
         private readonly bool $oldFuel = false,
+        private readonly bool $superPlus = false,
     ) {
         //
     }
@@ -107,9 +109,11 @@ class FuelAdvisor implements Agent, HasStructuredOutput, HasTools
             default => $abroad,
         };
 
-        $superPlus = 'When super_plus_due is true, the next refueling has to be Super Plus (the owner fills up with it '
-            .'once every four refuelings, to keep the engine clean); the prices in the facts are already those of Super '
-            .'Plus. Say so in the advice.';
+        // Only when due: told it is not, the model writes about it all the same.
+        $superPlus = $this->superPlus
+            ? 'The next refueling has to be Super Plus (the owner fills up with it once every four refuelings, to keep '
+                .'the engine clean); the prices in the facts are already those of Super Plus. Say so in the advice.'
+            : '';
 
         $actions = implode("\n", array_map(fn (string $action) => '- '.$action.': '.self::ACTIONS[$action], $this->actions()));
 
@@ -138,7 +142,8 @@ class FuelAdvisor implements Agent, HasStructuredOutput, HasTools
             date (YYYY-MM-DD) when the advice names a day, else an empty string; it is never in the past and never long
             after the expected date of the next refueling.
 
-            Write everything in {$this->language}, plainly, to the driver. The summary is one sentence of at
+            Write everything in {$this->language}, plainly, to the driver. Never use the field names or values of the
+            facts as such (like old_fuel, worth_the_detour or netherlands): say what they mean in words. The summary is one sentence of at
             most 110 characters. The advice is short Markdown: a few paragraphs or bullets, no headings, no tables,
             and no links. Give two to four reasons of one short sentence each. The confidence is low when the facts
             are thin or the prices move without a clear trend.

@@ -459,6 +459,22 @@ class FuelAdviceTest extends TestCase
         $this->assertSame(2, $stations[0]['visits']);
     }
 
+    public function test_the_cheapest_gas_station_is_one_in_the_country_of_the_advice()
+    {
+        $vehicle = $this->signInWithVehicle();
+        $stations = [
+            ['name' => 'Aral Aachen', 'country' => 'germany', 'average_difference_with_country_average' => -0.08],
+            ['name' => 'Tango Utrecht', 'country' => 'netherlands', 'average_difference_with_country_average' => -0.06],
+        ];
+        $vehicle->fuelAdvices()->create([...$this->advice(), 'locale' => 'en', 'country' => 'netherlands', 'facts' => ['home_country' => 'netherlands', 'own_gas_stations' => $stations]]);
+
+        $this->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->loadDeferredProps(fn (Assert $reload) => $reload
+                    ->where('fuelAdvice.advice.cheapestStation.name', 'Tango Utrecht')
+                    ->etc()));
+    }
+
     public function test_an_urgent_advice_is_on_top_of_the_notifications()
     {
         FuelAdvisor::fake([$this->answer(['action' => 'refuel_now', 'confidence' => 'high', 'summary' => 'Tank vandaag nog.'])]);
