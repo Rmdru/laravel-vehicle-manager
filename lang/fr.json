@@ -1005,5 +1005,7 @@
     ":component: not known when it was done last, going by its age and mileage it is due already": ":component : on ne sait pas quand cela a été fait, vu l’âge et le kilométrage c’est déjà à faire",
     ":count components: not known when they were done last, going by their age and mileage they may be due already": ":count pièces : on ne sait pas quand elles ont été faites, vu l’âge et le kilométrage peut-être déjà à faire",
     "Fill in when": "Indiquer la date",
-    "Not recorded: counted from new (:date). Fill in when it was done if you know.": "Non enregistré : compté depuis le neuf (:date). Indiquez quand cela a été fait si vous le savez."
+    "Not recorded: counted from new (:date). Fill in when it was done if you know.": "Non enregistré : compté depuis le neuf (:date). Indiquez quand cela a été fait si vous le savez.",
+    "Get the interval from AI": "Obtenir l’intervalle par l’IA",
+    "The interval of :name has been proposed.": "L’intervalle de :name a été proposé."
 }

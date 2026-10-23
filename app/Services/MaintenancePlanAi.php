@@ -34,11 +34,16 @@ class MaintenancePlanAi
      * except for the components the owner set the intervals of. The number
      * of components it changed.
      *
+     * Asked for a single component, its interval is replaced even when the
+     * owner set it, and whether the vehicle has it stays as it is: the owner
+     * asked for this one.
+     *
      * @throws Throwable When the AI model gives no answer.
      */
-    public function propose(Vehicle $vehicle, string $locale): int
+    public function propose(Vehicle $vehicle, string $locale, ?string $only = null): int
     {
-        $components = $this->plan->components($vehicle);
+        $components = $this->plan->components($vehicle)
+            ->when($only !== null, fn ($components) => $components->only([$only]));
         $keys = $components->keys()->all();
         $language = VehicleAdviceService::LANGUAGES[$locale] ?? 'English';
         $advisor = fn (?string $key) => new MaintenancePlanAdvisor($language, $keys, $key);
@@ -57,14 +62,14 @@ class MaintenancePlanAi
         foreach ((array) ($response['components'] ?? []) as $proposal) {
             $component = is_array($proposal) ? $components->get((string) ($proposal['key'] ?? '')) : null;
 
-            if ($component === null || $component->source === VehicleComponent::MANUAL) {
+            if ($component === null || ($only === null && $component->source === VehicleComponent::MANUAL)) {
                 continue;
             }
 
             $interval = fn (string $field, int $at_most) => ($value = (int) ($proposal[$field] ?? 0)) > 0 ? min($value, $at_most) : null;
 
             $component->fill([
-                'active' => (bool) ($proposal['applies'] ?? true),
+                'active' => $only !== null ? $component->active : (bool) ($proposal['applies'] ?? true),
                 'interval_km' => $interval('interval_km', 500000),
                 'interval_months' => $interval('interval_months', 240),
                 'note' => Str::limit(trim(strip_tags((string) ($proposal['note'] ?? ''))), 160) ?: null,

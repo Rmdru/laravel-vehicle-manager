@@ -43,6 +43,8 @@ type Component = {
     ownDoneDate: string | null;
     // Ticked off at once, or recorded with the form with this component filled in.
     doneUrl: string;
+    // Has the AI model propose the interval of this component alone.
+    proposeUrl: string;
     recordUrl: string;
     // A check, such as the tire pressure, rather than a replacement.
     isCheck: boolean;
@@ -197,6 +199,33 @@ function tick(component: Component) {
             preserveScroll: true,
             onStart: () => (ticking.value = component.key),
             onFinish: () => (ticking.value = null),
+        },
+    );
+}
+
+const proposing = ref(false);
+
+// The interval of the component being edited, proposed by the AI model: stored,
+// and the form shows it, to change still where the owner knows better.
+function proposeOne() {
+    const key = editing.value!.key;
+
+    router.post(
+        editing.value!.proposeUrl,
+        {},
+        {
+            preserveScroll: true,
+            onStart: () => (proposing.value = true),
+            onFinish: () => (proposing.value = false),
+            onSuccess: () => {
+                const component = props.components.find(
+                    (item) => item.key === key,
+                );
+
+                if (component) {
+                    edit(component);
+                }
+            },
         },
     );
 }
@@ -514,6 +543,26 @@ function activate(key: string) {
                 <DialogHeader>
                     <DialogTitle>{{ editing?.label }}</DialogTitle>
                 </DialogHeader>
+                <div class="flex flex-wrap items-center gap-2">
+                    <p
+                        v-if="editing?.note"
+                        class="min-w-0 flex-1 basis-48 text-sm text-muted-foreground italic"
+                    >
+                        {{ editing.note }}
+                    </p>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        :disabled="proposing || form.processing"
+                        @click="proposeOne()"
+                    >
+                        <RefreshCw
+                            :class="['size-4', proposing ? 'animate-spin' : '']"
+                        />
+                        {{ t('Get the interval from AI') }}
+                    </Button>
+                </div>
                 <form class="grid gap-4" @submit.prevent="save()">
                     <div class="grid grid-cols-2 gap-3">
                         <div class="grid gap-1.5">
