@@ -63,7 +63,7 @@ class MaintenancePlanAdvisor implements Agent, HasStructuredOutput
               instead of a timing belt, no spark plugs in a diesel, no separate fuel filter, or gearbox oil that is
               filled for life. intake_cleaning (removing the carbon deposits from the intake valves and manifold)
               applies only to a direct injection engine (such as TSI, TFSI, GDI or a common rail diesel with exhaust
-              gas recirculation); not to one with port injection. The clutch applies to a manual or a dual clutch
+              gas recirculation); not to one with port injection. An injector cleaner in the fuel does not replace it. The clutch applies to a manual or a dual clutch
               gearbox (such as DSG), not to an automatic with a torque converter; give its usual life as interval_km.
               With drum brakes at the rear, rear_brake_pads stands for the brake shoes and rear_brake_discs for the
               drums: give their intervals, and say "drum brakes" in the note. Tires and brakes wear differently at the

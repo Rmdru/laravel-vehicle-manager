@@ -69,6 +69,7 @@ class VehicleFactory extends Factory
                 allowDuplicates: false,
             ),
             'tank_capacity' => $this->faker->numberBetween(0, 1000),
+            'maintenance_intervals' => [['types' => Vehicle::MAINTENANCE_TYPES, 'km' => 15000, 'months' => 12]],
             'specifications' => collect(range(1, 5))->map(function () {
                 return [
                     'name' => $this->faker->word(),

@@ -105,13 +105,14 @@ class MaintenancePlanService
     /**
      * When each component was done last according to the maintenances: the
      * latest one with a task that names it. The air conditioning service is
-     * also done with an airco check.
+     * also done with an airco check, a check with a maintenance of its type.
      *
      * @return array<string, array{date: CarbonImmutable, km: int|null, price: float|null, garage: string|null, maintenance_id: string}>
      */
     private function lastDone(Vehicle $vehicle): array
     {
         $done = [];
+        $checks = collect(config('maintenance_plan.components'))->filter(fn (array $component) => isset($component['check']))->map(fn (array $component) => $component['check']);
 
         foreach ($vehicle->maintenances->sortBy('date') as $maintenance) {
             /** @var Maintenance $maintenance */
@@ -120,6 +121,10 @@ class MaintenancePlanService
 
             if ($maintenance->airco_check) {
                 $keys->push('airco_service');
+            }
+
+            if ($check = $checks->search($maintenance->type_maintenance)) {
+                $keys->push($check);
             }
 
             foreach ($keys->unique() as $key) {
@@ -207,6 +212,23 @@ class MaintenancePlanService
     }
 
     /**
+     * Records that a component was done today, at the current mileage, without
+     * a form: a check as a maintenance of its own type, anything else as a
+     * maintenance with a task for it.
+     */
+    public function done(Vehicle $vehicle, string $key): Maintenance
+    {
+        $component = config("maintenance_plan.components.{$key}");
+
+        return $vehicle->maintenances()->create([
+            'type_maintenance' => $component['check'] ?? null,
+            'date' => today()->toDateString(),
+            'mileage' => $vehicle->mileage_latest ?: $vehicle->mileage_start ?: 0,
+            'tasks' => isset($component['check']) ? null : [['task' => __($component['label']), 'price' => null, 'components' => [$key]]],
+        ]);
+    }
+
+    /**
      * The components that are overdue or due, as notifications under "Needs
      * attention". The ones never recorded are left out: a new plan would
      * fill it at once.
@@ -237,6 +259,8 @@ class MaintenancePlanService
                     'data' => [],
                     'url' => route('maintenance-plan'),
                     'urlLabel' => __('Maintenance plan'),
+                    // A check is ticked off from the notification itself.
+                    'doneUrl' => isset($component['check']) ? route('maintenance-plan.done', $item['key']) : null,
                 ];
             })
             ->values()
@@ -254,7 +278,8 @@ class MaintenancePlanService
         }
 
         $days = $dueDate === null ? null : CarbonImmutable::today()->diffInDays($dueDate, false);
-        $within = fn (string $kind) => ($days !== null && $days <= config("maintenance_plan.{$kind}_days"))
+        // A check is due within days rather than weeks.
+        $within = fn (string $kind) => ($days !== null && $days <= (config("maintenance_plan.components.{$component->key}.{$kind}_days") ?? config("maintenance_plan.{$kind}_days")))
             || ($remainingKm !== null && $remainingKm <= config("maintenance_plan.{$kind}_km"));
 
         return match (true) {

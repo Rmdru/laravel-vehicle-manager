@@ -48,7 +48,7 @@ class MonthlySummaryFacts
             'today' => today()->toDateString(),
             'period' => $period,
             'distance' => $this->distance($vehicle, $start, $end, $share),
-            'costs' => $this->costs($vehicle, $start, $end),
+            'costs' => $this->costs($vehicle, $start, $end, $period['kind'] === VehicleSummary::MONTH_TO_DATE),
             'consumption' => $this->consumption($vehicle, $start, $end),
             'refuelings' => $vehicle->refuelings->filter(fn (Refueling $refueling) => $refueling->date->between($start, $end))->count(),
             'upcoming' => $this->upcoming($vehicle),
@@ -123,9 +123,10 @@ class MonthlySummaryFacts
      * kilometer: what the refuelings of a month cost depends on when they
      * happen to fall.
      *
+     * @param  bool  $soFar  Whether the period is the month so far, rather than a full month.
      * @return array<string, mixed>
      */
-    private function costs(Vehicle $vehicle, CarbonImmutable $start, CarbonImmutable $end): array
+    private function costs(Vehicle $vehicle, CarbonImmutable $start, CarbonImmutable $end, bool $soFar): array
     {
         $byType = collect($vehicle->calculateMonthlyCosts($start->toDateString(), $end->endOfDay()->toDateTimeString())['monthlyCosts'])
             ->reduce(function (array $sums, array $month) {
@@ -146,6 +147,7 @@ class MonthlySummaryFacts
             'fixed_eur' => $sum($byType, self::FIXED),
             'incidental_eur' => $incidental->sortDesc()->all(),
             'average_month_total_eur' => $average === null ? null : round(array_sum($average), 2),
+            'average_to_date_total_eur' => $soFar ? $this->averageCostsToDay($vehicle, $start, $end->day) : null,
             'fuel_per_km_eur' => $this->average($vehicle, 'costs_per_kilometer', $start, $end, 3),
             'average_fuel_per_km_eur' => $this->average($vehicle, 'costs_per_kilometer', $start->subYear(), $start->subDay(), 3),
         ], fn ($value) => $value !== null && $value !== []);
@@ -162,6 +164,31 @@ class MonthlySummaryFacts
             ->avg(fn (Refueling $refueling) => (float) $refueling->{$attribute});
 
         return $average ? round((float) $average, $precision) : null;
+    }
+
+    /**
+     * The average total costs up to the same day of the month, of the twelve
+     * months before the period, or of the months since the first cost: what
+     * part of a month compares with. Null without such a month.
+     */
+    private function averageCostsToDay(Vehicle $vehicle, CarbonImmutable $start, int $day): ?float
+    {
+        $first = CarbonImmutable::parse((new VehicleCostsService($vehicle))->getMonths($vehicle->id)['startDate'])->startOfMonth();
+        $totals = [];
+
+        for ($months = 1; $months <= self::AVERAGE_MONTHS; $months++) {
+            $month = $start->subMonthsNoOverflow($months);
+
+            if ($month->lt($first)) {
+                break;
+            }
+
+            $until = $month->addDays(min($day, $month->daysInMonth) - 1)->endOfDay();
+            $costs = $vehicle->calculateMonthlyCosts($month->toDateString(), $until->toDateTimeString())['monthlyCosts'];
+            $totals[] = array_sum(array_map('array_sum', $costs));
+        }
+
+        return $totals === [] ? null : round(array_sum($totals) / count($totals), 2);
     }
 
     /**
@@ -207,27 +234,18 @@ class MonthlySummaryFacts
      * The deadlines in the coming weeks, the first first. Overdue ones are
      * left out: the dashboard warns about those under "Needs attention".
      *
-     * @return list<array{kind: string, date: string, country?: string, component?: string}>
+     * @return list<array{kind: string, date: string, country?: string, component?: string, types?: list<string>}>
      */
     private function upcoming(Vehicle $vehicle): array
     {
         $until = today()->addDays(config('monthly_summary.upcoming_within'));
         $current = fn (Collection $records) => $records->where('start_date', '<=', today())->sortByDesc('start_date')->first();
-        $next = $vehicle->nextMaintenance();
-
-        $maintenance = null;
-
-        if ($next !== null) {
-            $maintenance = $next['daysTillDistance'] !== null
-                ? $next['date']->copy()->min(today()->addDays((int) $next['daysTillDistance']))
-                : $next['date'];
-        }
-
         $valid = fn ($query) => $query->whereNotNull('end_date')->whereDate('end_date', '>=', today())->get();
 
         return collect([
             ['kind' => 'mot', 'date' => $vehicle->apkExpiryDate()],
-            ['kind' => 'maintenance', 'date' => $maintenance],
+            // Every maintenance interval, such as the inspection service and the oil service.
+            ...array_map(fn (array $next) => ['kind' => 'maintenance', 'date' => $next['due'], 'types' => $next['types']], $vehicle->nextMaintenances()),
             ['kind' => 'insurance', 'date' => $current($vehicle->insurances)?->end_date],
             ['kind' => 'road_tax', 'date' => $current($vehicle->taxes)?->end_date],
             ...$valid($vehicle->vignettes())->map(fn ($vignette) => ['kind' => 'vignette', 'date' => $vignette->end_date, 'country' => $vignette->country]),

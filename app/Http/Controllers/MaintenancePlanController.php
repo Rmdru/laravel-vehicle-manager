@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\VehicleComponent;
 use App\Services\MaintenancePlanAi;
 use App\Services\MaintenancePlanService;
+use App\Services\NotificationCenter;
 use App\Support\CurrentVehicle;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -77,6 +78,10 @@ class MaintenancePlanController extends Controller
             'intervalMonths' => $item['interval_months'],
             'source' => $item['source'],
             'note' => $item['note'],
+            // Done today at once, or recorded with the form, this component filled in.
+            'doneUrl' => route('maintenance-plan.done', $item['key']),
+            'recordUrl' => route('maintenances.create', ['component' => $item['key']]),
+            'isCheck' => isset($component['check']),
             'ownDoneDate' => $item['own_done_date'],
             'ownDoneKm' => $item['own_done_km'],
             'done' => $done === null ? null : [
@@ -126,6 +131,24 @@ class MaintenancePlanController extends Controller
         $component->save();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __(':name updated.', ['name' => __(config("maintenance_plan.components.{$key}.label"))])]);
+
+        return back();
+    }
+
+    /**
+     * Ticks a component off as done today, such as a check of the tire pressure.
+     */
+    public function done(string $key, MaintenancePlanService $plan, NotificationCenter $notifications): RedirectResponse
+    {
+        $vehicle = CurrentVehicle::get();
+
+        abort_unless($plan->components($vehicle)->has($key), 404);
+
+        $plan->done($vehicle, $key);
+        // Its notification no longer applies: the bell shows that at once.
+        $notifications->sync($vehicle->fresh());
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __(':name done.', ['name' => __(config("maintenance_plan.components.{$key}.label"))])]);
 
         return back();
     }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Deferred, Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowDown, ArrowUp, Plus, RefreshCw } from '@lucide/vue';
+import { ArrowDown, ArrowUp, Check, Plus, RefreshCw, X } from '@lucide/vue';
 import { computed, ref, useTemplateRef } from 'vue';
 import AppIcon from '@/components/AppIcon.vue';
 import BrandLogo from '@/components/BrandLogo.vue';
@@ -51,6 +51,10 @@ type Notification = {
     opensFuelAdvice?: boolean;
     // An urgent tip: points to it in the tips.
     opensVehicleAdvice?: boolean;
+    // Hides it until it changes; not for "all is well".
+    dismissUrl?: string;
+    // A check of the maintenance plan that can be ticked off at once.
+    doneUrl?: string;
 };
 
 type GasStation = {
@@ -283,6 +287,27 @@ function refreshFuelPrices() {
     );
 }
 
+const handling = ref<string | null>(null);
+
+// Dismissing a notification, or ticking off a check.
+function handle(notification: Notification, url: string) {
+    router.post(
+        url,
+        {},
+        {
+            preserveScroll: true,
+            only: [
+                'notifications',
+                'notificationBell',
+                'statuses',
+                'monthlySummary',
+            ],
+            onStart: () => (handling.value = notification.key),
+            onFinish: () => (handling.value = null),
+        },
+    );
+}
+
 // Notifications that ask for something to be done, as opposed to "all is well".
 const attention = computed(
     () =>
@@ -421,12 +446,19 @@ const label = (key: string) => {
         </section>
 
         <SectionCard :title="t('Needs attention')" flush>
-            <template v-if="attention" #actions>
+            <template #actions>
                 <span
+                    v-if="attention"
                     class="mr-2 rounded-full bg-danger-muted px-2.5 py-0.5 text-xs font-semibold text-danger tabular-nums"
                 >
                     {{ attention }}
                 </span>
+                <Link
+                    href="/notifications"
+                    class="mr-2 inline-flex min-h-9 items-center text-sm font-semibold"
+                >
+                    {{ t('All notifications') }}
+                </Link>
             </template>
             <Deferred data="notifications">
                 <template #fallback>
@@ -469,6 +501,16 @@ const label = (key: string) => {
                         >
                             {{ t('More information') }}
                         </button>
+                        <button
+                            v-if="notification.doneUrl"
+                            type="button"
+                            class="inline-flex min-h-9 cursor-pointer items-center gap-1 text-sm font-semibold underline"
+                            :disabled="handling === notification.key"
+                            @click="handle(notification, notification.doneUrl)"
+                        >
+                            <Check class="size-4" />
+                            {{ t('Done') }}
+                        </button>
                         <Link
                             v-if="notification.url"
                             :href="notification.url"
@@ -476,6 +518,20 @@ const label = (key: string) => {
                         >
                             {{ notification.urlLabel }}
                         </Link>
+                        <Button
+                            v-if="notification.dismissUrl"
+                            variant="ghost"
+                            size="icon"
+                            class="-mr-2"
+                            :aria-label="t('Dismiss')"
+                            :title="t('Dismiss')"
+                            :disabled="handling === notification.key"
+                            @click="
+                                handle(notification, notification.dismissUrl)
+                            "
+                        >
+                            <X class="size-4" />
+                        </Button>
                     </li>
                 </ul>
             </Deferred>

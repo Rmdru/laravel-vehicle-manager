@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\NotificationCenter;
 use App\Support\CurrentVehicle;
 use App\Support\Navigation;
 use App\Support\VehiclePresenter;
@@ -50,6 +51,8 @@ class HandleInertiaRequests extends Middleware
             't' => fn () => Navigation::translations(),
             'navigation' => fn () => $request->user() ? Navigation::groups() : [],
             'currentVehicle' => fn () => CurrentVehicle::get() ? VehiclePresenter::summary(CurrentVehicle::get()) : null,
+            // From what is stored: the notifications are brought up to date elsewhere.
+            'notificationBell' => fn () => CurrentVehicle::get() ? app(NotificationCenter::class)->bell(CurrentVehicle::get(), $request->user()) : null,
             'vehicles' => fn () => $request->user()
                 ? $request->user()->vehicles()->latest()->get()->map(fn ($vehicle) => [
                     'id' => $vehicle->id,

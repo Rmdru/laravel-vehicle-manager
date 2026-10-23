@@ -8,7 +8,13 @@ export type BreadcrumbItem = {
 
 export type NavGroup = {
     label: string;
-    items: { title: string; href: string; icon: string }[];
+    // create: where to add a record of the list; null for a page without one.
+    items: {
+        title: string;
+        href: string;
+        icon: string;
+        create: string | null;
+    }[];
 };
 
 export type NavItem = {

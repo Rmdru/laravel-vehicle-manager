@@ -62,6 +62,7 @@ class User extends Authenticatable implements PasskeyUser
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'last_login_at' => 'datetime',
+            'notifications_seen_at' => 'datetime',
             'latitude' => 'float',
             'longitude' => 'float',
         ];

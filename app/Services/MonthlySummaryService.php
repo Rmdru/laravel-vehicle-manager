@@ -175,6 +175,17 @@ class MonthlySummaryService
         $consumption = $facts['consumption'];
         $euros = fn (float $amount) => '€ '.number_format($amount, 0, ',', '.');
 
+        // The costs of the fuel by the kilometer go with the consumption: what
+        // the refuelings of a month cost depends on when they happen to fall.
+        $perKm = isset($costs['fuel_per_km_eur'])
+            ? str_replace(':amount', '€ '.number_format($costs['fuel_per_km_eur'], 2, ',', '.'), $this->compare(
+                $costs['fuel_per_km_eur'],
+                $costs['average_fuel_per_km_eur'] ?? null,
+                [__(':amount per km, :percent above average'), __(':amount per km, :percent below average'), __(':amount per km, as usual')],
+                true,
+            )['comparison'] ?? __(':amount per km'))
+            : null;
+
         return array_values(array_filter([
             $distance === null ? null : [
                 'key' => 'distance',
@@ -189,7 +200,11 @@ class MonthlySummaryService
                 'label' => __('Costs'),
                 'icon' => 'mdi:cash-multiple',
                 'value' => $euros($costs['total_eur']),
-                ...$this->compare($costs['fuel_per_km_eur'] ?? 0, $costs['average_fuel_per_km_eur'] ?? null, [__('Fuel per km :percent above average'), __('Fuel per km :percent below average'), __('Fuel per km as usual')], true),
+                // A full month against the average month, part of one against
+                // the average up to the same day of the month.
+                ...($facts['period']['kind'] === VehicleSummary::PREVIOUS_MONTH
+                    ? $this->compare($costs['total_eur'], $costs['average_month_total_eur'] ?? null, [__('Total :percent above average'), __('Total :percent below average'), __('Total as usual')], true)
+                    : $this->compare($costs['total_eur'], $costs['average_to_date_total_eur'] ?? null, [__('So far :percent above average'), __('So far :percent below average'), __('So far as usual')], true)),
                 'details' => collect($costs['incidental_eur'] ?? [])->map(fn (float $amount, string $type) => __($type).' '.$euros($amount))->values()->all(),
             ],
             $consumption === null ? null : [
@@ -198,7 +213,7 @@ class MonthlySummaryService
                 'icon' => 'mdi:gauge',
                 'value' => number_format($consumption['value'], 1, ',', '.').' '.($consumption['unit'] ?? ''),
                 ...$this->compare($consumption['value'], $consumption['average'] ?? null, [__(':percent above average'), __(':percent below average'), __('As usual')], true),
-                'details' => [],
+                'details' => array_filter([$perKm]),
             ],
         ]));
     }
@@ -231,7 +246,7 @@ class MonthlySummaryService
     }
 
     /**
-     * @param  list<array{kind: string, date: string, country?: string, component?: string}>  $upcoming
+     * @param  list<array{kind: string, date: string, country?: string, component?: string, types?: list<string>}>  $upcoming
      * @return list<array<string, mixed>>
      */
     private function upcoming(array $upcoming): array
@@ -251,11 +266,16 @@ class MonthlySummaryService
                 $date = Carbon::parse($item['date']);
                 $country = isset($item['country']) ? config("countries.{$item['country']}.name", $item['country']) : null;
                 $component = isset($item['component']) ? config("maintenance_plan.components.{$item['component']}") : null;
+                $label = match (true) {
+                    $component !== null => __($component['label']),
+                    isset($item['types']) => Vehicle::intervalLabel($item['types']),
+                    default => $labels[$item['kind']].($country ? ' '.$country : ''),
+                };
 
                 return [
-                    'key' => $item['kind'].($item['country'] ?? '').($item['component'] ?? ''),
+                    'key' => $item['kind'].($item['country'] ?? '').($item['component'] ?? '').implode(',', $item['types'] ?? []),
                     'icon' => $component['icon'] ?? self::ICONS[$item['kind']],
-                    'label' => $component ? __($component['label']) : $labels[$item['kind']].($country ? ' '.$country : ''),
+                    'label' => $label,
                     'date' => $date->isoFormat('D MMMM'),
                     'relative' => $date->isToday() ? __('Today') : $date->diffForHumans(today(), ['syntax' => Carbon::DIFF_RELATIVE_TO_NOW]),
                     'url' => route(self::ROUTES[$item['kind']]),

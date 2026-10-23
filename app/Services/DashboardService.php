@@ -79,22 +79,22 @@ class DashboardService
     public function statuses(Vehicle $vehicle): array
     {
         $statuses = [];
-        $maintenance = $vehicle->maintenance_status;
 
-        if (! empty($maintenance)) {
-            $byTime = str($maintenance['timeDiffHumans'])->ucfirst()->toString();
-            $byDistance = __('About :distance km (:timeTillDistanceDeadlineHumans)', [
+        // A card per maintenance interval, such as the inspection service and the oil service.
+        foreach ($vehicle->nextMaintenances() as $maintenance) {
+            $byTime = $maintenance['date']->isFuture() ? str($maintenance['date']->diffForHumans())->ucfirst()->toString() : __('Now');
+            $byDistance = $maintenance['daysTillDistance'] === null ? null : __('About :distance km (:timeTillDistanceDeadlineHumans)', [
                 'distance' => $maintenance['distance'],
-                'timeTillDistanceDeadlineHumans' => $maintenance['timeTillDistanceDeadlineHumans'],
+                'timeTillDistanceDeadlineHumans' => now()->addDays($maintenance['daysTillDistance'])->diffForHumans(),
             ]);
 
             // Whichever deadline comes first is the one to show prominently.
-            $distanceFirst = $maintenance['daysTillDistanceDeadline'] < $maintenance['time'];
+            $distanceFirst = $byDistance !== null && $maintenance['due']->lt($maintenance['date']);
 
             $statuses[] = [
-                'title' => __('Maintenance'),
+                'title' => $maintenance['label'],
                 'primary' => $distanceFirst ? $byDistance : $byTime,
-                'secondary' => $distanceFirst ? $byTime : $byDistance,
+                'secondary' => ($distanceFirst ? $byTime : $byDistance) ?? '',
                 'icon' => 'mdi:car-wrench',
             ];
         }

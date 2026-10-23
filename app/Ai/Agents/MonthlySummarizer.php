@@ -68,7 +68,8 @@ class MonthlySummarizer implements Agent, HasStructuredOutput
             a fine, a vignette), by type. Explain a high total by its incidental costs rather than calling the month
             expensive. What the refuelings of a month cost depends on when they happen to fall: compare the fuel by
             costs.fuel_per_km_eur against costs.average_fuel_per_km_eur, never by its total. Compare the total with
-            costs.average_month_total_eur only for a previous_month, a full month. consumption is the average consumption of the refuelings of the period, against the year
+            costs.average_month_total_eur for a previous_month, a full month, and with
+            costs.average_to_date_total_eur (the average up to the same day of the month) for a month_to_date. consumption is the average consumption of the refuelings of the period, against the year
             before. upcoming are the deadlines in the coming weeks, components of the maintenance plan included; they are listed below your text already, so do not
             repeat them. Only mention one when it adds something they do not say (such as an insurance that ends: a
             good moment to compare).

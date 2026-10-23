@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\Vehicle;
+use App\Services\NotificationCenter;
 use App\Support\CurrentVehicle;
 use App\Support\Navigation;
 use App\Tables\VehicleRecordTable;
@@ -104,6 +105,7 @@ abstract class VehicleRecordController extends Controller
         $record = $this->model::create([...$data, 'vehicle_id' => $this->vehicle()->id]);
 
         $this->saved($record);
+        $this->refreshNotifications();
 
         return $this->redirectToIndex(__(':name created.', ['name' => $this->singularTitle()]));
     }
@@ -132,6 +134,7 @@ abstract class VehicleRecordController extends Controller
         $record->update($this->prepare($request->validate($this->form::rules()), $record));
 
         $this->saved($record);
+        $this->refreshNotifications();
 
         return $this->redirectToIndex(__(':name updated.', ['name' => $this->singularTitle()]));
     }
@@ -139,8 +142,20 @@ abstract class VehicleRecordController extends Controller
     public function destroy(string $id): RedirectResponse
     {
         $this->record($id)->delete();
+        $this->refreshNotifications();
 
         return $this->redirectToIndex(__(':name deleted.', ['name' => $this->singularTitle()]));
+    }
+
+    /**
+     * Brings the notifications of the vehicle up to date after the response:
+     * a record can make one apply or no longer apply, and the bell shows them.
+     */
+    protected function refreshNotifications(): void
+    {
+        $vehicle = $this->vehicle();
+
+        defer(fn () => app(NotificationCenter::class)->sync($vehicle->fresh()));
     }
 
     public function duplicate(string $id): RedirectResponse

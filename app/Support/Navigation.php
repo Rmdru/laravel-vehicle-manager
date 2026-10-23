@@ -4,19 +4,29 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use Illuminate\Support\Facades\Route;
+
 class Navigation
 {
     /**
      * The sidebar navigation. Icons are Iconify names of files in resources/icons.
      *
-     * @return list<array{label: string, items: list<array{title: string, href: string, icon: string}>}>
+     * @return list<array{label: string, items: list<array{title: string, href: string, icon: string, create: string|null}>}>
      */
     public static function groups(): array
     {
-        $item = fn (string $title, string $route, string $icon) => [
+        $item = fn (string $title, string $route, string $icon, bool $quickAdd = true) => [
             'title' => $title,
             'href' => route($route, absolute: false),
             'icon' => $icon,
+            // Where to add a record, for the quick add: the page itself when it is
+            // one to add with, else that of the list; null for a page without one.
+            'create' => match (true) {
+                ! $quickAdd => null,
+                str_ends_with($route, '.create') => route($route, absolute: false),
+                str_ends_with($route, '.index') && Route::has($create = str_replace('.index', '.create', $route)) => route($create, absolute: false),
+                default => null,
+            },
         ];
 
         return [
@@ -42,7 +52,8 @@ class Navigation
             ]],
             ['label' => __('Trip planner'), 'items' => [
                 $item(__('Plan a trip'), 'trips.create', 'mdi:map-marker-path'),
-                $item(__('My trips'), 'trips.index', 'mdi:map-search-outline'),
+                // Added with "Plan a trip".
+                $item(__('My trips'), 'trips.index', 'mdi:map-search-outline', quickAdd: false),
             ]],
             ['label' => __('Fixed costs'), 'items' => [
                 $item(__('Insurances'), 'insurances.index', 'mdi:shield-car'),
@@ -61,7 +72,7 @@ class Navigation
     public static function translations(): array
     {
         $keys = [
-            'Add a vehicle', 'Add refueling', 'Add small check', 'All', 'Apply', 'Average monthly costs', 'Average per month',
+            'Add a vehicle', 'Add refueling', 'All', 'Apply', 'Average monthly costs', 'Average per month',
             'Average consumption', 'Average price', 'Average speed', 'Back', 'Cancel',
             'Cheapest', 'Close', 'Construction date', 'Cost types', 'Country', 'Create', 'Dashboard', 'Date', 'Date from',
             'Date range:', 'Date until', 'Delete', 'Duplicate', 'Edit', 'Filters', 'Fuel prices', 'Fuel prices abroad', 'Fuel type',
@@ -90,7 +101,13 @@ class Navigation
             'Refueled on :date in :country for :price.',
             ':difference below the average price at the time of the advice (:average): :savings saved.',
             ':difference above the average price at the time of the advice (:average): :savings more.',
+            // The notifications: the bell, the page, and dismissing one.
+            'Dismiss', 'Show again', 'History', 'Dismissed', 'No notifications', 'All notifications', 'Since :date',
+            'Dismissed on :date', 'No longer applies since :date', 'Nothing needs attention right now.',
+            'A dismissed notification is listed here, and comes back under Needs attention when it changes.',
+            'The notifications that no longer apply are listed here.',
             // The maintenance plan.
+            'Checked today', 'Done today', 'Record with price and garage',
             'Maintenance plan', 'Propose the intervals again', 'Fit the plan to your vehicle',
             'The intervals below are the usual ones. Have them proposed for the make, model and engine of your vehicle; the ones you change yourself are kept.',
             'Propose intervals', 'Check the components of your tasks',
