@@ -35,6 +35,7 @@ class MaintenancePlanTest extends TestCase
     {
         $vehicle = $this->signInWithVehicle([
             'purchase_date' => '2025-10-23',
+            'construction_date' => '2016-05-01',
             'mileage_start' => 10000,
             ...$attributes,
         ]);
@@ -84,8 +85,39 @@ class MaintenancePlanTest extends TestCase
         $this->assertSame('2026-11-23', $oil['due_date']);
         $this->assertSame(MaintenancePlanService::SOON, $oil['state']);
 
-        // Never recorded: not known when it was done.
-        $this->assertSame(MaintenancePlanService::UNKNOWN, $this->item($vehicle, 'brake_fluid')['state']);
+        // Never recorded: counted from new, and from 2016 it is overdue, so to be checked.
+        $fluid = $this->item($vehicle, 'brake_fluid');
+        $this->assertSame(MaintenancePlanService::CHECK, $fluid['state']);
+        $this->assertSame('2016-05-01', $fluid['assumed_since']);
+        $this->assertNull($fluid['done']);
+    }
+
+    public function test_on_a_young_vehicle_what_was_never_recorded_is_counted_from_new()
+    {
+        $vehicle = $this->vehicle(['construction_date' => '2026-01-01', 'purchase_date' => '2026-01-01', 'mileage_start' => 10]);
+
+        $fluid = $this->item($vehicle, 'brake_fluid');
+
+        // The original one: due two years after it was built, and not to be checked.
+        $this->assertSame('2028-01-01', $fluid['due_date']);
+        $this->assertSame(MaintenancePlanService::OK, $fluid['state']);
+        $this->assertSame('2026-01-01', $fluid['assumed_since']);
+    }
+
+    public function test_what_is_to_be_checked_needs_attention_without_a_notification_for_each()
+    {
+        $notifications = collect(app(MaintenancePlanService::class)->notifications($this->vehicle()))->keyBy('key');
+
+        // Expensive or dangerous to miss: red, each of its own, with the date to fill in.
+        $this->assertSame('critical', $notifications['maintenance_plan:brake_fluid']['type']);
+        $this->assertSame('critical', $notifications['maintenance_plan:timing_belt']['type']);
+        $this->assertSame(route('maintenance-plan', ['edit' => 'brake_fluid']), $notifications['maintenance_plan:brake_fluid']['url']);
+        // A check of its own, orange, to tick off.
+        $this->assertSame('warning', $notifications['maintenance_plan:tire_pressure']['type']);
+        $this->assertNotNull($notifications['maintenance_plan:tire_pressure']['doneUrl']);
+        // The rest together.
+        $this->assertSame('warning', $notifications['maintenance_plan:check']['type']);
+        $this->assertArrayNotHasKey('maintenance_plan:cabin_filter', $notifications->all());
     }
 
     public function test_what_the_owner_filled_in_counts_when_it_is_more_recent()
@@ -154,7 +186,18 @@ class MaintenancePlanTest extends TestCase
 
         $notifications = collect(app(DashboardService::class)->notifications($vehicle->fresh()));
 
-        $this->assertSame('warning', $notifications->firstWhere('key', 'maintenance_plan:brake_fluid')['type']);
+        $this->assertSame('critical', $notifications->firstWhere('key', 'maintenance_plan:brake_fluid')['type']);
+    }
+
+    public function test_a_component_due_soon_is_shown_in_orange()
+    {
+        config(['maintenance_plan.components.engine_oil.km' => 10000, 'maintenance_plan.components.engine_oil.months' => 12]);
+        $vehicle = $this->vehicle();
+
+        $oil = collect(app(MaintenancePlanService::class)->notifications($vehicle))->firstWhere('key', 'maintenance_plan:engine_oil');
+
+        // Due within 1.000 km: soon rather than due.
+        $this->assertSame('warning', $oil['type']);
     }
 
     public function test_the_owner_can_change_a_component_and_the_model_leaves_it_alone_then()

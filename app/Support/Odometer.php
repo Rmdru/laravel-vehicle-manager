@@ -34,13 +34,15 @@ final class Odometer
         $vehicle->loadMissing(['refuelings', 'maintenances']);
         $highest = 0;
 
-        // By day the highest reading, and none that is lower than one before it.
+        // By day the highest reading, and none that is lower than one before it. The
+        // vehicle was new at 0 km: what the pace before the purchase is told by.
         return new self(collect([
             ...$vehicle->refuelings->map(fn (Refueling $refueling) => [$refueling->date, (int) $refueling->mileage_end]),
             ...$vehicle->maintenances->map(fn (Maintenance $maintenance) => [$maintenance->date, (int) $maintenance->mileage]),
             [$vehicle->purchase_date, (int) $vehicle->mileage_start],
+            [$vehicle->construction_date, 0, true],
         ])
-            ->filter(fn (array $reading) => $reading[0] !== null && $reading[1] > 0)
+            ->filter(fn (array $reading) => $reading[0] !== null && ($reading[1] > 0 || ($reading[2] ?? false)))
             ->map(fn (array $reading) => ['date' => CarbonImmutable::parse($reading[0])->startOfDay(), 'km' => $reading[1]])
             ->groupBy(fn (array $reading) => $reading['date']->toDateString())
             ->map(fn (Collection $day) => ['date' => $day->first()['date'], 'km' => $day->max('km')])

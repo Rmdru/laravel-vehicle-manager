@@ -103,7 +103,10 @@ class MonthlySummaryService
      */
     private function hasRecords(array $facts): bool
     {
-        return ($facts['distance']['km'] ?? 0) > 0 || ($facts['costs']['total_eur'] ?? 0) > 0 || $facts['consumption'] !== null;
+        // A distance that is only estimated is no record: it can come from the age of the vehicle alone.
+        $driven = ($facts['distance']['km'] ?? 0) > 0 && ! ($facts['distance']['estimated'] ?? false);
+
+        return $driven || ($facts['costs']['total_eur'] ?? 0) > 0 || $facts['consumption'] !== null;
     }
 
     /**

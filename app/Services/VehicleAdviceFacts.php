@@ -248,6 +248,8 @@ class VehicleAdviceFacts
                 'interval_months' => $item['interval_months'],
                 'last_done' => $item['done']['date'] ?? null,
                 'last_done_km' => $item['done']['km'] ?? null,
+                // Never recorded: the next one counted from new, an assumption.
+                'last_done_not_known' => $item['assumed_since'] !== null ? true : null,
                 'next_due' => $item['due_date'],
                 'next_due_km' => $item['due_km'],
             ], fn ($value) => $value !== null))

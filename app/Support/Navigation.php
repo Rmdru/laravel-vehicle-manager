@@ -108,6 +108,7 @@ class Navigation
             'The notifications that no longer apply are listed here.',
             // The maintenance plan.
             'Checked today', 'Done today', 'Record with price and garage',
+            'Not recorded: counted from new (:date). Fill in when it was done if you know.',
             'Maintenance plan', 'Propose the intervals again', 'Fit the plan to your vehicle',
             'The intervals below are the usual ones. Have them proposed for the make, model and engine of your vehicle; the ones you change yourself are kept.',
             'Propose intervals', 'Check the components of your tasks',

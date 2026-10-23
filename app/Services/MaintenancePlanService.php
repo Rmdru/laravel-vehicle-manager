@@ -31,14 +31,23 @@ class MaintenancePlanService
     /** Past its interval. */
     public const OVERDUE = 'overdue';
 
-    /** Never recorded: when it was done last is not known. */
+    /**
+     * Never recorded, and counted from new it is overdue: to be checked, as it
+     * may well have been done.
+     */
+    public const CHECK = 'check';
+
+    /** Never recorded, and the construction date is not known either. */
     public const UNKNOWN = 'unknown';
 
     /** Without an interval: only done when needed. */
     public const NO_INTERVAL = 'no_interval';
 
     /** The states, the most urgent first. */
-    public const STATES = [self::OVERDUE, self::DUE, self::UNKNOWN, self::SOON, self::OK, self::NO_INTERVAL];
+    public const STATES = [self::OVERDUE, self::DUE, self::CHECK, self::UNKNOWN, self::SOON, self::OK, self::NO_INTERVAL];
+
+    /** Components to be checked that are put together in a single notification, at least. */
+    private const CHECKS_TOGETHER = 2;
 
     /**
      * Whether a component of the catalog applies to the powertrain of a vehicle.
@@ -158,9 +167,11 @@ class MaintenancePlanService
         $done = $this->lastDone($vehicle);
         $states = array_flip(self::STATES);
 
+        $new = $vehicle->construction_date ? CarbonImmutable::parse($vehicle->construction_date)->startOfDay() : null;
+
         return $this->components($vehicle)
             ->filter(fn (VehicleComponent $component) => $component->active)
-            ->map(fn (VehicleComponent $component) => $this->status($component, $done[$component->key] ?? null, $odometer, $mileage))
+            ->map(fn (VehicleComponent $component) => $this->status($component, $done[$component->key] ?? null, $odometer, $mileage, $new))
             ->sortBy([
                 fn (array $a, array $b) => $states[$a['state']] <=> $states[$b['state']],
                 fn (array $a, array $b) => ($a['due_date'] ?? '9999') <=> ($b['due_date'] ?? '9999'),
@@ -171,9 +182,10 @@ class MaintenancePlanService
 
     /**
      * @param  array{date: CarbonImmutable, km: int|null, price: float|null, garage: string|null, maintenance_id: string}|null  $done
+     * @param  CarbonImmutable|null  $new  The construction date: what is never recorded is counted from it.
      * @return array<string, mixed>
      */
-    private function status(VehicleComponent $component, ?array $done, Odometer $odometer, ?float $mileage): array
+    private function status(VehicleComponent $component, ?array $done, Odometer $odometer, ?float $mileage, ?CarbonImmutable $new): array
     {
         // What the owner set goes first when it is more recent than the maintenances.
         if ($component->done_date !== null && ($done === null || $component->done_date->gt($done['date']))) {
@@ -186,11 +198,21 @@ class MaintenancePlanService
             ];
         }
 
-        $byTime = $done && $component->interval_months ? $done['date']->addMonthsNoOverflow($component->interval_months) : null;
-        $dueKm = $done && $done['km'] !== null && $component->interval_km ? $done['km'] + $component->interval_km : null;
+        // Never recorded: the original one is assumed to be in it still, from new at 0 km.
+        $assumed = $done === null && $new !== null;
+        $from = $assumed ? ['date' => $new, 'km' => 0] : $done;
+
+        $byTime = $from && $component->interval_months ? $from['date']->addMonthsNoOverflow($component->interval_months) : null;
+        $dueKm = $from && $from['km'] !== null && $component->interval_km ? $from['km'] + $component->interval_km : null;
         [$byDistance, $estimated] = $dueKm !== null ? $odometer->dayOf($dueKm) : [null, false];
         $dueDate = collect([$byTime, $byDistance])->filter()->min();
         $remainingKm = $dueKm !== null && $mileage !== null ? (int) round($dueKm - $mileage) : null;
+        $state = $this->state($component, $from, $dueDate, $remainingKm);
+
+        // Overdue going by its age only: it may well have been done, so to be checked.
+        if ($assumed && $state === self::OVERDUE) {
+            $state = self::CHECK;
+        }
 
         return [
             'key' => $component->key,
@@ -202,12 +224,14 @@ class MaintenancePlanService
             'own_done_date' => $component->done_date?->toDateString(),
             'own_done_km' => $component->done_km,
             'done' => $done === null ? null : [...$done, 'date' => $done['date']->toDateString()],
+            // Counted from the construction date, as it was never recorded.
+            'assumed_since' => $assumed ? $new->toDateString() : null,
             'due_date' => $dueDate?->toDateString(),
             'due_km' => $dueKm,
             'due_by' => $dueDate === null ? null : ($byDistance !== null && $dueDate->eq($byDistance) ? 'distance' : 'time'),
             'estimated' => $byDistance !== null && $dueDate?->eq($byDistance) && $estimated,
             'remaining_km' => $remainingKm,
-            'state' => $this->state($component, $done, $dueDate, $remainingKm),
+            'state' => $state,
         ];
     }
 
@@ -229,42 +253,86 @@ class MaintenancePlanService
     }
 
     /**
-     * The components that are overdue or due, as notifications under "Needs
-     * attention". The ones never recorded are left out: a new plan would
-     * fill it at once.
+     * The components that need attention, as notifications under "Needs
+     * attention": red when overdue or due, orange when due soon. The ones to
+     * be checked as well: red when expensive or dangerous to miss, and each
+     * check of its own with a button to tick it off; the others together in
+     * one notification, rather than a whole list at once for an older vehicle.
      *
      * @return list<array<string, mixed>>
      */
     public function notifications(Vehicle $vehicle): array
     {
+        $plan = collect($this->plan($vehicle));
+        $toCheck = $plan->where('state', self::CHECK);
+        $alone = fn (array $item) => config("maintenance_plan.components.{$item['key']}.critical") || config("maintenance_plan.components.{$item['key']}.check");
+        $together = $toCheck->reject($alone);
+
+        return collect([
+            ...$plan->filter(fn (array $item) => in_array($item['state'], [self::OVERDUE, self::DUE, self::SOON], true))
+                ->map(fn (array $item) => $this->notification($item, $item['state'] === self::SOON ? 'warning' : 'critical')),
+            ...$toCheck->filter($alone)
+                ->map(fn (array $item) => $this->notification($item, config("maintenance_plan.components.{$item['key']}.critical") ? 'critical' : 'warning')),
+            ...($together->count() >= self::CHECKS_TOGETHER
+                ? [$this->together($together->count())]
+                : $together->map(fn (array $item) => $this->notification($item, 'warning'))),
+        ])->values()->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     * @return array<string, mixed>
+     */
+    private function notification(array $item, string $type): array
+    {
+        $types = StatusNotification::types();
+        $component = config("maintenance_plan.components.{$item['key']}");
+        $label = __($component['label']);
+        $due = $item['due_date'] ? CarbonImmutable::parse($item['due_date']) : null;
+        $check = $item['state'] === self::CHECK;
+
+        return [
+            ...$types[$type],
+            'key' => 'maintenance_plan:'.$item['key'],
+            'type' => $type,
+            'text' => match ($item['state']) {
+                self::CHECK => __(':component: not known when it was done last, going by its age and mileage it is due already', ['component' => $label]),
+                self::OVERDUE => __(':component is overdue', ['component' => $label]),
+                default => __(':component is due :when', ['component' => $label, 'when' => $due?->isoFormat('D MMMM') ?? '']),
+            },
+            'icon' => $component['icon'],
+            'typeIcon' => $types[$type]['icon'],
+            'hasModal' => false,
+            'data' => [],
+            // To be checked: when it was done is filled in on the plan.
+            'url' => $check ? route('maintenance-plan', ['edit' => $item['key']]) : route('maintenance-plan'),
+            'urlLabel' => $check ? __('Fill in when') : __('Maintenance plan'),
+            // A check, or one to be checked, is ticked off from the notification itself.
+            'doneUrl' => $check || isset($component['check']) ? route('maintenance-plan.done', $item['key']) : null,
+        ];
+    }
+
+    /**
+     * The components to be checked, together in one notification.
+     *
+     * @return array<string, mixed>
+     */
+    private function together(int $count): array
+    {
         $types = StatusNotification::types();
 
-        return collect($this->plan($vehicle))
-            ->filter(fn (array $item) => in_array($item['state'], [self::OVERDUE, self::DUE], true))
-            ->map(function (array $item) use ($types) {
-                $type = $item['state'] === self::OVERDUE ? 'warning' : 'info';
-                $component = config("maintenance_plan.components.{$item['key']}");
-                $due = $item['due_date'] ? CarbonImmutable::parse($item['due_date']) : null;
-
-                return [
-                    ...$types[$type],
-                    'key' => 'maintenance_plan:'.$item['key'],
-                    'type' => $type,
-                    'text' => $item['state'] === self::OVERDUE
-                        ? __(':component is overdue', ['component' => __($component['label'])])
-                        : __(':component is due :when', ['component' => __($component['label']), 'when' => $due?->isoFormat('D MMMM') ?? '']),
-                    'icon' => $component['icon'],
-                    'typeIcon' => $types[$type]['icon'],
-                    'hasModal' => false,
-                    'data' => [],
-                    'url' => route('maintenance-plan'),
-                    'urlLabel' => __('Maintenance plan'),
-                    // A check is ticked off from the notification itself.
-                    'doneUrl' => isset($component['check']) ? route('maintenance-plan.done', $item['key']) : null,
-                ];
-            })
-            ->values()
-            ->all();
+        return [
+            ...$types['warning'],
+            'key' => 'maintenance_plan:check',
+            'type' => 'warning',
+            'text' => __(':count components: not known when they were done last, going by their age and mileage they may be due already', ['count' => $count]),
+            'icon' => 'mdi:clipboard-list-outline',
+            'typeIcon' => $types['warning']['icon'],
+            'hasModal' => false,
+            'data' => [],
+            'url' => route('maintenance-plan'),
+            'urlLabel' => __('Maintenance plan'),
+        ];
     }
 
     private function state(VehicleComponent $component, ?array $done, ?CarbonImmutable $dueDate, ?int $remainingKm): string

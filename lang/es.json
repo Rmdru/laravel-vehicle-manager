@@ -1001,5 +1001,10 @@
     "With checks": "Con comprobaciones",
     ":name done.": ":name hecho.",
     "Tire pressure check": "Comprobación de la presión de los neumáticos",
-    "Fluid levels check": "Comprobación de niveles"
+    "Fluid levels check": "Comprobación de niveles",
+    "To be checked": "Por comprobar",
+    ":component: not known when it was done last, going by its age and mileage it is due already": ":component: no se sabe cuándo se hizo, por antigüedad y kilometraje ya toca",
+    ":count components: not known when they were done last, going by their age and mileage they may be due already": ":count componentes: no se sabe cuándo se hicieron, por antigüedad y kilometraje quizá ya toquen",
+    "Fill in when": "Indicar la fecha",
+    "Not recorded: counted from new (:date). Fill in when it was done if you know.": "No registrado: contado desde nuevo (:date). Indica cuándo se hizo si lo sabes."
 }

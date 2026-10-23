@@ -1000,5 +1000,10 @@
     "With checks": "Mit Kontrollen",
     ":name done.": ":name erledigt.",
     "Tire pressure check": "Reifendruck prüfen",
-    "Fluid levels check": "Flüssigkeitsstände prüfen"
+    "Fluid levels check": "Flüssigkeitsstände prüfen",
+    "To be checked": "Prüfen",
+    ":component: not known when it was done last, going by its age and mileage it is due already": ":component: unbekannt, wann zuletzt erledigt, nach Alter und Kilometerstand bereits fällig",
+    ":count components: not known when they were done last, going by their age and mileage they may be due already": ":count Bauteile: unbekannt, wann zuletzt erledigt, nach Alter und Kilometerstand möglicherweise bereits fällig",
+    "Fill in when": "Datum eintragen",
+    "Not recorded: counted from new (:date). Fill in when it was done if you know.": "Nicht erfasst: ab Neuzustand gerechnet (:date). Tragen Sie ein, wann es gemacht wurde, wenn Sie es wissen."
 }
