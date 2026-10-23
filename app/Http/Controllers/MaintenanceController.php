@@ -12,19 +12,12 @@ use App\Support\Html;
 use App\Support\VehiclePresenter;
 use App\Tables\MaintenancesTable;
 use Carbon\Carbon;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class MaintenanceController extends VehicleRecordController
 {
-    private const SMALL_CHECKS = [
-        MaintenanceTypeMaintenance::TirePressureChecked,
-        MaintenanceTypeMaintenance::LiquidsChecked,
-    ];
-
     protected string $model = Maintenance::class;
 
     protected string $form = MaintenanceForm::class;
@@ -49,14 +42,24 @@ class MaintenanceController extends VehicleRecordController
 
     protected function description(): string
     {
-        return __('Here you can add the costs of maintenance, repairs and parts to get insight in their costs and get informed of important intervals. It is also possible to add small checks to get notified about their intervals. This category includes all costs incurred for preventive and periodic maintenance and repairs, as well as the replacement of worn and outdated parts. This does not include costs arising from damage or accidents.');
+        return __('Here you can add the costs of maintenance, repairs and parts to get insight in their costs and get informed of important intervals. Checks such as the tire pressure are ticked off in the maintenance plan. This category includes all costs incurred for preventive and periodic maintenance and repairs, as well as the replacement of worn and outdated parts. This does not include costs arising from damage or accidents.');
     }
 
     /**
-     * A MOT the RDW registered, with the defects that were found at it.
+     * A component of the maintenance plan, or a MOT the RDW registered with
+     * the defects that were found at it.
      */
     protected function createData(Request $request): array
     {
+        // Recorded from the maintenance plan: a task for the component.
+        $component = config('maintenance_plan.components.'.$request->query('component', ''));
+
+        if (is_array($component) && is_string($request->query('component'))) {
+            return [
+                'tasks' => [['task' => __($component['label']), 'price' => null, 'components' => [$request->query('component')]]],
+            ];
+        }
+
         $renewal = $this->vehicle()->rdw_data['apk_renewed'] ?? null;
 
         if (! $request->boolean('rdw_apk') || empty($renewal['detected_at'])) {
@@ -75,29 +78,6 @@ class MaintenanceController extends VehicleRecordController
                 ->when($defects->isNotEmpty(), fn ($lines) => $lines->push(__('Defects found by the inspection:'), ...$defects))
                 ->implode("\n"),
         ]);
-    }
-
-    /**
-     * Register a small check (tire pressure, liquids) without filling in the whole form.
-     */
-    public function smallCheck(Request $request): RedirectResponse
-    {
-        $data = $request->validate([
-            'type_maintenance' => ['required', Rule::in(array_column(self::SMALL_CHECKS, 'value'))],
-            'date' => ['nullable', 'date'],
-        ]);
-
-        $vehicle = $this->vehicle();
-
-        $vehicle->maintenances()->create([
-            'type_maintenance' => $data['type_maintenance'],
-            'date' => $data['date'] ?? today()->format('Y-m-d'),
-            'mileage' => $vehicle->mileage_latest ?? $vehicle->mileage_start ?? 0,
-        ]);
-
-        Inertia::flash('toast', ['type' => 'success', 'message' => __(':name created.', ['name' => $this->singularTitle()])]);
-
-        return back();
     }
 
     public function show(string $id): Response
@@ -149,25 +129,5 @@ class MaintenanceController extends VehicleRecordController
                 ]],
             ],
         ]);
-    }
-
-    protected function indexProps(): array
-    {
-        return [
-            'smallCheck' => [
-                'url' => route('maintenances.small-check'),
-                'options' => $this->getSmallCheckOptions(),
-            ],
-        ];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function getSmallCheckOptions(): array
-    {
-        return collect(self::SMALL_CHECKS)
-            ->mapWithKeys(fn (MaintenanceTypeMaintenance $type) => [$type->value => $type->getLabel()])
-            ->all();
     }
 }

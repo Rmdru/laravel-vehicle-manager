@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Services\DashboardService;
+use App\Services\VehicleStatusService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\UploadedFile;
@@ -31,8 +33,10 @@ class VehicleTest extends TestCase
             'powertrain' => 'gasoline',
             'fuel_types' => ['Unleaded 95 (E10)'],
             'tank_capacity' => 50,
-            'maintenance_interval_distance' => 15000,
-            'maintenance_interval_time' => 12,
+            'maintenance_intervals' => [
+                ['types' => ['inspection_service'], 'km' => 60000, 'months' => 24],
+                ['types' => ['oil_service'], 'km' => 15000, 'months' => 12],
+            ],
             'mileage_start' => 50000,
             'purchase_date' => '2024-01-10',
             'construction_date' => '2018-05-01',
@@ -72,9 +76,55 @@ class VehicleTest extends TestCase
         $this->assertSame(['Unleaded 95 (E10)'], $vehicle->fuel_types);
         $this->assertFalse($vehicle->notifications['maintenance']['apk']);
         $this->assertTrue($vehicle->notifications['maintenance']['recall']);
+        $this->assertSame([['types' => ['inspection_service'], 'km' => 60000, 'months' => 24], ['types' => ['oil_service'], 'km' => 15000, 'months' => 12]], $vehicle->maintenanceIntervals());
 
         $this->get(route('dashboard'))
             ->assertInertia(fn (Assert $page) => $page->where('currentVehicle.id', $vehicle->id));
+    }
+
+    public function test_an_interval_can_be_restarted_by_the_airco_check()
+    {
+        $vehicle = $this->signInWithVehicle(['maintenance_intervals' => [['types' => ['airco_check'], 'km' => null, 'months' => 24]]]);
+        $vehicle->maintenances()->create(['type_maintenance' => 'maintenance', 'date' => '2026-01-10', 'mileage' => 1000, 'total_price' => 300, 'airco_check' => false]);
+        $vehicle->maintenances()->create(['type_maintenance' => null, 'date' => '2025-05-01', 'mileage' => 900, 'total_price' => 90, 'airco_check' => true]);
+
+        $next = $vehicle->fresh()->nextMaintenance();
+
+        $this->assertSame('Airco check', $next['label']);
+        $this->assertSame('2027-05-01', $next['date']->toDateString());
+        $this->assertArrayHasKey('airco_check', Vehicle::intervalTypeOptions());
+    }
+
+    public function test_the_maintenance_notification_names_the_interval_that_is_due()
+    {
+        $vehicle = $this->signInWithVehicle(['maintenance_intervals' => [
+            ['types' => ['inspection_service'], 'km' => null, 'months' => 24],
+            ['types' => ['oil_service'], 'km' => null, 'months' => 12],
+        ]]);
+        $vehicle->maintenances()->create(['type_maintenance' => 'inspection_service', 'date' => now()->subMonths(2)->toDateString(), 'mileage' => 1000, 'total_price' => 400]);
+        $vehicle->maintenances()->create(['type_maintenance' => 'oil_service', 'date' => now()->subMonths(11)->subDays(15)->toDateString(), 'mileage' => 1000, 'total_price' => 150]);
+
+        $notification = collect((new VehicleStatusService)->getNotifications($vehicle->fresh()))->firstWhere('key', 'maintenance');
+
+        $this->assertSame('Oil service required now', $notification['text']);
+    }
+
+    public function test_each_maintenance_interval_is_restarted_by_its_own_maintenance()
+    {
+        $this->travelTo('2026-10-23 12:00:00');
+        $vehicle = $this->signInWithVehicle(['mileage_latest' => 20000, 'maintenance_intervals' => [
+            ['types' => ['inspection_service'], 'km' => null, 'months' => 24],
+            ['types' => ['oil_service', 'inspection_service'], 'km' => null, 'months' => 12],
+        ]]);
+        $vehicle->maintenances()->create(['type_maintenance' => 'inspection_service', 'date' => '2025-06-01', 'mileage' => 10000, 'total_price' => 400]);
+        $vehicle->maintenances()->create(['type_maintenance' => 'oil_service', 'date' => '2026-03-01', 'mileage' => 15000, 'total_price' => 150]);
+
+        $next = $vehicle->fresh()->nextMaintenances();
+
+        // The oil service is restarted by the oil service, the inspection service only by itself; the first due first.
+        $this->assertSame(['Oil service / Inspection service', 'Inspection service'], array_column($next, 'label'));
+        $this->assertSame(['2027-03-01', '2027-06-01'], array_map(fn (array $item) => $item['date']->toDateString(), $next));
+        $this->assertSame(['Oil service / Inspection service', 'Inspection service'], array_slice(array_column(app(DashboardService::class)->statuses($vehicle->fresh()), 'title'), 0, 2));
     }
 
     public function test_creating_a_vehicle_requires_the_mandatory_fields()

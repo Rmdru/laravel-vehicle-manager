@@ -66,7 +66,7 @@ class VehicleAdviceFacts
             'vehicle' => $this->vehicle($vehicle),
             'rdw' => $this->rdw($vehicle),
             'usage' => $this->usage($vehicle),
-            'next_maintenance' => $this->nextMaintenance($vehicle),
+            'next_maintenances' => $this->nextMaintenances($vehicle),
             'maintenance_plan' => $this->maintenancePlan($vehicle),
             'maintenance_history' => $this->maintenances($vehicle),
             'latest_reconditioning_by_type' => $vehicle->reconditionings
@@ -127,8 +127,7 @@ class VehicleAdviceFacts
             'mileage_km' => $vehicle->mileage_latest ?: null,
             'country_of_registration' => $vehicle->country_registration,
             'status' => $vehicle->status,
-            'maintenance_interval_km' => $vehicle->maintenance_interval_distance ?: null,
-            'maintenance_interval_months' => $vehicle->maintenance_interval_time ?: null,
+            'maintenance_intervals' => $vehicle->maintenanceIntervals() ?: null,
             'driver_city' => $vehicle->user?->city,
         ], fn ($value) => $value !== null && $value !== '');
     }
@@ -219,22 +218,19 @@ class VehicleAdviceFacts
     }
 
     /**
-     * @return array<string, mixed>|null
+     * Per maintenance interval when it is due. The date only by time: one by
+     * distance moves by the day, and the facts should not.
+     *
+     * @return list<array<string, mixed>>
      */
-    private function nextMaintenance(Vehicle $vehicle): ?array
+    private function nextMaintenances(Vehicle $vehicle): array
     {
-        $next = $vehicle->nextMaintenance();
-
-        if ($next === null) {
-            return null;
-        }
-
-        return array_filter([
-            'due_date' => $next['date']->toDateString(),
-            'due_at_km' => $vehicle->maintenance_interval_distance
-                ? (int) $next['maintenance']->mileage + (int) $vehicle->maintenance_interval_distance
-                : null,
-        ]);
+        return array_map(fn (array $next) => array_filter([
+            'maintenance_types' => $next['types'],
+            'last_done' => $next['maintenance']->date->toDateString(),
+            'due_date' => $next['months'] !== null ? $next['date']->toDateString() : null,
+            'due_at_km' => $next['dueKm'],
+        ]), $vehicle->nextMaintenances());
     }
 
     /**

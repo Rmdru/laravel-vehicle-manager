@@ -361,23 +361,22 @@ class VehicleRecordTest extends TestCase
         ])->assertSessionHasErrors(['country', 'road_type']);
     }
 
-    public function test_a_small_check_can_be_registered_as_maintenance()
+    public function test_a_check_is_ticked_off_in_the_maintenance_plan_and_left_out_of_the_list()
     {
         $vehicle = $this->signInWithVehicle(['mileage_latest' => 4200]);
 
-        $this->get(route('maintenances.index'))
-            ->assertInertia(fn (Assert $page) => $page->has('smallCheck.options', 2)->etc());
-
-        $this->post(route('maintenances.small-check'), ['type_maintenance' => 'liquids_checked', 'date' => '2026-03-01'])
-            ->assertSessionHasNoErrors();
+        $this->post(route('maintenance-plan.done', 'fluid_levels'))->assertSessionHasNoErrors();
 
         $maintenance = $vehicle->maintenances()->sole();
 
         $this->assertSame('liquids_checked', $maintenance->type_maintenance);
         $this->assertEquals(4200, $maintenance->mileage);
 
-        $this->post(route('maintenances.small-check'), ['type_maintenance' => 'big_maintenance'])
-            ->assertSessionHasErrors('type_maintenance');
+        // The checks would crowd the list: only with the filter.
+        $this->get(route('maintenances.index'))
+            ->assertInertia(fn (Assert $page) => $page->has('table.data', 0)->etc());
+        $this->get(route('maintenances.index', ['maintenances_filter' => ['checks' => 'shown']]))
+            ->assertInertia(fn (Assert $page) => $page->has('table.data', 1)->etc());
     }
 
     public function test_a_maintenance_can_be_viewed()

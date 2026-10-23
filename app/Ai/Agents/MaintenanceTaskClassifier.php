@@ -66,7 +66,10 @@ class MaintenanceTaskClassifier implements Agent, HasStructuredOutput
             oil_filter, "remvloeistof verversen" is brake_fluid, "nieuwe banden voor" is front_tires, "4 nieuwe
             banden" is front_tires and rear_tires, "remblokken en schijven voor" is front_brake_pads and
             front_brake_discs. Brake shoes are the rear brake pads, brake drums the rear brake discs. When a task
-            does not say front or rear, it is both. A task that only
+            does not say front or rear, it is both. intake_cleaning is only a cleaning of the intake valves and
+            manifold themselves (walnut blasting, a chemical intake cleaning): an injector cleaner or another fuel
+            additive does not reach the intake valves of a direct injection engine, so it belongs to none. A task
+            that only
             inspected something ("remmen gecontroleerd"), or that is about none of the components (the MOT, washing,
             a repair of the bodywork), belongs to none. When in doubt, choose none: a wrong component makes the
             plan think something was done.

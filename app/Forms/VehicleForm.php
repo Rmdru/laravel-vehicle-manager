@@ -6,6 +6,7 @@ namespace App\Forms;
 
 use App\Enums\VehicleStatus;
 use App\Forms\Fields\Heading;
+use App\Models\Vehicle;
 use App\Support\StatusNotification;
 use App\Traits\PowerTrainOptions;
 use Illuminate\Validation\Rule;
@@ -72,20 +73,31 @@ class VehicleForm extends VehicleRecordForm
                 ->label(__('Tank capacity'))
                 ->step(0.1)
                 ->rules(['required', 'numeric', 'min:0']),
-            Number::make('maintenance_interval_distance')
-                ->label(__('Maintenance interval distance'))
-                ->prepend(__('Every'))
-                ->append('km')
-                ->default(15000)
-                ->minValue(1)
-                ->rules(['required', 'integer']),
-            Number::make('maintenance_interval_time')
-                ->label(__('Maintenance interval time'))
-                ->prepend(__('Every'))
-                ->append(__('months'))
-                ->default(12)
-                ->minValue(1)
-                ->rules(['required', 'integer']),
+            // Such as an inspection service and an oil service, each restarted by its own maintenance types.
+            Repeater::make('maintenance_intervals')
+                ->label(__('Maintenance intervals'))
+                ->addActionLabel(__('Add interval'))
+                ->default([['types' => Vehicle::MAINTENANCE_TYPES, 'km' => 15000, 'months' => 12]])
+                ->fields([
+                    Select::make('types')
+                        ->label(__('Type maintenance'))
+                        ->multiple()
+                        ->options(Vehicle::intervalTypeOptions())
+                        ->rules(['required', 'array', 'min:1']),
+                    Number::make('km')
+                        ->label(__('Maintenance interval distance'))
+                        ->prepend(__('Every'))
+                        ->append('km')
+                        ->minValue(1)
+                        ->rules(['nullable', 'integer', 'min:1', 'required_without:maintenance_intervals.*.months']),
+                    Number::make('months')
+                        ->label(__('Maintenance interval time'))
+                        ->prepend(__('Every'))
+                        ->append(__('months'))
+                        ->minValue(1)
+                        ->rules(['nullable', 'integer', 'min:1']),
+                ])
+                ->rules(['nullable', 'array']),
             File::make('image')
                 ->label(__('Image'))
                 ->accept('image/jpeg', 'image/png', 'image/gif', 'image/webp')

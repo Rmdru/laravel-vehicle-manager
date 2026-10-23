@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { Pencil, RefreshCw } from '@lucide/vue';
+import { Check, Pencil, RefreshCw } from '@lucide/vue';
 import { ref, watch } from 'vue';
 import AppIcon from '@/components/AppIcon.vue';
 import ColorBadge from '@/components/ColorBadge.vue';
@@ -33,6 +33,11 @@ type Component = {
     note: string | null;
     // When it was done last as the owner filled it in, for the form.
     ownDoneDate: string | null;
+    // Ticked off at once, or recorded with the form with this component filled in.
+    doneUrl: string;
+    recordUrl: string;
+    // A check, such as the tire pressure, rather than a replacement.
+    isCheck: boolean;
     ownDoneKm: number | null;
     done: {
         date: string;
@@ -158,6 +163,21 @@ function save(active = form.active) {
         preserveScroll: true,
         onSuccess: () => (editing.value = null),
     });
+}
+
+const ticking = ref<string | null>(null);
+
+// Done today, at the current mileage, without a form.
+function tick(component: Component) {
+    router.post(
+        component.doneUrl,
+        {},
+        {
+            preserveScroll: true,
+            onStart: () => (ticking.value = component.key),
+            onFinish: () => (ticking.value = null),
+        },
+    );
 }
 
 function activate(key: string) {
@@ -385,6 +405,28 @@ function activate(key: string) {
                         >
                             {{ component.note }}
                         </p>
+                        <div class="flex flex-wrap gap-x-4">
+                            <button
+                                type="button"
+                                class="inline-flex min-h-9 cursor-pointer items-center gap-1 text-sm font-semibold underline"
+                                :disabled="ticking === component.key"
+                                @click="tick(component)"
+                            >
+                                <Check class="size-4" />
+                                {{
+                                    component.isCheck
+                                        ? t('Checked today')
+                                        : t('Done today')
+                                }}
+                            </button>
+                            <Link
+                                v-if="!component.isCheck"
+                                :href="component.recordUrl"
+                                class="min-h-9 content-center text-sm font-semibold underline"
+                            >
+                                {{ t('Record with price and garage') }}
+                            </Link>
+                        </div>
                     </div>
                     <Button
                         variant="ghost"

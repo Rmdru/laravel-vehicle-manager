@@ -11,6 +11,7 @@ use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\MaintenancePlanController;
 use App\Http\Controllers\ManifestController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ParkingController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ReconditioningController;
@@ -54,13 +55,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('trips/{trip}/refresh', [TripController::class, 'refresh'])->name('trips.refresh');
         Route::resource('trips', TripController::class)->except('edit');
 
-        Route::post('maintenances/small-check', [MaintenanceController::class, 'smallCheck'])->name('maintenances.small-check');
+        Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+        Route::post('notifications/seen', [NotificationController::class, 'seen'])->name('notifications.seen');
+        Route::post('notifications/{notification}/dismiss', [NotificationController::class, 'dismiss'])->name('notifications.dismiss');
+        Route::post('notifications/{notification}/restore', [NotificationController::class, 'restore'])->name('notifications.restore');
 
         Route::get('maintenance-plan', [MaintenancePlanController::class, 'index'])->name('maintenance-plan');
         Route::post('maintenance-plan/propose', [MaintenancePlanController::class, 'propose'])->name('maintenance-plan.propose');
         Route::post('maintenance-plan/classify', [MaintenancePlanController::class, 'classify'])->name('maintenance-plan.classify');
         Route::post('maintenance-plan/assign', [MaintenancePlanController::class, 'assign'])->name('maintenance-plan.assign');
         Route::patch('maintenance-plan/{key}', [MaintenancePlanController::class, 'update'])->name('maintenance-plan.update');
+        Route::post('maintenance-plan/{key}/done', [MaintenancePlanController::class, 'done'])->name('maintenance-plan.done');
 
         $records = [
             'maintenances' => MaintenanceController::class,

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Breadcrumbs from '@/components/Breadcrumbs.vue';
+import NotificationBell from '@/components/NotificationBell.vue';
 import QuickAdd from '@/components/QuickAdd.vue';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import type { BreadcrumbItem } from '@/types';
@@ -24,6 +25,9 @@ withDefaults(
                 <Breadcrumbs :breadcrumbs="breadcrumbs" />
             </template>
         </div>
-        <QuickAdd v-if="$page.props.currentVehicle" />
+        <div v-if="$page.props.currentVehicle" class="flex items-center gap-1">
+            <NotificationBell />
+            <QuickAdd />
+        </div>
     </header>
 </template>

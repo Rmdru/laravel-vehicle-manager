@@ -307,7 +307,7 @@ class VehicleController extends Controller
     {
         $data = $vehicle->only([
             'license_plate', 'brand', 'model', 'version', 'engine', 'powertrain', 'fuel_types', 'tank_capacity',
-            'maintenance_interval_distance', 'maintenance_interval_time', 'mileage_start', 'purchase_price',
+            'maintenance_intervals', 'mileage_start', 'purchase_price',
             'country_registration', 'status', 'specifications',
         ]);
 

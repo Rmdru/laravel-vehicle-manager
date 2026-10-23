@@ -23,6 +23,9 @@ class VehicleStatusService
 
     public function getNotifications(Vehicle $vehicle): array
     {
+        // In the current locale: the daily run switches to that of each owner.
+        $this->types = StatusNotification::types();
+        $this->notificationMappings = StatusNotification::configuration();
         $notifications = [];
 
         $vehicle->loadMissing([
@@ -96,7 +99,8 @@ class VehicleStatusService
         $thresholds = $mapping['thresholds'];
         $thresholdType = $mapping['thresholdType'];
         $thresholdCompareKeyTime = $mapping['thresholdCompareKeyTime'] ?? 'time';
-        $messages = $mapping['messages'];
+        // A message can name what the status is about, such as the maintenance interval that is due.
+        $messages = array_map(fn (string $message) => str_replace(':label', (string) ($status['label'] ?? ''), $message), $mapping['messages']);
         $icon = $mapping['icon'];
         $hasModal = $status['hasModal'] ?? false;
         $data = $status['data'] ?? [];

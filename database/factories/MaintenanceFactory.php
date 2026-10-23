@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Database\Factories;
 
 use App\Enums\MaintenancePaymentMethod;
-use App\Enums\MaintenanceTypeMaintenance;
 use App\Models\Maintenance;
 use App\Models\Vehicle;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -30,7 +29,8 @@ class MaintenanceFactory extends Factory
                 null,
                 $this->faker->words(asText: true),
             ]),
-            'type_maintenance' => $this->faker->randomElement(collect(MaintenanceTypeMaintenance::cases())->pluck('value')->toArray()),
+            // A maintenance rather than a check: those are ticked off in the maintenance plan.
+            'type_maintenance' => $this->faker->randomElement(Vehicle::MAINTENANCE_TYPES),
             'apk' => $this->faker->boolean(),
             'apk_date' => function (array $attributes) {
                 if ($attributes['apk']) {

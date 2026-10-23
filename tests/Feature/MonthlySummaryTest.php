@@ -46,8 +46,7 @@ class MonthlySummaryTest extends TestCase
         $vehicle = $this->signInWithVehicle([
             'purchase_date' => '2025-09-30',
             'mileage_start' => 10000,
-            'maintenance_interval_distance' => 0,
-            'maintenance_interval_time' => 12,
+            'maintenance_intervals' => [['types' => Vehicle::MAINTENANCE_TYPES, 'km' => null, 'months' => 12]],
             'rdw_data' => ['vervaldatum_apk_dt' => '2026-11-20T00:00:00.000'],
         ]);
 
@@ -152,6 +151,12 @@ class MonthlySummaryTest extends TestCase
                     ->where('monthlySummary.figures.0.value', '± 865 km')
                     ->where('monthlySummary.figures.1.value', '€ 360')
                     ->where('monthlySummary.figures.1.details', ['Maintenance € 250'])
+                    // Part of a month against the average up to the same day: up
+                    // to the 23rd only the insurance, € 50, against € 360 now.
+                    ->where('monthlySummary.figures.1.comparison', 'So far 620% above average')
+                    // The costs of the fuel by the kilometer go with the consumption.
+                    ->where('monthlySummary.figures.2.key', 'consumption')
+                    ->where('monthlySummary.figures.2.details.0', fn (string $detail) => str_contains($detail, ' per km'))
                     ->where('monthlySummary.upcoming.0.label', 'MOT')
                     ->etc()));
 

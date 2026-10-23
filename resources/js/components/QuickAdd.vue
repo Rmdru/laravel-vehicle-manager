@@ -18,8 +18,15 @@ import { useT } from '@/composables/useT';
 const { t } = useT();
 
 // Everything in the navigation that has records to add; the overview pages
-// (dashboard, timeline) do not.
-const groups = computed(() => usePage().props.navigation.slice(1));
+// (dashboard, timeline, the maintenance plan) do not.
+const groups = computed(() =>
+    usePage()
+        .props.navigation.map((group) => ({
+            ...group,
+            items: group.items.filter((item) => item.create !== null),
+        }))
+        .filter((group) => group.items.length),
+);
 </script>
 
 <template>
@@ -46,7 +53,7 @@ const groups = computed(() => usePage().props.navigation.slice(1));
                         as-child
                     >
                         <Link
-                            :href="`${item.href}/create`"
+                            :href="item.create!"
                             class="min-h-10 cursor-pointer"
                         >
                             <AppIcon

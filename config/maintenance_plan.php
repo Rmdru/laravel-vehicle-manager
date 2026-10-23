@@ -41,6 +41,7 @@ return [
         'spark_plugs' => ['label' => 'Spark plugs', 'icon' => 'mdi:lightning-bolt', 'km' => 60000, 'months' => 48, 'for' => 'spark_ignition'],
         'timing_belt' => ['label' => 'Timing belt', 'icon' => 'carbon:timing-belt', 'km' => 120000, 'months' => 72, 'for' => 'engine'],
         // Carbon deposits on the intake valves: only direct injection engines get them, so off until the model or the owner switches it on.
+        // An injector cleaner in the fuel does not count: the fuel never reaches the intake valves of such an engine.
         'intake_cleaning' => ['label' => 'Intake cleaning', 'icon' => 'material-symbols:valve-rounded', 'km' => 80000, 'months' => null, 'for' => 'engine', 'active' => false],
         'auxiliary_belt' => ['label' => 'Auxiliary belt', 'icon' => 'mdi:engine-outline', 'km' => 120000, 'months' => 72, 'for' => 'engine'],
         // A part that wears: its usual life, which the model adjusts to the gearbox.
@@ -57,6 +58,10 @@ return [
         'front_tires' => ['label' => 'Front tires', 'icon' => 'mdi:tire', 'km' => 40000, 'months' => 72, 'for' => 'all'],
         'rear_tires' => ['label' => 'Rear tires', 'icon' => 'mdi:tire', 'km' => 50000, 'months' => 72, 'for' => 'all'],
         'battery_12v' => ['label' => '12 volt battery', 'icon' => 'mdi:car-battery', 'km' => null, 'months' => 60, 'for' => 'all'],
+        // Checks rather than replacements, ticked off at once: recorded as a maintenance of their own
+        // type ('check'), and due within days rather than weeks (see soon_days and due_days).
+        'tire_pressure' => ['label' => 'Tire pressure check', 'icon' => 'mdi:car-tire-alert', 'km' => null, 'months' => 2, 'for' => 'all', 'check' => 'tire_pressure_checked', 'soon_days' => 14, 'due_days' => 7],
+        'fluid_levels' => ['label' => 'Fluid levels check', 'icon' => 'mdi:oil', 'km' => null, 'months' => 2, 'for' => 'all', 'check' => 'liquids_checked', 'soon_days' => 14, 'due_days' => 7],
         // Topped up rather than replaced: checked twice a year, with winter fluid before the frost.
         'washer_fluid' => ['label' => 'Washer fluid', 'icon' => 'mdi:wiper-wash', 'km' => null, 'months' => 6, 'for' => 'all'],
         'wiper_blades' => ['label' => 'Wiper blades', 'icon' => 'mdi:wiper', 'km' => null, 'months' => 12, 'for' => 'all'],

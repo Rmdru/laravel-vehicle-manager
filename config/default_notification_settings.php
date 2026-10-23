@@ -8,8 +8,6 @@ return [
         'recall' => true,
         'apk' => true,
         'airco_check' => true,
-        'liquids_check' => true,
-        'tire_pressure_check' => true,
     ],
     'reconditioning' => [
         'washing_carwash' => true,

@@ -44,7 +44,7 @@ class TimelineTest extends TestCase
 
     public function test_the_timeline_predicts_the_next_maintenance_and_invoices()
     {
-        $vehicle = $this->signInWithVehicle(['maintenance_interval_time' => 12]);
+        $vehicle = $this->signInWithVehicle(['maintenance_intervals' => [['types' => ['maintenance'], 'km' => null, 'months' => 12]]]);
 
         $vehicle->maintenances()->create([
             'type_maintenance' => 'maintenance',
@@ -89,7 +89,7 @@ class TimelineTest extends TestCase
 
     public function test_the_next_maintenance_follows_the_intervals_of_the_vehicle()
     {
-        $vehicle = $this->signInWithVehicle(['maintenance_interval_time' => 12, 'maintenance_interval_distance' => 15000, 'mileage_latest' => 6000]);
+        $vehicle = $this->signInWithVehicle(['maintenance_intervals' => [['types' => Vehicle::MAINTENANCE_TYPES, 'km' => 15000, 'months' => 12]], 'mileage_latest' => 6000]);
 
         // A small maintenance no longer has an interval of its own of 6 months.
         $vehicle->maintenances()->create([
@@ -104,7 +104,7 @@ class TimelineTest extends TestCase
 
     public function test_the_next_maintenance_comes_sooner_when_the_distance_is_driven_first()
     {
-        $vehicle = $this->signInWithVehicle(['maintenance_interval_time' => 12, 'maintenance_interval_distance' => 15000, 'mileage_latest' => 6000]);
+        $vehicle = $this->signInWithVehicle(['maintenance_intervals' => [['types' => Vehicle::MAINTENANCE_TYPES, 'km' => 15000, 'months' => 12]], 'mileage_latest' => 6000]);
 
         $vehicle->maintenances()->create([
             'type_maintenance' => 'maintenance',

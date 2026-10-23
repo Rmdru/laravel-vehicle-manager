@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Services\DashboardService;
 use App\Services\FuelAdviceService;
 use App\Services\MonthlySummaryService;
+use App\Services\NotificationCenter;
 use App\Services\VehicleAdviceService;
 use App\Support\Cost;
 use App\Support\CurrentVehicle;
@@ -23,7 +24,7 @@ class DashboardController extends Controller
     /** Minutes between two refreshes of the fuel prices, at least. */
     private const REFRESH_FUEL_PRICES_EVERY = 5;
 
-    public function __invoke(Request $request, DashboardService $dashboard, FuelAdviceService $fuelAdvice, VehicleAdviceService $vehicleAdvice, MonthlySummaryService $monthlySummary): Response
+    public function __invoke(Request $request, DashboardService $dashboard, FuelAdviceService $fuelAdvice, VehicleAdviceService $vehicleAdvice, MonthlySummaryService $monthlySummary, NotificationCenter $notifications): Response
     {
         $vehicle = CurrentVehicle::get();
 
@@ -46,7 +47,8 @@ class DashboardController extends Controller
             'usesFuel' => $usesFuel,
             'refreshFuelPricesUrl' => route('fuel-prices.refresh'),
             // Deferred: the notifications can involve slow lookups at external services.
-            'notifications' => Inertia::defer(fn () => $dashboard->notifications($vehicle), 'status'),
+            // Stored as they come and go, without the dismissed ones.
+            'notifications' => Inertia::defer(fn () => $notifications->forDashboard($vehicle), 'status'),
             'statuses' => Inertia::defer(fn () => $dashboard->statuses($vehicle), 'status'),
             // Always of the month, whatever the period filter says.
             'monthlySummary' => Inertia::defer(fn () => $monthlySummary->forDashboard($vehicle), 'summary'),

@@ -87,7 +87,7 @@ class TripScenarioSeeder extends Seeder
             'brand' => 'Volkswagen', 'model' => 'Golf', 'version' => '1.5 eTSI Life', 'engine' => '1.5 eTSI 150 pk',
             'license_plate' => 'K-482-NB', 'powertrain' => 'gasoline', 'fuel_types' => ['Unleaded 95 (E10)', 'Super Plus (E5)'],
             'tank_capacity' => 50, 'construction_date' => '2021-03-12', 'purchase_date' => '2021-04-02', 'purchase_price' => 32450,
-            'mileage_start' => 12, 'maintenance_interval_distance' => 30000, 'maintenance_interval_time' => 24,
+            'mileage_start' => 12, 'maintenance_intervals' => [['types' => Vehicle::MAINTENANCE_TYPES, 'km' => 30000, 'months' => 24]],
         ]);
 
         $mileage = $this->refuelings($vehicle, 18, 61200, [5.6, 6.6], [32, 46], 'Unleaded 95 (E10)', [1.87, 2.05], 'all_season', [
@@ -123,7 +123,7 @@ class TripScenarioSeeder extends Seeder
             'brand' => 'Skoda', 'model' => 'Octavia Combi', 'version' => '2.0 TDI Ambition', 'engine' => '2.0 TDI 150 pk',
             'license_plate' => 'ZT-219-P', 'powertrain' => 'diesel', 'fuel_types' => ['Diesel'],
             'tank_capacity' => 55, 'construction_date' => '2016-09-01', 'purchase_date' => '2019-05-17', 'purchase_price' => 14900,
-            'mileage_start' => 84210, 'maintenance_interval_distance' => 30000, 'maintenance_interval_time' => 12,
+            'mileage_start' => 84210, 'maintenance_intervals' => [['types' => Vehicle::MAINTENANCE_TYPES, 'km' => 30000, 'months' => 12]],
         ]);
 
         $mileage = $this->refuelings($vehicle, 20, 228400, [4.9, 5.8], [38, 52], 'Diesel', [1.69, 1.86], 'summer', [
@@ -156,7 +156,7 @@ class TripScenarioSeeder extends Seeder
             'brand' => 'Tesla', 'model' => 'Model 3', 'version' => 'Long Range AWD', 'engine' => 'Dual Motor',
             'license_plate' => 'R-735-XJ', 'powertrain' => 'electricity', 'fuel_types' => ['Electricity DC', 'Electricity AC'],
             'tank_capacity' => 75, 'construction_date' => '2023-02-20', 'purchase_date' => '2023-03-15', 'purchase_price' => 49990,
-            'mileage_start' => 5, 'maintenance_interval_distance' => 0, 'maintenance_interval_time' => 24,
+            'mileage_start' => 5, 'maintenance_intervals' => [['types' => Vehicle::MAINTENANCE_TYPES, 'km' => null, 'months' => 24]],
         ]);
 
         $this->refuelings($vehicle, 16, 38900, [15.8, 18.4], [28, 58], 'Electricity DC', [0.39, 0.62], 'all_season', [
@@ -183,7 +183,7 @@ class TripScenarioSeeder extends Seeder
             'brand' => 'Peugeot', 'model' => '208', 'version' => '1.2 PureTech Allure', 'engine' => '1.2 PureTech 100 pk',
             'license_plate' => 'H-061-LS', 'powertrain' => 'gasoline', 'fuel_types' => ['Unleaded 95 (E10)'],
             'tank_capacity' => 44, 'construction_date' => '2022-06-30', 'purchase_date' => '2022-07-22', 'purchase_price' => 23700,
-            'mileage_start' => 8, 'maintenance_interval_distance' => 20000, 'maintenance_interval_time' => 12,
+            'mileage_start' => 8, 'maintenance_intervals' => [['types' => Vehicle::MAINTENANCE_TYPES, 'km' => 20000, 'months' => 12]],
         ]);
 
         $mileage = $this->refuelings($vehicle, 14, 31800, [5.2, 6.1], [26, 38], 'Unleaded 95 (E10)', [1.85, 2.02], 'winter', [

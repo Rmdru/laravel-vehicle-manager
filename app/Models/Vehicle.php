@@ -58,8 +58,7 @@ class Vehicle extends Model
         'status',
         'fuel_types',
         'tank_capacity',
-        'maintenance_interval_distance',
-        'maintenance_interval_time',
+        'maintenance_intervals',
         'specifications',
         'notifications',
         'rdw_data',
@@ -69,6 +68,7 @@ class Vehicle extends Model
         'purchase_date' => 'date:Y-m-d',
         'construction_date' => 'date:Y-m-d',
         'fuel_types' => 'array',
+        'maintenance_intervals' => 'array',
         'specifications' => 'array',
         'notifications' => 'array',
         'rdw_data' => 'array',
@@ -82,12 +82,16 @@ class Vehicle extends Model
         'insurance_status',
         'tax_status',
         'washing_status',
-        'tire_pressure_check_status',
-        'liquids_check_status',
     ];
 
-    /** The maintenance that restarts the maintenance interval. */
+    /** The maintenance types that can restart a maintenance interval. */
     public const MAINTENANCE_TYPES = ['small_maintenance', 'maintenance', 'big_maintenance', 'oil_service', 'inspection_service', 'longlife'];
+
+    /** A maintenance with the airco check ticked: no type of its own, but it can restart an interval too. */
+    public const AIRCO_CHECK = 'airco_check';
+
+    /** What can restart a maintenance interval. */
+    public const INTERVAL_TYPES = [...self::MAINTENANCE_TYPES, self::AIRCO_CHECK];
 
     private static array $monthlyCostsCache = [];
 
@@ -245,72 +249,154 @@ class Vehicle extends Model
     }
 
     /**
-     * When the next maintenance is due: after the interval in time and, when the
-     * vehicle has one, after the interval in distance at the pace it is driven.
+     * The maintenance intervals of the vehicle, such as an inspection service
+     * and an oil service: the maintenance types that restart each, and its
+     * interval in kilometers and in months (null: none). An interval without
+     * types is restarted by any maintenance.
      *
-     * @return array{maintenance: Maintenance, date: Carbon, distance: int|float|null, daysTillDistance: int|float|null}|null
+     * @return list<array{types: list<string>, km: int|null, months: int|null}>
+     */
+    public function maintenanceIntervals(): array
+    {
+        return collect($this->maintenance_intervals ?? [])
+            ->filter(fn ($interval) => is_array($interval))
+            ->map(fn (array $interval) => [
+                'types' => array_values(array_intersect((array) ($interval['types'] ?? []), self::INTERVAL_TYPES)) ?: self::MAINTENANCE_TYPES,
+                'km' => (int) ($interval['km'] ?? 0) > 0 ? (int) $interval['km'] : null,
+                'months' => (int) ($interval['months'] ?? 0) > 0 ? (int) $interval['months'] : null,
+            ])
+            ->filter(fn (array $interval) => $interval['km'] !== null || $interval['months'] !== null)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The name of an interval: its maintenance types, or just maintenance
+     * when any restarts it.
+     *
+     * @param  list<string>  $types
+     */
+    public static function intervalLabel(array $types): string
+    {
+        $label = fn (string $type) => $type === self::AIRCO_CHECK ? __('Airco check') : MaintenanceTypeMaintenance::from($type)->getLabel();
+
+        if (array_diff(self::MAINTENANCE_TYPES, $types) === []) {
+            return collect([__('Maintenance'), ...array_map($label, array_diff($types, self::MAINTENANCE_TYPES))])->implode(' / ');
+        }
+
+        return collect($types)->map($label)->implode(' / ');
+    }
+
+    /**
+     * The options for what restarts a maintenance interval, by value: the
+     * maintenance types and the airco check.
+     *
+     * @return array<string, string>
+     */
+    public static function intervalTypeOptions(): array
+    {
+        return collect(self::INTERVAL_TYPES)->mapWithKeys(fn (string $type) => [$type => self::intervalLabel([$type])])->all();
+    }
+
+    /**
+     * When each maintenance interval is due: after its interval in time, and
+     * after its interval in distance at the pace the vehicle is driven. The
+     * date is when it is due by time, else by distance. Intervals whose
+     * maintenance was never recorded are left out.
+     *
+     * @return list<array{label: string, types: list<string>, km: int|null, months: int|null, maintenance: Maintenance, date: Carbon, due: Carbon, distance: int|float|null, dueKm: int|null, daysTillDistance: int|float|null}>
+     */
+    public function nextMaintenances(): array
+    {
+        $monthlyDistance = null;
+
+        return collect($this->maintenanceIntervals())
+            ->map(function (array $interval) use (&$monthlyDistance) {
+                $latest = $this->maintenances
+                    ->filter(fn (Maintenance $maintenance) => in_array($maintenance->type_maintenance, $interval['types'], true)
+                        || (in_array(self::AIRCO_CHECK, $interval['types'], true) && $maintenance->airco_check))
+                    ->sortByDesc('date')
+                    ->first();
+
+                if ($latest === null) {
+                    return null;
+                }
+
+                $distance = null;
+                $dueKm = null;
+                $daysTillDistance = null;
+
+                if ($interval['km'] !== null) {
+                    $dueKm = (int) $latest->mileage + $interval['km'];
+                    $distance = $dueKm - $this->mileage_latest;
+                    $monthlyDistance ??= $this->calculateAverageMonthlyDistance(vehicle: $this);
+                    $daysTillDistance = (int) $monthlyDistance > 30.44 ? $distance / ($monthlyDistance / 30.44) : $distance;
+                }
+
+                $byTime = $interval['months'] !== null ? Carbon::parse($latest->date)->addMonths($interval['months']) : null;
+                $byDistance = $daysTillDistance !== null ? now()->addDays((int) round($daysTillDistance)) : null;
+
+                return [
+                    'label' => self::intervalLabel($interval['types']),
+                    'types' => $interval['types'],
+                    'km' => $interval['km'],
+                    'months' => $interval['months'],
+                    'maintenance' => $latest,
+                    'date' => $byTime ?? $byDistance,
+                    // Whichever comes first.
+                    'due' => $byTime && $byDistance ? $byTime->min($byDistance) : ($byTime ?? $byDistance),
+                    'distance' => $distance,
+                    'dueKm' => $dueKm,
+                    'daysTillDistance' => $daysTillDistance,
+                ];
+            })
+            ->filter()
+            ->sortBy(fn (array $next) => $next['due'])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The maintenance interval that is due first; null when none is known.
+     *
+     * @return array{label: string, types: list<string>, maintenance: Maintenance, date: Carbon, due: Carbon, distance: int|float|null, dueKm: int|null, daysTillDistance: int|float|null}|null
      */
     public function nextMaintenance(): ?array
     {
-        $latestMaintenance = $this->maintenances->whereIn('type_maintenance', self::MAINTENANCE_TYPES)->sortByDesc('date')->first();
-
-        if (empty($latestMaintenance)) {
-            return null;
-        }
-
-        $distance = null;
-        $daysTillDistance = null;
-
-        if (! empty($this->maintenance_interval_distance)) {
-            $distance = $this->maintenance_interval_distance + $latestMaintenance->mileage - $this->mileage_latest;
-            $monthlyDistance = $this->calculateAverageMonthlyDistance(vehicle: $this);
-            $daysTillDistance = (int) $monthlyDistance > 30.44 ? $distance / ($monthlyDistance / 30.44) : $distance;
-        }
-
-        return [
-            'maintenance' => $latestMaintenance,
-            'date' => Carbon::parse($latestMaintenance->date ?? now())->addMonths((int) ($this->maintenance_interval_time ?: 12)),
-            'distance' => $distance,
-            'daysTillDistance' => $daysTillDistance,
-        ];
+        return $this->nextMaintenances()[0] ?? null;
     }
 
     public function getMaintenanceStatusAttribute(): array
     {
         $next = $this->nextMaintenance();
 
-        if ($next === null || $next['distance'] === null) {
+        if ($next === null) {
             return [];
         }
 
-        $latestMaintenance = $next['maintenance'];
-        $maintenanceDate = $next['date'];
-        $maintenanceDiff = $maintenanceDate->diffInDays(now());
-        $timeDiffHumans = $maintenanceDate->isFuture() ? $maintenanceDate->diffForHumans() : __('Now');
-
-        $timeTillMaintenance = $maintenanceDiff - ($maintenanceDiff * 2);
-
-        $distanceTillMaintenance = $next['distance'];
+        $byTime = $next['date'];
+        $timeDiffHumans = $byTime->isFuture() ? $byTime->diffForHumans() : __('Now');
+        $timeTillMaintenance = (int) now()->diffInDays($byTime);
         $daysTillDistanceDeadline = $next['daysTillDistance'];
-        $timeTillDistanceDeadlineHumans = now()->addDays($daysTillDistanceDeadline)->diffForHumans();
-        $minDaysTillDeadline = min($daysTillDistanceDeadline, $timeTillMaintenance);
+        $timeTillDistanceDeadlineHumans = $daysTillDistanceDeadline === null ? null : now()->addDays($daysTillDistanceDeadline)->diffForHumans();
 
         return [
+            'label' => $next['label'],
             'time' => $timeTillMaintenance,
             'timeDiffHumans' => $timeDiffHumans,
-            'distance' => $distanceTillMaintenance,
+            'distance' => $next['distance'],
             'daysTillDistanceDeadline' => $daysTillDistanceDeadline,
             'timeTillDistanceDeadlineHumans' => $timeTillDistanceDeadlineHumans,
-            'minDaysTillDeadline' => $minDaysTillDeadline,
+            'minDaysTillDeadline' => $daysTillDistanceDeadline === null ? $timeTillMaintenance : min($daysTillDistanceDeadline, $timeTillMaintenance),
             'hasModal' => true,
-            'modalTitle' => __('Maintenance deadline'),
+            'modalTitle' => $next['label'],
             'modalHeading' => __('Maintenance deadline'),
             'data' => [
-                [
-                    'deadline_date' => $maintenanceDate->format('d-m-Y').' ('.$timeDiffHumans.')',
-                    'deadline_distance' => __('Over').' '.$distanceTillMaintenance.'km ('.($latestMaintenance->mileage + $this->maintenance_interval_distance).' km)',
-                    'deadline_distance_date' => now()->addDays($daysTillDistanceDeadline)->format('d-m-Y').' ('.$timeTillDistanceDeadlineHumans.')',
-                ],
+                array_filter([
+                    'deadline_date' => $byTime->format('d-m-Y').' ('.$timeDiffHumans.')',
+                    'deadline_distance' => $next['dueKm'] === null ? null : __('Over').' '.$next['distance'].'km ('.$next['dueKm'].' km)',
+                    'deadline_distance_date' => $daysTillDistanceDeadline === null ? null : now()->addDays($daysTillDistanceDeadline)->format('d-m-Y').' ('.$timeTillDistanceDeadlineHumans.')',
+                ]),
             ],
         ];
     }
@@ -368,44 +454,6 @@ class Vehicle extends Model
 
             return [
                 'time' => $timeTillAircoCheck,
-                'timeDiffHumans' => $timeDiffHumans,
-            ];
-        }
-
-        return [];
-    }
-
-    public function getTirePressureCheckStatusAttribute(): array
-    {
-        if ($this->maintenances->where('type_maintenance', MaintenanceTypeMaintenance::TirePressureChecked->value)->isNotEmpty()) {
-            $latest = $this->maintenances->where('type_maintenance', MaintenanceTypeMaintenance::TirePressureChecked->value)->sortByDesc('date')->first();
-
-            $date = Carbon::parse($latest->date)->addMonths(2);
-            $timeTillDiff = $date->diffInDays(now());
-            $timeTill = max(0, $timeTillDiff - ($timeTillDiff * 2));
-            $timeDiffHumans = $date->isFuture() ? $date->diffForHumans() : __('Now');
-
-            return [
-                'time' => $timeTill,
-                'timeDiffHumans' => $timeDiffHumans,
-            ];
-        }
-
-        return [];
-    }
-
-    public function getLiquidsCheckStatusAttribute(): array
-    {
-        if ($this->maintenances->where('type_maintenance', MaintenanceTypeMaintenance::LiquidsChecked->value)->isNotEmpty()) {
-            $latest = $this->maintenances->where('type_maintenance', MaintenanceTypeMaintenance::LiquidsChecked->value)->sortByDesc('date')->first();
-
-            $date = Carbon::parse($latest->date)->addMonths(2);
-            $timeTillDiff = $date->diffInDays(now());
-            $timeTill = max(0, $timeTillDiff - ($timeTillDiff * 2));
-            $timeDiffHumans = $date->isFuture() ? $date->diffForHumans() : __('Now');
-
-            return [
-                'time' => $timeTill,
                 'timeDiffHumans' => $timeDiffHumans,
             ];
         }

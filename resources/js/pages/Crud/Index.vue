@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import {
     ChevronRight,
     Copy,
@@ -18,19 +18,11 @@ import FilterSheet from '@/components/FilterSheet.vue';
 import PeriodFilter from '@/components/PeriodFilter.vue';
 import { Button } from '@/components/ui/button';
 import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
-import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
     Select,
@@ -55,7 +47,6 @@ const props = defineProps<{
     createUrl: string;
     summary: { label: string; value: string }[];
     filters: { date_from?: string; date_until?: string };
-    smallCheck?: { url: string; options: Record<string, string> };
 }>();
 
 type TableFilter = {
@@ -172,19 +163,6 @@ function destroy(id: string) {
         router.delete(`${props.baseUrl}/${id}`, { preserveScroll: true });
     }
 }
-
-const smallCheckOpen = ref(false);
-const smallCheckForm = useForm({
-    type_maintenance: Object.keys(props.smallCheck?.options ?? {})[0] ?? '',
-    date: new Date().toISOString().slice(0, 10),
-});
-
-function submitSmallCheck() {
-    smallCheckForm.post(props.smallCheck!.url, {
-        preserveScroll: true,
-        onSuccess: () => (smallCheckOpen.value = false),
-    });
-}
 </script>
 
 <template>
@@ -212,13 +190,6 @@ function submitSmallCheck() {
                 </Button>
             </div>
             <div class="flex gap-2">
-                <Button
-                    v-if="smallCheck"
-                    variant="outline"
-                    @click="smallCheckOpen = true"
-                >
-                    {{ t('Add small check') }}
-                </Button>
                 <Button as-child>
                     <Link :href="createUrl" data-test="create-button">
                         <Plus class="size-4" />
@@ -361,55 +332,5 @@ function submitSmallCheck() {
                 </template>
             </TableBuilder>
         </div>
-
-        <Dialog v-if="smallCheck" v-model:open="smallCheckOpen">
-            <DialogContent>
-                <form class="space-y-4" @submit.prevent="submitSmallCheck">
-                    <DialogHeader>
-                        <DialogTitle>{{ t('Add small check') }}</DialogTitle>
-                    </DialogHeader>
-                    <div class="grid gap-2">
-                        <Label for="small-check-type">{{ t('Type') }}</Label>
-                        <Select v-model="smallCheckForm.type_maintenance">
-                            <SelectTrigger id="small-check-type" class="w-full">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem
-                                    v-for="(label, value) in smallCheck.options"
-                                    :key="value"
-                                    :value="String(value)"
-                                >
-                                    {{ label }}
-                                </SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div class="grid gap-2">
-                        <Label for="small-check-date">{{ t('Date') }}</Label>
-                        <Input
-                            id="small-check-date"
-                            v-model="smallCheckForm.date"
-                            type="date"
-                        />
-                    </div>
-                    <DialogFooter>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            @click="smallCheckOpen = false"
-                        >
-                            {{ t('Cancel') }}
-                        </Button>
-                        <Button
-                            type="submit"
-                            :disabled="smallCheckForm.processing"
-                        >
-                            {{ t('Save') }}
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
     </div>
 </template>

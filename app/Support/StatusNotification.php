@@ -98,8 +98,9 @@ class StatusNotification
                 'thresholdType' => 'time',
                 'thresholdCompareKeyTime' => 'minDaysTillDeadline',
                 'messages' => [
-                    'critical' => __('Maintenance required now'),
-                    'warning' => __('Maintenance required soon'),
+                    // :label is the maintenance interval that is due first, such as "Oil service".
+                    'critical' => __(':label required now'),
+                    'warning' => __(':label required soon'),
                 ],
                 'icon' => 'mdi:car-wrench',
             ],
@@ -175,30 +176,7 @@ class StatusNotification
                 ],
                 'icon' => 'mdi:spray',
             ],
-            'tire_pressure_check' => [
-                'statusKey' => 'tire_pressure_check_status',
-                'category' => 'maintenance',
-                'label' => __('Tire pressure check reminder'),
-                'thresholds' => ['warning' => 10, 'info' => 20],
-                'thresholdType' => 'time',
-                'messages' => [
-                    'warning' => __('Check tire pressure!'),
-                    'info' => __('Check tire pressure soon!'),
-                ],
-                'icon' => 'mdi:car-tire-alert',
-            ],
-            'liquids_check' => [
-                'statusKey' => 'liquids_check_status',
-                'category' => 'maintenance',
-                'label' => __('Liquids check reminder'),
-                'thresholds' => ['warning' => 5, 'info' => 10],
-                'thresholdType' => 'time',
-                'messages' => [
-                    'warning' => __('Check liquids!'),
-                    'info' => __('Check liquids soon!'),
-                ],
-                'icon' => 'mdi:oil',
-            ],
+            // The checks of the tire pressure and the fluids are components of the maintenance plan.
         ];
     }
 
