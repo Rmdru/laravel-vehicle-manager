@@ -81,6 +81,7 @@ class MaintenancePlanController extends Controller
             'note' => $item['note'],
             // Done today at once, or recorded with the form, this component filled in.
             'doneUrl' => route('maintenance-plan.done', $item['key']),
+            'proposeUrl' => route('maintenance-plan.propose-one', $item['key']),
             'recordUrl' => route('maintenances.create', ['component' => $item['key']]),
             'isCheck' => isset($component['check']),
             'ownDoneDate' => $item['own_done_date'],
@@ -168,6 +169,22 @@ class MaintenancePlanController extends Controller
             $ai->propose($vehicle, app()->getLocale());
 
             return __('The intervals have been proposed. Check them, and change what you know better.');
+        });
+    }
+
+    /**
+     * Has the AI model propose the interval of a single component, even one the owner set.
+     */
+    public function proposeOne(string $key, MaintenancePlanService $plan, MaintenancePlanAi $ai): RedirectResponse
+    {
+        $vehicle = CurrentVehicle::get();
+
+        abort_unless($plan->components($vehicle)->has($key), 404);
+
+        return $this->whileNotBusy("maintenance-plan:{$vehicle->id}:propose", function () use ($ai, $vehicle, $key) {
+            $ai->propose($vehicle, app()->getLocale(), only: $key);
+
+            return __('The interval of :name has been proposed.', ['name' => __(config("maintenance_plan.components.{$key}.label"))]);
         });
     }
 

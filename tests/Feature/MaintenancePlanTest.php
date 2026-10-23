@@ -224,6 +224,24 @@ class MaintenancePlanTest extends TestCase
         $this->assertSame(2, VehicleComponent::where('vehicle_id', $vehicle->id)->count() - 1);
     }
 
+    public function test_the_interval_of_a_single_component_can_be_asked_for_even_when_set_by_hand()
+    {
+        $vehicle = $this->vehicle();
+        $this->patch(route('maintenance-plan.update', 'spark_plugs'), ['active' => true, 'interval_km' => 90000, 'interval_months' => null]);
+
+        MaintenancePlanAdvisor::fake([['components' => [
+            ['key' => 'spark_plugs', 'applies' => true, 'interval_km' => 60000, 'interval_months' => 48, 'note' => 'Volgens schema'],
+        ]]]);
+
+        $this->post(route('maintenance-plan.propose-one', 'spark_plugs'))->assertRedirect();
+
+        $plugs = VehicleComponent::where('key', 'spark_plugs')->sole();
+        $this->assertSame([60000, 48, VehicleComponent::AI], [$plugs->interval_km, $plugs->interval_months, $plugs->source]);
+        // Only this component was asked for.
+        MaintenancePlanAdvisor::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'spark_plugs') && ! str_contains($prompt->prompt, 'cabin_filter'));
+        $this->assertSame(1, VehicleComponent::where('vehicle_id', $vehicle->id)->count());
+    }
+
     public function test_the_tasks_are_sorted_out_but_only_stored_when_the_owner_saves()
     {
         $vehicle = $this->vehicle();

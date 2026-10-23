@@ -66,6 +66,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('maintenance-plan/assign', [MaintenancePlanController::class, 'assign'])->name('maintenance-plan.assign');
         Route::patch('maintenance-plan/{key}', [MaintenancePlanController::class, 'update'])->name('maintenance-plan.update');
         Route::post('maintenance-plan/{key}/done', [MaintenancePlanController::class, 'done'])->name('maintenance-plan.done');
+        Route::post('maintenance-plan/{key}/propose', [MaintenancePlanController::class, 'proposeOne'])->name('maintenance-plan.propose-one');
 
         $records = [
             'maintenances' => MaintenanceController::class,
