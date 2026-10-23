@@ -15,6 +15,8 @@ import FuelAdvice from '@/components/FuelAdvice.vue';
 import type { FuelAdviceData } from '@/components/FuelAdvice.vue';
 import FuelPricesChart from '@/components/FuelPricesChart.vue';
 import LicensePlate from '@/components/LicensePlate.vue';
+import MonthlySummary from '@/components/MonthlySummary.vue';
+import type { MonthlySummaryData } from '@/components/MonthlySummary.vue';
 import PeriodFilter from '@/components/PeriodFilter.vue';
 import SectionCard from '@/components/SectionCard.vue';
 import { Button } from '@/components/ui/button';
@@ -108,6 +110,7 @@ const props = defineProps<{
             prices: Record<string, FuelPrice>;
         }[];
     };
+    monthlySummary?: MonthlySummaryData;
     vehicleAdvice?: VehicleAdviceData;
     // Null for a vehicle that does not use fuel.
     fuelAdvice?: FuelAdviceData | null;
@@ -541,6 +544,12 @@ const label = (key: string) => {
             @reset="resetFilters"
         />
 
+        <!-- Always of the month, whatever the period filter says: it has a badge of its own. -->
+        <Deferred data="monthlySummary">
+            <template #fallback><Skeleton class="h-40 w-full" /></template>
+            <MonthlySummary v-if="monthlySummary" :data="monthlySummary" />
+        </Deferred>
+
         <Deferred data="stats">
             <template #fallback><Skeleton class="h-56 w-full" /></template>
             <div
@@ -608,102 +617,124 @@ const label = (key: string) => {
                 </Deferred>
             </SectionCard>
 
-            <SectionCard :title="t('Average monthly costs')">
-                <Deferred data="averageMonthlyCosts">
-                    <template #fallback
-                        ><Skeleton class="h-40 w-full"
-                    /></template>
-                    <ul
-                        v-if="averageMonthlyCosts?.length"
-                        class="flex flex-col gap-3.5"
-                    >
-                        <li
-                            v-for="cost in averageMonthlyCosts"
-                            :key="cost.label"
-                            class="flex flex-col gap-1.5"
+            <div class="flex flex-col gap-4">
+                <SectionCard :title="t('Average monthly costs')">
+                    <Deferred data="averageMonthlyCosts">
+                        <template #fallback
+                            ><Skeleton class="h-40 w-full"
+                        /></template>
+                        <ul
+                            v-if="averageMonthlyCosts?.length"
+                            class="flex flex-col gap-3.5"
                         >
-                            <div class="flex items-center gap-2 text-sm">
-                                <AppIcon
-                                    :name="cost.icon"
-                                    class="size-4 shrink-0 text-muted-foreground"
-                                />
-                                <span class="min-w-0 flex-1">{{
-                                    cost.label
-                                }}</span>
-                                <span class="font-semibold tabular-nums">
-                                    {{ cost.amount }}
-                                </span>
-                            </div>
-                            <div
-                                class="h-1.5 overflow-hidden rounded-full bg-muted"
-                                aria-hidden="true"
+                            <li
+                                v-for="cost in averageMonthlyCosts"
+                                :key="cost.label"
+                                class="flex flex-col gap-1.5"
                             >
+                                <div class="flex items-center gap-2 text-sm">
+                                    <AppIcon
+                                        :name="cost.icon"
+                                        class="size-4 shrink-0 text-muted-foreground"
+                                    />
+                                    <span class="min-w-0 flex-1">{{
+                                        cost.label
+                                    }}</span>
+                                    <span class="font-semibold tabular-nums">
+                                        {{ cost.amount }}
+                                    </span>
+                                </div>
                                 <div
-                                    class="h-full rounded-full"
-                                    :style="{
-                                        width: `${Math.max(cost.share, 1.5)}%`,
-                                        background: `var(--chart-series-${(cost.key % 14) + 1})`,
-                                    }"
-                                />
+                                    class="h-1.5 overflow-hidden rounded-full bg-muted"
+                                    aria-hidden="true"
+                                >
+                                    <div
+                                        class="h-full rounded-full"
+                                        :style="{
+                                            width: `${Math.max(cost.share, 1.5)}%`,
+                                            background: `var(--chart-series-${(cost.key % 14) + 1})`,
+                                        }"
+                                    />
+                                </div>
+                            </li>
+                        </ul>
+                        <p v-else class="text-sm text-muted-foreground">
+                            {{ t('Nothing to show') }}
+                        </p>
+                    </Deferred>
+                </SectionCard>
+
+                <SectionCard :title="t('Most recent costs')" flush>
+                    <Deferred data="latestCosts">
+                        <template #fallback>
+                            <div class="p-4">
+                                <Skeleton class="h-24 w-full" />
                             </div>
-                        </li>
-                    </ul>
-                    <p v-else class="text-sm text-muted-foreground">
-                        {{ t('Nothing to show') }}
-                    </p>
-                </Deferred>
-            </SectionCard>
+                        </template>
+                        <ul
+                            v-if="latestCosts?.length"
+                            class="max-h-112 divide-y overflow-y-auto"
+                        >
+                            <li v-for="cost in latestCosts" :key="cost.key">
+                                <Link
+                                    :href="cost.url"
+                                    class="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-muted/60"
+                                >
+                                    <span
+                                        class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted"
+                                    >
+                                        <AppIcon
+                                            :name="cost.icon"
+                                            class="size-5"
+                                        />
+                                    </span>
+                                    <span class="flex min-w-0 flex-1 flex-col">
+                                        <span class="truncate font-semibold">
+                                            {{ cost.item || cost.type }}
+                                        </span>
+                                        <span
+                                            class="text-xs text-muted-foreground"
+                                        >
+                                            {{ cost.type }} · {{ cost.date }}
+                                        </span>
+                                    </span>
+                                    <span
+                                        class="font-semibold whitespace-nowrap tabular-nums"
+                                    >
+                                        {{ cost.price }}
+                                    </span>
+                                </Link>
+                            </li>
+                        </ul>
+                        <p v-else class="p-4 text-sm text-muted-foreground">
+                            {{
+                                filters.start && filters.end
+                                    ? t('No costs in this period')
+                                    : t('No costs this month')
+                            }}
+                        </p>
+                    </Deferred>
+                </SectionCard>
+            </div>
         </div>
+
+        <!-- The period filter of the statistics applies here too. -->
+        <h2
+            class="flex flex-wrap items-center gap-2 pt-2 text-lg font-semibold"
+        >
+            {{ usesFuel ? t('Fuel') : t('Energy') }}
+            <span
+                v-if="periodLabel"
+                class="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+            >
+                {{ periodLabel }}
+            </span>
+        </h2>
 
         <div
             class="grid items-start gap-4 xl:grid-cols-2"
             :class="{ 'opacity-60': filtering }"
         >
-            <SectionCard :title="t('Most recent costs')" flush>
-                <Deferred data="latestCosts">
-                    <template #fallback>
-                        <div class="p-4"><Skeleton class="h-24 w-full" /></div>
-                    </template>
-                    <ul
-                        v-if="latestCosts?.length"
-                        class="max-h-112 divide-y overflow-y-auto"
-                    >
-                        <li v-for="cost in latestCosts" :key="cost.key">
-                            <Link
-                                :href="cost.url"
-                                class="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-muted/60"
-                            >
-                                <span
-                                    class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted"
-                                >
-                                    <AppIcon :name="cost.icon" class="size-5" />
-                                </span>
-                                <span class="flex min-w-0 flex-1 flex-col">
-                                    <span class="truncate font-semibold">
-                                        {{ cost.item || cost.type }}
-                                    </span>
-                                    <span class="text-xs text-muted-foreground">
-                                        {{ cost.type }} · {{ cost.date }}
-                                    </span>
-                                </span>
-                                <span
-                                    class="font-semibold whitespace-nowrap tabular-nums"
-                                >
-                                    {{ cost.price }}
-                                </span>
-                            </Link>
-                        </li>
-                    </ul>
-                    <p v-else class="p-4 text-sm text-muted-foreground">
-                        {{
-                            filters.start && filters.end
-                                ? t('No costs in this period')
-                                : t('No costs this month')
-                        }}
-                    </p>
-                </Deferred>
-            </SectionCard>
-
             <SectionCard :title="t('Top gas stations')" flush>
                 <template #actions>
                     <div

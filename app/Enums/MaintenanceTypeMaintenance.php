@@ -13,6 +13,9 @@ enum MaintenanceTypeMaintenance: string implements HasLabel
     case Maintenance = 'maintenance';
     case SmallMaintenance = 'small_maintenance';
     case BigMaintenance = 'big_maintenance';
+    case OilService = 'oil_service';
+    case InspectionService = 'inspection_service';
+    case Longlife = 'longlife';
 
     public function getLabel(): string
     {
@@ -22,6 +25,9 @@ enum MaintenanceTypeMaintenance: string implements HasLabel
             self::Maintenance => __('Maintenance'),
             self::SmallMaintenance => __('Small maintenance'),
             self::BigMaintenance => __('Big maintenance'),
+            self::OilService => __('Oil service'),
+            self::InspectionService => __('Inspection service'),
+            self::Longlife => __('Longlife service'),
         };
     }
 }

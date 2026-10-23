@@ -26,7 +26,7 @@ use Throwable;
 class VehicleAdviceService
 {
     /** The language the advice is written in, by locale: addressed as the interface does. */
-    private const LANGUAGES = [
+    public const LANGUAGES = [
         'en' => 'English',
         'nl' => 'Dutch, addressing the owner informally ("je")',
         'de' => 'German, addressing the owner formally ("Sie")',

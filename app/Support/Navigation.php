@@ -27,6 +27,7 @@ class Navigation
             ]],
             ['label' => __('Maintenance'), 'items' => [
                 $item(__('Maintenance & repairs'), 'maintenances.index', 'mdi:car-wrench'),
+                $item(__('Maintenance plan'), 'maintenance-plan', 'mdi:clipboard-list-outline'),
                 $item(__('Reconditioning & washing'), 'reconditionings.index', 'mdi:car-wash'),
                 $item(__('Accidents & damage'), 'accidents.index', 'fa7-solid:car-burst'),
                 $item(__('Products & accessory'), 'products.index', 'mdi:oil'),
@@ -89,6 +90,20 @@ class Navigation
             'Refueled on :date in :country for :price.',
             ':difference below the average price at the time of the advice (:average): :savings saved.',
             ':difference above the average price at the time of the advice (:average): :savings more.',
+            // The maintenance plan.
+            'Maintenance plan', 'Propose the intervals again', 'Fit the plan to your vehicle',
+            'The intervals below are the usual ones. Have them proposed for the make, model and engine of your vehicle; the ones you change yourself are kept.',
+            'Propose intervals', 'Check the components of your tasks',
+            'These components were found in the tasks of your maintenance history. Untick what is not right; nothing is stored before you save.',
+            'Link your maintenance history',
+            ':count tasks of your maintenance history are not linked to a component yet. Have them sorted out, and check the result before it is stored.',
+            'Sort out tasks', 'Components', 'Proposed for your vehicle', 'Set by you', 'Usual interval', 'Every :interval', 'Last:',
+            'Not recorded yet: check it, or fill in when it was done.', 'Next:', 'at :km', 'Not on this vehicle', 'Add to the plan',
+            'Interval (km)', 'Interval (months)', 'Last done', 'At (km)',
+            'Done before it was recorded here? Fill in when; a later maintenance with this component goes first.',
+            // The summary of the month.
+            'The summary is being written…', 'Nothing has been recorded this month yet.', 'Coming up',
+            'Nothing is due in the coming :days days.',
             // The tips.
             'Tips', 'Generate tips', 'The tips have just been generated.',
             'Get tips on maintenance, costs and the season, based on everything that is known about this vehicle.',

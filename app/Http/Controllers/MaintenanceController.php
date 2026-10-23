@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Enums\MaintenanceTypeMaintenance;
 use App\Forms\MaintenanceForm;
 use App\Models\Maintenance;
+use App\Services\MaintenancePlanService;
 use App\Support\Html;
 use App\Support\VehiclePresenter;
 use App\Tables\MaintenancesTable;
@@ -123,6 +124,9 @@ class MaintenanceController extends VehicleRecordController
                         MaintenanceTypeMaintenance::Maintenance => 'mdi:car-wrench',
                         MaintenanceTypeMaintenance::SmallMaintenance => 'mdi:oil',
                         MaintenanceTypeMaintenance::BigMaintenance => 'mdi:engine',
+                        MaintenanceTypeMaintenance::OilService => 'mdi:oil-level',
+                        MaintenanceTypeMaintenance::InspectionService => 'mdi:clipboard-check-outline',
+                        MaintenanceTypeMaintenance::Longlife => 'mdi:history',
                         default => 'ic:round-close',
                     })],
                     ['label' => __('MOT'), 'html' => Html::badge($maintenance->apk ? __('MOT') : __('No MOT'), icon: $maintenance->apk ? 'ic:baseline-security' : 'ic:round-close')],
@@ -133,7 +137,13 @@ class MaintenanceController extends VehicleRecordController
                     ['label' => __('Payment method'), 'value' => $maintenance->payment_method?->getLabel() ?? __('None')],
                     ...collect($maintenance->tasks ?? [])
                         ->filter(fn ($task) => filled($task['task'] ?? null))
-                        ->map(fn ($task) => ['label' => $task['task'], 'value' => $money($task['price'] ?? 0), 'icon' => ($task['icon'] ?? null) ?: 'mdi:car-wrench'])
+                        ->map(fn ($task) => [
+                            'label' => $task['task'],
+                            'value' => $money($task['price'] ?? 0),
+                            // The icon of the first component it serviced, for the maintenance plan.
+                            'icon' => config('maintenance_plan.components.'.(MaintenancePlanService::componentsOf($task)[0] ?? '').'.icon')
+                                ?: (($task['icon'] ?? null) ?: 'mdi:car-wrench'),
+                        ])
                         ->values()
                         ->all(),
                 ]],

@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace App\Ai;
 
+use Closure;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Ai;
+use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Exceptions\InsufficientCreditsException;
 use Laravel\Ai\Providers\Provider;
+use Laravel\Ai\Responses\StructuredAgentResponse;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -47,6 +52,41 @@ class ApiKeys
         return $key === null
             ? $provider
             : Ai::build([...config('ai.providers.'.$provider, []), 'key' => $key]);
+    }
+
+    /**
+     * Asks an agent with every key, in random order, until one gives a
+     * structured answer.
+     *
+     * @param  Closure(string|null): Agent  $agent  The agent with a key.
+     *
+     * @throws Throwable The last failure, when no key gave an answer.
+     */
+    public static function ask(string $provider, Closure $agent, string $question): StructuredAgentResponse
+    {
+        $failure = null;
+
+        foreach (self::shuffled($provider) as $number => $key) {
+            try {
+                $response = $agent($key)->prompt($question);
+
+                if (! $response instanceof StructuredAgentResponse) {
+                    throw new RuntimeException('The agent gave no structured answer.');
+                }
+
+                return $response;
+            } catch (Throwable $exception) {
+                $failure = $exception;
+
+                Log::warning('An AI agent failed, trying the next key', [
+                    'agent' => $agent(null)::class,
+                    'key' => $key === null ? null : $number + 1,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+        }
+
+        throw $failure;
     }
 
     /**

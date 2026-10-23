@@ -7,10 +7,12 @@ namespace App\Forms;
 use App\Enums\MaintenancePaymentMethod;
 use App\Enums\MaintenanceTypeMaintenance;
 use App\Forms\Fields\Heading;
+use App\Services\MaintenancePlanService;
 use App\Traits\MaintenanceTypeOptions;
 use TranquilTools\FormBuilder\Fields\Hidden;
 use TranquilTools\FormBuilder\Fields\Number;
 use TranquilTools\FormBuilder\Fields\Repeater;
+use TranquilTools\FormBuilder\Fields\Select;
 use TranquilTools\FormBuilder\Fields\Submit;
 use TranquilTools\FormBuilder\Fields\Text;
 use TranquilTools\FormBuilder\Fields\Textarea;
@@ -41,6 +43,9 @@ class MaintenanceForm extends VehicleRecordForm
                 MaintenanceTypeMaintenance::Maintenance,
                 MaintenanceTypeMaintenance::SmallMaintenance,
                 MaintenanceTypeMaintenance::BigMaintenance,
+                MaintenanceTypeMaintenance::OilService,
+                MaintenanceTypeMaintenance::InspectionService,
+                MaintenanceTypeMaintenance::Longlife,
             ])),
             Toggle::make('apk')
                 ->label(__('MOT'))
@@ -62,6 +67,12 @@ class MaintenanceForm extends VehicleRecordForm
                         ->label(__('Task'))
                         ->rules(['nullable', 'string', 'max:255']),
                     $this->money('price', __('Price')),
+                    // What the task replaced or serviced, for the maintenance plan.
+                    Select::make('components')
+                        ->label(__('Components'))
+                        ->multiple()
+                        ->options(MaintenancePlanService::options($this->vehicle()))
+                        ->rules(['nullable', 'array']),
                     Hidden::make('icon'),
                 ])
                 ->rules(['nullable']),

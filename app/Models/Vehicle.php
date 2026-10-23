@@ -87,7 +87,7 @@ class Vehicle extends Model
     ];
 
     /** The maintenance that restarts the maintenance interval. */
-    public const MAINTENANCE_TYPES = ['small_maintenance', 'maintenance', 'big_maintenance'];
+    public const MAINTENANCE_TYPES = ['small_maintenance', 'maintenance', 'big_maintenance', 'oil_service', 'inspection_service', 'longlife'];
 
     private static array $monthlyCostsCache = [];
 
@@ -396,8 +396,8 @@ class Vehicle extends Model
 
     public function getLiquidsCheckStatusAttribute(): array
     {
-        if ($this->maintenances->where('type_maintenance', 'liquids_check')->isNotEmpty()) {
-            $latest = $this->maintenances->where('type_maintenance', 'liquids_check')->sortByDesc('date')->first();
+        if ($this->maintenances->where('type_maintenance', MaintenanceTypeMaintenance::LiquidsChecked->value)->isNotEmpty()) {
+            $latest = $this->maintenances->where('type_maintenance', MaintenanceTypeMaintenance::LiquidsChecked->value)->sortByDesc('date')->first();
 
             $date = Carbon::parse($latest->date)->addMonths(2);
             $timeTillDiff = $date->diffInDays(now());
@@ -957,6 +957,22 @@ class Vehicle extends Model
     public function vehicleAdvices(): HasMany
     {
         return $this->hasMany(VehicleAdvice::class);
+    }
+
+    /**
+     * @return HasMany<VehicleSummary, $this>
+     */
+    public function vehicleSummaries(): HasMany
+    {
+        return $this->hasMany(VehicleSummary::class);
+    }
+
+    /**
+     * @return HasMany<VehicleComponent, $this>
+     */
+    public function components(): HasMany
+    {
+        return $this->hasMany(VehicleComponent::class);
     }
 
     /**
