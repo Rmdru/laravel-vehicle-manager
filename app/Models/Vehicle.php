@@ -154,12 +154,20 @@ class Vehicle extends Model
         return str_replace([' ', '-', '+'], '', strtoupper($this->license_plate));
     }
 
+    /**
+     * The days left before the E10 in the tank is too old, two months after
+     * the date of the fuel. Only when the latest refueling was E10 (Unleaded 95
+     * or Super Plus), and not before a full tank was refueled in all: a new
+     * vehicle came with fuel of its own.
+     */
     public function getFuelStatusAttribute(): ?array
     {
-        $latestRefueling = $this->refuelings->sortBy([['date', 'desc'], ['created_at', 'desc']])->first();
+        $refuelings = $this->refuelings->sortBy([['date', 'desc'], ['created_at', 'desc']])->values();
+        $latestRefueling = $refuelings->first();
 
-        if (! empty($latestRefueling) && str($latestRefueling->fuel_type)->contains('E10', true)) {
-            $diff = Carbon::parse($latestRefueling->date)->addMonths(2)->diffInDays(now());
+        if (! empty($latestRefueling) && str($latestRefueling->fuel_type)->contains('E10', true)
+            && ($fuelDate = $this->fuelDate($refuelings)) !== null) {
+            $diff = $fuelDate->addMonths(2)->diffInDays(now());
 
             return [
                 'time' => (int) max(0, $diff - ($diff * 2)),
@@ -167,6 +175,37 @@ class Vehicle extends Model
         }
 
         return [];
+    }
+
+    /**
+     * The date of the fuel in the tank: of the latest refueling from which on
+     * at least a full tank of gasoline was refueled. A little topped up does
+     * not make the old fuel in the tank new. Without a tank capacity the
+     * latest refueling; null as long as no full tank was refueled in all.
+     *
+     * @param  Collection<int, Refueling>  $refuelings  Newest first.
+     */
+    private function fuelDate(Collection $refuelings): ?Carbon
+    {
+        if (! $this->tank_capacity) {
+            return Carbon::parse($refuelings->first()->date);
+        }
+
+        $gasoline = [...PremiumFuel::REGULAR_GASOLINE, ...PremiumFuel::PREMIUM_GASOLINE];
+        $liters = 0.0;
+
+        foreach ($refuelings as $refueling) {
+            // E5 as well: it thins out the old E10 just the same.
+            if (in_array($refueling->fuel_type, $gasoline, true)) {
+                $liters += (float) $refueling->amount;
+            }
+
+            if ($liters >= $this->tank_capacity) {
+                return Carbon::parse($refueling->date);
+            }
+        }
+
+        return null;
     }
 
     public function getPeriodicSuperPlusAttribute(): array
