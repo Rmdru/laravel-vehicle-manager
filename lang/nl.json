@@ -1052,5 +1052,6 @@
     "Next charge": "Volgende laadbeurt",
     "Tomorrow": "Morgen",
     "± :percentage% in the tank": "± :percentage% in de tank",
-    "± :percentage% in the battery": "± :percentage% in de accu"
+    "± :percentage% in the battery": "± :percentage% in de accu",
+    ":distance km ago (:timeTillDistanceDeadlineHumans)": ":distance km geleden (:timeTillDistanceDeadlineHumans)"
 }

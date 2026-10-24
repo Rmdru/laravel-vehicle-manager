@@ -70,7 +70,7 @@ class DashboardTest extends TestCase
         $this->assertSame('Now', $statuses()['Next refueling']['primary']);
     }
 
-    public function test_a_maintenance_past_its_distance_is_due_now_not_in_negative_kilometers()
+    public function test_a_maintenance_past_its_distance_shows_how_far_and_long_ago()
     {
         $this->travelTo('2026-10-24 12:00:00');
         $vehicle = $this->signInWithVehicle([
@@ -82,7 +82,9 @@ class DashboardTest extends TestCase
 
         $status = collect(app(DashboardService::class)->statuses($vehicle->fresh()))->firstWhere('title', 'Maintenance');
 
-        $this->assertSame('Now', $status['primary']);
+        // 15.000 km after 78.000 km, at 95.000 km now.
+        $this->assertStringStartsWith('2.000 km ago (', $status['primary']);
+        $this->assertStringEndsWith(' ago)', $status['primary']);
         $this->assertSame('6 months from now', $status['secondary']);
     }
 
