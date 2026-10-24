@@ -8,6 +8,7 @@ use App\Services\DashboardService;
 use App\Services\FuelAdviceService;
 use App\Services\MonthlySummaryService;
 use App\Services\NotificationCenter;
+use App\Services\PowertrainComparisonService;
 use App\Services\VehicleAdviceService;
 use App\Support\Cost;
 use App\Support\CurrentVehicle;
@@ -24,7 +25,7 @@ class DashboardController extends Controller
     /** Minutes between two refreshes of the fuel prices, at least. */
     private const REFRESH_FUEL_PRICES_EVERY = 5;
 
-    public function __invoke(Request $request, DashboardService $dashboard, FuelAdviceService $fuelAdvice, VehicleAdviceService $vehicleAdvice, MonthlySummaryService $monthlySummary, NotificationCenter $notifications): Response
+    public function __invoke(Request $request, DashboardService $dashboard, FuelAdviceService $fuelAdvice, VehicleAdviceService $vehicleAdvice, MonthlySummaryService $monthlySummary, NotificationCenter $notifications, PowertrainComparisonService $powertrainComparison): Response
     {
         $vehicle = CurrentVehicle::get();
 
@@ -62,6 +63,8 @@ class DashboardController extends Controller
             'averageMonthlyCosts' => Inertia::defer(fn () => $dashboard->averageMonthlyCostsByType($vehicle, $start, $end, $costTypes), 'costs'),
             'costsChart' => Inertia::defer(fn () => $dashboard->costsChart($vehicle, $start, $end, $costTypes), 'costs'),
             'latestCosts' => Inertia::defer(fn () => $dashboard->latestCosts($vehicle, $start, $end, $costTypes), 'costs'),
+            // Of the past year and today's prices, whatever the period filter says.
+            'powertrainComparison' => Inertia::defer(fn () => $powertrainComparison->forDashboard($vehicle), 'comparison'),
         ]);
     }
 

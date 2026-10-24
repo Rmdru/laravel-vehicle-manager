@@ -1016,6 +1016,14 @@ class Vehicle extends Model
     }
 
     /**
+     * @return HasMany<PowertrainComparison, $this>
+     */
+    public function powertrainComparisons(): HasMany
+    {
+        return $this->hasMany(PowertrainComparison::class);
+    }
+
+    /**
      * @return HasMany<VehicleComponent, $this>
      */
     public function components(): HasMany
