@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Enums\BodyType;
 use App\Enums\VehicleStatus;
 use App\Forms\VehicleForm;
 use App\Http\Middleware\ResolveCurrentVehicle;
@@ -107,6 +108,8 @@ class VehicleController extends Controller
                     ['label' => __('Model'), 'value' => $vehicle->model, 'icon' => 'ic:round-directions-car-filled'],
                     ['label' => __('Version'), 'value' => $vehicle->version, 'icon' => 'ic:baseline-star'],
                     ['label' => __('Engine'), 'value' => $vehicle->engine ?: $unknown, 'icon' => 'mdi:engine'],
+                    ['label' => __('Power'), 'value' => filled($vehicle->power_hp) ? $vehicle->power_hp.' '.__('hp') : $unknown, 'icon' => 'mdi:speedometer'],
+                    ['label' => __('Body type'), 'value' => BodyType::tryFrom((string) $vehicle->body_type)?->getLabel() ?? $unknown, 'icon' => 'mdi:car-side'],
                     ['label' => __('Powertrain'), 'value' => trans('powertrains')[$vehicle->powertrain]['name'] ?? $unknown, 'icon' => 'ic:baseline-local-gas-station'],
                     ['label' => __('Compatible fuel types'), 'html' => collect($vehicle->fuel_types)
                         ->map(fn ($type) => Html::badge($fuelTypes[$type] ?? (string) $type))
@@ -280,6 +283,8 @@ class VehicleController extends Controller
                 'model' => ucfirst(strtolower($vehicleData['handelsbenaming'] ?? '')),
                 'version' => ucfirst(strtolower($vehicleData['type'] ?? '')),
                 'engine' => $engine,
+                'power_hp' => $rdwService->getPowerHp($fuelData),
+                'body_type' => $rdwService->getBodyType($vehicleData)?->value,
                 'purchase_date' => $date($vehicleData['datum_tenaamstelling'] ?? null),
                 'construction_date' => $date($vehicleData['datum_eerste_toelating'] ?? null),
                 'country_registration' => 'netherlands',
@@ -324,7 +329,7 @@ class VehicleController extends Controller
     private function formData(Vehicle $vehicle): array
     {
         $data = $vehicle->only([
-            'license_plate', 'brand', 'model', 'version', 'engine', 'powertrain', 'fuel_types', 'tank_capacity',
+            'license_plate', 'brand', 'model', 'version', 'engine', 'power_hp', 'body_type', 'powertrain', 'fuel_types', 'tank_capacity',
             'maintenance_intervals', 'mileage_start', 'purchase_price',
             'country_registration', 'status', 'specifications',
         ]);

@@ -47,6 +47,8 @@ class Vehicle extends Model
         'model',
         'version',
         'engine',
+        'power_hp',
+        'body_type',
         'mileage_start',
         'mileage_latest',
         'purchase_date',

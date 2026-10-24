@@ -71,6 +71,9 @@ class ImportVehicleData extends Command
         $rdwData['ownership_changed_at'] = $this->ownershipChange($previous, $rdwData) ?? ($previous['ownership_changed_at'] ?? null);
 
         $vehicle->rdw_data = $rdwData;
+        // Where the RDW can tell them; what the owner filled in is left alone.
+        $vehicle->body_type ??= $this->rdwService->getBodyType($rdwData)?->value;
+        $vehicle->power_hp ??= $this->rdwService->getPowerHp($rdwData['fuel']);
 
         // A status set by the user (sold, stolen, ...) is left alone.
         if (VehicleStatus::tryFrom((string) $vehicle->status)?->isManagedByRdw() ?? true) {

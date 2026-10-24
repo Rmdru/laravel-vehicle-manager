@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Forms;
 
+use App\Enums\BodyType;
 use App\Enums\VehicleStatus;
 use App\Forms\Fields\Heading;
 use App\Models\Vehicle;
@@ -44,7 +45,10 @@ class VehicleForm extends VehicleRecordForm
             Heading::make(__('Basic')),
             Select::make('brand')
                 ->label(__('Brand'))
+                // A list, to keep the brands in alphabetical order rather than by their key.
                 ->options(collect($brands)->map(fn (string $name, int $key) => ['value' => $key, 'label' => $name])->values())
+                ->optionValue('value')
+                ->optionLabel('label')
                 ->searchable()
                 ->rules(['required', Rule::in(array_keys($brands))]),
             Text::make('model')
@@ -59,6 +63,18 @@ class VehicleForm extends VehicleRecordForm
                 ->label(__('Engine'))
                 ->maxLength(50)
                 ->rules(['nullable', 'string']),
+            Number::make('power_hp')
+                ->label(__('Power'))
+                ->append(__('hp'))
+                ->minValue(1)
+                ->help(__('Of a hybrid the system power: the engine and the electric motor together.'))
+                ->rules(['nullable', 'integer', 'min:1', 'max:2000']),
+            Select::make('body_type')
+                ->label(__('Body type'))
+                ->options($this->enumOptions(BodyType::class))
+                ->attributes(['clearable' => true, 'clearLabel' => trans('form-builder::fields.clear')])
+                ->help(__('The alternative powertrains are compared in the same body type.'))
+                ->rules(['nullable', Rule::enum(BodyType::class)]),
             Select::make('powertrain')
                 ->label(__('Powertrain'))
                 ->options($powertrains)

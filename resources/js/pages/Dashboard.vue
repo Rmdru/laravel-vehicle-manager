@@ -422,29 +422,41 @@ const label = (key: string) => {
                 <template #fallback>
                     <Skeleton class="h-24 flex-1 basis-72" />
                 </template>
-                <div
+                <!-- A row per status, so that the block stays as high as the photo with three or four of them. -->
+                <ul
                     v-if="statuses?.length"
-                    class="grid flex-1 basis-72 content-center gap-3 sm:grid-cols-2"
+                    class="flex-1 basis-72 self-center divide-y rounded-lg border"
                 >
-                    <div
+                    <li
                         v-for="status in statuses"
                         :key="status.title"
-                        class="rounded-lg border p-3.5"
+                        class="flex items-center gap-3 px-3.5 py-2.5"
                     >
-                        <div
-                            class="flex items-center gap-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase"
+                        <AppIcon
+                            :name="status.icon"
+                            class="size-4 shrink-0 text-muted-foreground"
+                        />
+                        <span
+                            class="shrink-0 text-sm whitespace-nowrap text-muted-foreground"
                         >
-                            <AppIcon :name="status.icon" class="size-4" />
                             {{ status.title }}
-                        </div>
-                        <div class="mt-1 text-lg leading-snug font-semibold">
-                            {{ status.primary }}
-                        </div>
-                        <div class="text-sm text-muted-foreground">
-                            {{ status.secondary }}
-                        </div>
-                    </div>
-                </div>
+                        </span>
+                        <!-- On a phone the value wraps, not the name of the status. -->
+                        <span class="min-w-0 flex-1 text-right">
+                            <span
+                                class="block text-sm leading-snug font-semibold"
+                            >
+                                {{ status.primary }}
+                            </span>
+                            <span
+                                v-if="status.secondary"
+                                class="block text-xs text-muted-foreground"
+                            >
+                                {{ status.secondary }}
+                            </span>
+                        </span>
+                    </li>
+                </ul>
             </Deferred>
         </section>
 

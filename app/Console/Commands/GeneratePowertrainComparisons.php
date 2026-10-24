@@ -24,18 +24,11 @@ class GeneratePowertrainComparisons extends Command
         $asked = false;
         $countries = [];
 
-        // The free tier allows only so many requests per minute.
-        $pause = function () use (&$asked) {
-            if ($asked) {
-                Sleep::for(config('powertrain_comparison.pause_between'))->seconds();
-            }
-        };
-
         Vehicle::query()
             ->where('status', VehicleStatus::Drivable->value)
             ->whereHas('user', fn ($query) => $query->recentlyLoggedIn())
             ->with('user')
-            ->chunkById(50, function ($vehicles) use ($comparisons, $facts, $pause, &$asked, &$countries) {
+            ->chunkById(50, function ($vehicles) use ($comparisons, $facts, &$asked, &$countries) {
                 foreach ($vehicles as $vehicle) {
                     $locale = $vehicle->user->language ?: config('app.locale');
                     $country = $vehicle->country_registration ?: 'netherlands';
@@ -43,12 +36,12 @@ class GeneratePowertrainComparisons extends Command
                     try {
                         if (! isset($countries[$country])) {
                             $countries[$country] = true;
-                            $pause();
+                            $this->pause($asked);
                             $asked = $facts->estimatePrices($country);
                         }
 
                         if ($comparisons->outdated($vehicle, $locale)) {
-                            $pause();
+                            $this->pause($asked);
                             $asked = true;
                             $comparisons->generate($vehicle, $locale);
                         }
@@ -64,5 +57,13 @@ class GeneratePowertrainComparisons extends Command
             });
 
         $this->info('Powertrain comparisons generated');
+    }
+
+    /** The free tier allows only so many requests per minute. */
+    private function pause(bool $asked): void
+    {
+        if ($asked) {
+            Sleep::for(config('powertrain_comparison.pause_between'))->seconds();
+        }
     }
 }
