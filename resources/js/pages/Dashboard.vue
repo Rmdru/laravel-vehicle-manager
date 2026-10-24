@@ -18,6 +18,8 @@ import LicensePlate from '@/components/LicensePlate.vue';
 import MonthlySummary from '@/components/MonthlySummary.vue';
 import type { MonthlySummaryData } from '@/components/MonthlySummary.vue';
 import PeriodFilter from '@/components/PeriodFilter.vue';
+import PowertrainComparison from '@/components/PowertrainComparison.vue';
+import type { PowertrainComparisonData } from '@/components/PowertrainComparison.vue';
 import SectionCard from '@/components/SectionCard.vue';
 import { Button } from '@/components/ui/button';
 import {
@@ -156,6 +158,7 @@ const props = defineProps<{
         labels: string[];
         series: { key: number; label: string; data: number[] }[];
     };
+    powertrainComparison?: PowertrainComparisonData;
     latestCosts?: {
         key: string;
         type: string;
@@ -1214,6 +1217,15 @@ const label = (key: string) => {
                 </SectionCard>
             </template>
         </div>
+
+        <!-- Of the past year and today's prices: the period filter does not apply. -->
+        <Deferred data="powertrainComparison">
+            <template #fallback><Skeleton class="h-24 w-full" /></template>
+            <PowertrainComparison
+                v-if="powertrainComparison"
+                :data="powertrainComparison"
+            />
+        </Deferred>
 
         <!-- At the pump the phone is in one hand: adding a refueling is one tap away. -->
         <div

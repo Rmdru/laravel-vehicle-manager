@@ -70,9 +70,12 @@ class MaintenancePlanAdvisor implements Agent, HasStructuredOutput
               front and the rear: on a front wheel drive the front ones go first.
               The washer fluid is topped up rather than replaced: give how often to check it, with winter fluid
               before the frost.
-              Electric vehicles need maintenance too: the cabin filter, the brake fluid, the coolant
-              of the battery and the 12 volt battery do apply to them. Regenerative braking makes brake pads last
-              longer, not forever.
+              Electric vehicles are not maintenance free, their maintenance is different: the cabin filter (often
+              their only filter), the brake fluid, the coolant of the battery, the oil of the reduction gear where
+              the manufacturer gives an interval, the air conditioning (often a heat pump) and the 12 volt battery,
+              which fails as often as in other cars, do apply to them. Their weight and torque wear the tires and
+              the suspension faster. Regenerative braking leaves the brakes mostly unused, so the pads last long but
+              the discs rust and the calipers seize: give the brakes a time interval too.
             - interval_km and interval_months: the interval of the manufacturer, whichever comes first; 0 for no
               interval of that kind. Where a variable (longlife) schedule applies, give its usual maximum.
             - note: why, in one short sentence of at most 120 characters, written in {$this->language}; such as "Ketting:

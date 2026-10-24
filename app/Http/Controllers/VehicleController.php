@@ -8,6 +8,7 @@ use App\Enums\VehicleStatus;
 use App\Forms\VehicleForm;
 use App\Http\Middleware\ResolveCurrentVehicle;
 use App\Models\Vehicle;
+use App\Services\PowertrainComparisonService;
 use App\Services\RdwService;
 use App\Services\VehicleStatusService;
 use App\Support\CurrentVehicle;
@@ -76,6 +77,7 @@ class VehicleController extends Controller
 
         $this->storeImage($vehicle, $request->file('image'));
         $request->session()->put(ResolveCurrentVehicle::SESSION_KEY, $vehicle->id);
+        $this->chooseAlternatives($vehicle);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __(':name created.', ['name' => __('Vehicle')])]);
 
@@ -183,10 +185,26 @@ class VehicleController extends Controller
         $vehicle->update($this->attributes($request->validate(VehicleForm::rules())));
 
         $this->storeImage($vehicle, $request->file('image'));
+        $this->chooseAlternatives($vehicle);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __(':name updated.', ['name' => __('Vehicle')])]);
 
         return to_route('vehicles.index');
+    }
+
+    /**
+     * Has the alternative powertrains chosen after the response, in the
+     * language of the owner, when the vehicle is new or what they depend on
+     * changed.
+     */
+    private function chooseAlternatives(Vehicle $vehicle): void
+    {
+        $comparisons = app(PowertrainComparisonService::class);
+        $locale = $vehicle->user?->language ?: app()->getLocale();
+
+        if ($comparisons->outdated($vehicle, $locale)) {
+            $comparisons->chooseLater($vehicle, $locale, force: true);
+        }
     }
 
     public function destroy(Request $request, Vehicle $vehicle): RedirectResponse

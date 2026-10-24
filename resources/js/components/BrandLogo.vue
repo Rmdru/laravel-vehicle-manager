@@ -51,21 +51,23 @@ watch(
 
 <template>
     <span
-        class="inline-flex items-center justify-center rounded-md bg-white text-black ring-1 ring-black/10"
+        class="relative inline-block rounded-md bg-white text-black ring-1 ring-black/10"
         aria-hidden="true"
     >
         <!-- Brand colors assume a white ground, so the logo sits on one in both themes. -->
+        <!-- Placed by insets in percent of the ground itself, rather than by a height in percent within a
+             flex box, which not every browser resolves in the same way (such as within a table cell). -->
         <!-- eslint-disable vue/no-v-html -->
         <svg
             v-if="logo"
             v-bind="logo.attributes"
-            class="size-[72%] overflow-visible"
+            class="absolute inset-[14%] size-[72%] overflow-visible"
             v-html="logo.content"
         />
         <!-- No logo for this brand: a generic car. -->
         <Car
             v-else-if="!name || !loaders[name]"
-            class="size-[72%] overflow-visible"
+            class="absolute inset-[14%] size-[72%] overflow-visible"
         />
     </span>
 </template>

@@ -122,6 +122,14 @@ class Navigation
             // The summary of the month.
             'The summary is being written…', 'Nothing has been recorded this month yet.', 'Coming up',
             'Nothing is due in the coming :days days.',
+            // The comparison of the powertrains.
+            'Alternative powertrains', 'Calculate the costs again', 'Choose the alternatives again',
+            'The alternatives are being chosen…', 'The alternatives could not be chosen. Please try again later.',
+            'Compare your vehicle with an alternative per powertrain, on your own use.', 'Driving costs',
+            'Total incl. depreciation', 'Your vehicle', 'hp', 'Used price now', 'Bought for :price', 'Range',
+            'Consumption', ':share driven electric', ':share fast charged',
+            'Road tax', 'Insurance', 'Depreciation', 'per month', 'Total per month', 'Per km', 'Against your vehicle',
+            'The same', 'Why this one', 'Fuel price', 'Enlarge', 'Shrink', 'Electric',
             // The tips.
             'Tips', 'Generate tips', 'The tips have just been generated.',
             'Get tips on maintenance, costs and the season, based on everything that is known about this vehicle.',

@@ -13,6 +13,7 @@ use App\Http\Controllers\MaintenancePlanController;
 use App\Http\Controllers\ManifestController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ParkingController;
+use App\Http\Controllers\PowertrainComparisonController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ReconditioningController;
 use App\Http\Controllers\RefuelingController;
@@ -45,6 +46,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('fuel-advice', [FuelAdviceController::class, 'store'])->name('fuel-advice.store');
         Route::post('vehicle-advice', [VehicleAdviceController::class, 'store'])->name('vehicle-advice.store');
         Route::post('vehicle-advice/status', [VehicleAdviceController::class, 'status'])->name('vehicle-advice.status');
+        Route::post('powertrain-comparison', [PowertrainComparisonController::class, 'store'])->name('powertrain-comparison.store');
+        Route::post('powertrain-comparison/refresh', [PowertrainComparisonController::class, 'refresh'])->name('powertrain-comparison.refresh');
 
         Route::get('trips/geocode', [TripController::class, 'geocode'])->name('trips.geocode');
         Route::get('trips/reverse-geocode', [TripController::class, 'reverseGeocode'])->name('trips.reverse-geocode');
