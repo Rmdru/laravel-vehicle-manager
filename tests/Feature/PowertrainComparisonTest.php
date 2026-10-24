@@ -282,6 +282,48 @@ class PowertrainComparisonTest extends TestCase
         $this->assertTrue($diesel['costs']['maintenance']['estimated']);
     }
 
+    public function test_the_power_of_the_vehicle_is_its_own_not_the_estimate()
+    {
+        // The model takes the 1.5 TSI for the one of 150 hp.
+        PowertrainAlternativesAdvisor::fake([$this->answer()]);
+        $vehicle = $this->vehicle(['power_hp' => 130]);
+        $service = app(PowertrainComparisonService::class);
+
+        $cars = $service->calculate($vehicle, $service->generate($vehicle, 'en'))['cars'];
+
+        $this->assertSame(130, $cars[0]['powerHp']);
+        $this->assertSame(150, $cars[1]['powerHp']);
+        PowertrainAlternativesAdvisor::assertPrompted(fn (AgentPrompt $prompt) => str_contains($prompt->prompt, '"power_hp": 130'));
+    }
+
+    public function test_the_alternatives_are_chosen_in_the_body_type_of_the_vehicle()
+    {
+        $answer = $this->answer();
+        $answer['current']['body_type'] = 'hatchback';
+        $answer['alternatives'][0]['body_type'] = 'station_wagon';
+        // Not one of the body types: none shown.
+        $answer['alternatives'][1]['body_type'] = 'limousine';
+        PowertrainAlternativesAdvisor::fake([$answer, $answer]);
+        $service = app(PowertrainComparisonService::class);
+
+        // Unknown: the body the model took the vehicle for.
+        $vehicle = $this->vehicle();
+        $cars = collect($service->calculate($vehicle, $service->generate($vehicle, 'en'))['cars'])->keyBy('key');
+
+        $this->assertSame('Hatchback', $cars['current']['bodyType']);
+        $this->assertSame('Station wagon', $cars['electricity']['bodyType']);
+        $this->assertNull($cars['gasoline_plugin_hybrid']['bodyType']);
+        PowertrainAlternativesAdvisor::assertPrompted(fn (AgentPrompt $prompt) => ! str_contains($prompt->prompt, 'body_type')
+            && str_contains($prompt->agent->instructions(), 'station_wagon (station wagon (estate))'));
+
+        // Filled in: the model is told, and the vehicle shows it.
+        $vehicle->update(['body_type' => 'station_wagon']);
+        $comparison = $service->generate($vehicle, 'en');
+
+        $this->assertSame('Station wagon', $service->calculate($vehicle, $comparison)['cars'][0]['bodyType']);
+        PowertrainAlternativesAdvisor::assertPrompted(fn (AgentPrompt $prompt) => str_contains($prompt->prompt, '"body_type": "station wagon (estate)"'));
+    }
+
     public function test_the_dashboard_chooses_the_alternatives_once_and_then_shows_them()
     {
         PowertrainAlternativesAdvisor::fake([$this->answer()]);
@@ -339,6 +381,16 @@ class PowertrainComparisonTest extends TestCase
         $this->assertFalse($service->outdated($vehicle, 'en'));
 
         $vehicle->update(['mileage_latest' => 63000]);
+        $this->assertFalse($service->outdated($vehicle, 'en'));
+
+        $vehicle->update(['body_type' => 'hatchback']);
+        $this->assertTrue($service->outdated($vehicle, 'en'));
+        $vehicle->update(['body_type' => null]);
+        $this->assertFalse($service->outdated($vehicle, 'en'));
+
+        $vehicle->update(['power_hp' => 130]);
+        $this->assertTrue($service->outdated($vehicle, 'en'));
+        $vehicle->update(['power_hp' => null]);
         $this->assertFalse($service->outdated($vehicle, 'en'));
 
         $vehicle->update(['engine' => '1.0 TSI 110 pk']);

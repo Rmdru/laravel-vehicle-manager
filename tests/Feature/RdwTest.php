@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Enums\BodyType;
 use App\Http\Middleware\ResolveCurrentVehicle;
 use App\Models\Maintenance;
 use App\Models\Refueling;
 use App\Models\Vehicle;
 use App\Services\DashboardService;
+use App\Services\RdwService;
 use App\Services\VehicleStatusService;
 use App\Support\CurrentVehicle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -176,6 +178,10 @@ class RdwTest extends TestCase
         $this->getJson(route('vehicles.rdw-lookup', ['license_plate' => 'AB-123-CD']))
             ->assertOk()
             ->assertJsonPath('values.powertrain', 'gasoline_full_hybrid')
+            // The RDW registers most hatchbacks as something else: left to the owner.
+            ->assertJsonMissingPath('values.body_type')
+            // Of a hybrid the RDW only knows the engine and the electric motor apart.
+            ->assertJsonMissingPath('values.power_hp')
             ->assertJsonPath('values.fuel_types', ['Unleaded 95 (E10)', 'Super Plus (E5)'])
             ->assertJsonPath('values.specifications', [
                 ['name' => 'Color', 'value' => 'Grijs', 'icon' => 'mdi:palette'],
@@ -184,6 +190,55 @@ class RdwTest extends TestCase
                 ['name' => 'Factory fuel consumption (WLTP)', 'value' => '4,5 l/100km', 'icon' => 'mdi:fuel'],
             ])
             ->assertJsonPath('warning', 'According to the RDW the odometer readings of this vehicle are illogical (NAP). The mileage may have been tampered with.');
+    }
+
+    public function test_the_body_type_only_comes_from_what_the_rdw_registers_reliably()
+    {
+        $rdw = app(RdwService::class);
+
+        // Most hatchbacks are registered as a station wagon: by the trade name only.
+        $this->assertNull($rdw->getBodyType(['merk' => 'SEAT', 'handelsbenaming' => 'LEON', 'inrichting' => 'stationwagen']));
+        $this->assertNull($rdw->getBodyType(['merk' => 'FORD', 'handelsbenaming' => 'KUGA', 'inrichting' => 'MPV']));
+        $this->assertSame(BodyType::StationWagon, $rdw->getBodyType(['merk' => 'SEAT', 'handelsbenaming' => 'LEON ST', 'inrichting' => 'MPV']));
+        $this->assertSame(BodyType::StationWagon, $rdw->getBodyType(['merk' => 'OPEL', 'handelsbenaming' => 'ASTRA SPORTS TOURER+', 'inrichting' => 'stationwagen']));
+        $this->assertSame(BodyType::StationWagon, $rdw->getBodyType(['merk' => 'AUDI', 'handelsbenaming' => 'A4 AVANT', 'inrichting' => 'stationwagen']));
+        $this->assertNull($rdw->getBodyType(['merk' => 'FORD', 'handelsbenaming' => 'FOCUS ST', 'inrichting' => 'hatchback']));
+        $this->assertSame(BodyType::Sedan, $rdw->getBodyType(['merk' => 'BMW', 'handelsbenaming' => '3ER REIHE', 'inrichting' => 'sedan']));
+        $this->assertSame(BodyType::Convertible, $rdw->getBodyType(['merk' => 'MINI', 'handelsbenaming' => 'COOPER', 'inrichting' => 'cabriolet']));
+        $this->assertSame(BodyType::Van, $rdw->getBodyType(['merk' => 'MERCEDES-BENZ', 'handelsbenaming' => '513CDI', 'inrichting' => 'open laadvloer', 'voertuigsoort' => 'Bedrijfsauto']));
+    }
+
+    public function test_the_power_comes_from_the_rdw_except_for_a_hybrid()
+    {
+        $rdw = app(RdwService::class);
+
+        // Sold as 130 hp, which is 95.6 kW: not the 131 hp 96 kW is.
+        $this->assertSame(130, $rdw->getPowerHp([['brandstof_omschrijving' => 'Benzine', 'nettomaximumvermogen' => '96.00']]));
+        $this->assertSame(136, $rdw->getPowerHp([['brandstof_omschrijving' => 'Diesel', 'nettomaximumvermogen' => '100.00']]));
+        $this->assertSame(98, $rdw->getPowerHp([['brandstof_omschrijving' => 'Benzine', 'nettomaximumvermogen' => '72.00']]));
+        $this->assertSame(320, $rdw->getPowerHp([['brandstof_omschrijving' => 'Elektriciteit', 'netto_max_vermogen_elektrisch' => '235.00']]));
+        $this->assertNull($rdw->getPowerHp([
+            ['brandstof_omschrijving' => 'Benzine', 'nettomaximumvermogen' => '110.00', 'klasse_hybride_elektrisch_voertuig' => 'OVC-HEV'],
+            ['brandstof_omschrijving' => 'Elektriciteit', 'netto_max_vermogen_elektrisch' => '80.00', 'klasse_hybride_elektrisch_voertuig' => 'OVC-HEV'],
+        ]));
+        $this->assertNull($rdw->getPowerHp([]));
+    }
+
+    public function test_the_import_fills_in_the_body_type_and_the_power_unless_the_owner_did()
+    {
+        $unknown = $this->vehicle();
+        $chosen = $this->vehicle(attributes: ['license_plate' => 'XX-999-X', 'body_type' => 'hatchback', 'power_hp' => 150]);
+        $this->fakeRdw(
+            ['merk' => 'SEAT', 'handelsbenaming' => 'LEON ST', 'inrichting' => 'stationwagen', 'openstaande_terugroepactie_indicator' => 'Nee'],
+            fuel: [['brandstof_volgnummer' => '1', 'brandstof_omschrijving' => 'Benzine', 'nettomaximumvermogen' => '96.00']],
+        );
+
+        $this->artisan('import:vehicle-data')->assertExitCode(0);
+
+        $this->assertSame('station_wagon', $unknown->refresh()->body_type);
+        $this->assertSame(130, $unknown->power_hp);
+        $this->assertSame('hatchback', $chosen->refresh()->body_type);
+        $this->assertSame(150, $chosen->power_hp);
     }
 
     public function test_the_edit_form_warns_about_illogical_odometer_readings()

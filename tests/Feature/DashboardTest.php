@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\FuelDetourAggregate;
 use App\Models\FuelPrice;
+use App\Models\Maintenance;
 use App\Models\Reconditioning;
 use App\Models\Refueling;
 use App\Models\User;
+use App\Models\Vehicle;
 use App\Pipelines\ImportFuelPrices\CalculateFuelDetourAggregates;
 use App\Services\DashboardService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -35,6 +37,53 @@ class DashboardTest extends TestCase
 
         $this->get(route('dashboard'))->assertRedirect(route('vehicles.create'));
         $this->get(route('refuelings.index'))->assertRedirect(route('vehicles.create'));
+    }
+
+    public function test_the_next_refueling_is_shown_with_the_other_statuses()
+    {
+        $this->travelTo('2026-10-24 12:00:00');
+        $vehicle = $this->signInWithVehicle(['powertrain' => 'gasoline', 'tank_capacity' => 50]);
+        $statuses = fn () => collect(app(DashboardService::class)->statuses($vehicle->fresh()))->keyBy('title');
+
+        $this->assertArrayNotHasKey('Next refueling', $statuses());
+
+        // 50 km a day on 6 l/100 km: a full tank of 50 l lasts 14 days, down to the reserve.
+        foreach (['2026-10-01', '2026-10-11', '2026-10-21'] as $i => $date) {
+            Refueling::factory()->for($vehicle)->create([
+                'date' => $date,
+                'mileage_begin' => 10000 + $i * 500,
+                'mileage_end' => 10500 + $i * 500,
+                'fuel_consumption' => 6,
+                'percentage' => 100,
+            ]);
+        }
+
+        $this->assertSame([
+            'title' => 'Next refueling',
+            'primary' => '11 days from now',
+            'secondary' => 'We 4 Nov · ± 82% in the tank',
+            'icon' => 'ic:round-local-gas-station',
+        ], $statuses()['Next refueling']);
+
+        $this->travelTo('2026-11-06 12:00:00');
+
+        $this->assertSame('Now', $statuses()['Next refueling']['primary']);
+    }
+
+    public function test_a_maintenance_past_its_distance_is_due_now_not_in_negative_kilometers()
+    {
+        $this->travelTo('2026-10-24 12:00:00');
+        $vehicle = $this->signInWithVehicle([
+            'mileage_start' => 60000,
+            'mileage_latest' => 95000,
+            'maintenance_intervals' => [['types' => Vehicle::MAINTENANCE_TYPES, 'km' => 15000, 'months' => 12]],
+        ]);
+        Maintenance::factory()->for($vehicle)->create(['date' => '2026-05-24', 'type_maintenance' => 'maintenance', 'mileage' => 78000]);
+
+        $status = collect(app(DashboardService::class)->statuses($vehicle->fresh()))->firstWhere('title', 'Maintenance');
+
+        $this->assertSame('Now', $status['primary']);
+        $this->assertSame('6 months from now', $status['secondary']);
     }
 
     public function test_users_with_a_vehicle_can_visit_the_dashboard()

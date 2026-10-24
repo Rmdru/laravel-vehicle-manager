@@ -27,6 +27,7 @@ type Car = {
     brandLogo: string | null;
     model: string;
     version: string | null;
+    bodyType: string | null;
     buildYear: number;
     powerHp: number;
     // Used, of the build year: for the vehicle itself what it is worth now.
@@ -404,6 +405,9 @@ function post(url: string) {
                                     <div class="text-xs text-muted-foreground">
                                         <template v-if="car.current">
                                             {{ car.powertrainName }} ·
+                                        </template>
+                                        <template v-if="car.bodyType">
+                                            {{ car.bodyType }} ·
                                         </template>
                                         {{ car.buildYear }} ·
                                         {{ number(car.powerHp) }} {{ t('hp') }}

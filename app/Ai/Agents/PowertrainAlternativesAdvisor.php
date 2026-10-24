@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Ai\Agents;
 
 use App\Ai\ApiKeys;
+use App\Enums\BodyType;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\HasStructuredOutput;
@@ -57,14 +58,20 @@ class PowertrainAlternativesAdvisor implements Agent, HasStructuredOutput
     public function instructions(): string
     {
         $powertrains = collect($this->powertrains)->map(fn (string $name, string $key) => "- {$key}: {$name}")->implode("\n");
+        $bodyTypes = collect(BodyType::cases())->map(fn (BodyType $type) => "{$type->value} ({$type->englishName()})")->implode(', ');
 
         return <<<TEXT
             You help the owner of a vehicle compare it with other powertrains. You get the vehicle and how it is used,
             as JSON. Go through the powertrains below one by one, and for each choose one realistic alternative
             model that someone with this vehicle would consider instead:
-            - the same segment and body size (a compact hatchback stays a compact hatchback or a compact estate),
-            - a power within 20% of that of the vehicle: choose the version of the model that comes closest (such
-              as an eHybrid of 204 hp rather than a GTE of 245 hp for a car of 150 hp),
+            - the same segment and size, and the same body type: the body_type of the vehicle when given, otherwise
+              the one its model and version have. A hatchback stays a hatchback, a station wagon a station wagon, an
+              SUV an SUV. Many models come in more than one (such as a Seat Leon hatchback and Sportstourer, or a
+              Golf and a Golf Variant): take the alternative in that same body type. Only when no comparable car has
+              the powertrain in that body type, take the closest one and say so in the reason,
+            - a power within 20% of that of the vehicle (its power_hp when given, otherwise the one of its version):
+              choose the version of the model that comes closest (such as an eHybrid of 204 hp rather than a GTE of
+              245 hp for a car of 150 hp),
             - the same build year. When the powertrain did not exist yet in that segment in that year, take the
               first year that had it, and give that build year.
             The same model with another engine is often the best choice (such as a CNG or a diesel version of it);
@@ -107,6 +114,7 @@ class PowertrainAlternativesAdvisor implements Agent, HasStructuredOutput
               tax again since 2025, with a discount that shrinks until 2029, and diesels and LPG cars pay a
               surcharge.
             - power_hp: the power in hp, and build_year: the year it was built.
+            - body_type: the body type, one of: {$bodyTypes}.
 
             For the vehicle itself, take the facts that are given (the tank, the power, the year) as they are. For
             the alternatives give brand, model and version as they are sold (such as "Volkswagen", "Golf",
@@ -133,6 +141,7 @@ class PowertrainAlternativesAdvisor implements Agent, HasStructuredOutput
             'maintenance_per_year_eur' => $schema->integer()->required(),
             'insurance_per_year_eur' => $schema->integer()->required(),
             'road_tax_per_year_eur' => $schema->integer()->required(),
+            'body_type' => $schema->string()->enum(array_column(BodyType::cases(), 'value'))->required(),
         ];
 
         return [

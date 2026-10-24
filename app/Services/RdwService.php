@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\BodyType;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class RdwService
 {
+    /** Metric horsepower in a kilowatt. */
+    private const HP_PER_KW = 1.35962;
+
     public function fetchVehicleDataByLicensePlate(string $licensePlate): string
     {
         return $this->call('m9d7-ebf2.json', ['kenteken' => $licensePlate]);
@@ -173,6 +177,64 @@ class RdwService
         }
 
         return null;
+    }
+
+    /**
+     * The body of the vehicle, where the RDW can tell it: its "inrichting" can
+     * not be trusted for a hatchback, a station wagon or an MPV (most Golf and
+     * Leon hatchbacks are registered as a station wagon, and SUVs as either),
+     * so those come from the trade name, or are left to the owner.
+     *
+     * @param  array<string, string>  $vehicleData
+     */
+    public function getBodyType(array $vehicleData): ?BodyType
+    {
+        $name = strtoupper((string) ($vehicleData['handelsbenaming'] ?? ''));
+        $brand = strtoupper((string) ($vehicleData['merk'] ?? ''));
+
+        if (preg_match('/\b(SPORTS? ?TOURER|SPORTOURER|SPORT ?WAGON|STATION ?WAGON|SPORT ?BREAK|GRANDTOUR|SHOOTING ?BRAKE|AVANT|ALLROAD|VARIANT|ESTATE|CLUBMAN|SW)\b/', $name)
+            // Only at Seat: at Ford the ST is the sporty hatchback.
+            || (in_array($brand, ['SEAT', 'CUPRA'], true) && preg_match('/\bST\b/', $name))) {
+            return BodyType::StationWagon;
+        }
+
+        return match (strtolower((string) ($vehicleData['inrichting'] ?? ''))) {
+            'sedan' => BodyType::Sedan,
+            'coupe' => BodyType::Coupe,
+            'cabriolet' => BodyType::Convertible,
+            'pick-up truck' => BodyType::Pickup,
+            'terreinvoertuig' => BodyType::Suv,
+            default => ($vehicleData['voertuigsoort'] ?? null) === 'Bedrijfsauto' ? BodyType::Van : null,
+        };
+    }
+
+    /**
+     * The power in hp, where the RDW can tell it: of a hybrid it registers the
+     * engine and the electric motor apart, which do not add up to the system
+     * power.
+     *
+     * @param  list<array<string, string>>  $fuelData
+     */
+    public function getPowerHp(array $fuelData): ?int
+    {
+        $fuels = collect($fuelData);
+
+        if ($fuels->pluck('klasse_hybride_elektrisch_voertuig')->filter()->isNotEmpty()) {
+            return null;
+        }
+
+        $kw = (float) ($fuels->pluck('nettomaximumvermogen')->filter()->first()
+            ?? $fuels->pluck('netto_max_vermogen_elektrisch')->filter()->first());
+
+        if ($kw <= 0) {
+            return null;
+        }
+
+        // The kW are rounded from the hp the manufacturer gives, which is mostly a multiple of 5: 96 kW is
+        // 130.5 hp, but sold as 130 hp. Of the hp that round to the kW, that one, else the nearest.
+        $candidates = range((int) ceil(($kw - 0.5) * self::HP_PER_KW), (int) floor(($kw + 0.5) * self::HP_PER_KW));
+
+        return collect($candidates)->first(fn (int $hp) => $hp % 5 === 0) ?? (int) round($kw * self::HP_PER_KW);
     }
 
     /**

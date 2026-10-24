@@ -33,7 +33,7 @@ class PowertrainComparisonFacts
     private const MAINTENANCE_YEARS = 3;
 
     /** The distance a year of refuelings has to cover to tell what the fuel costs by the kilometer. */
-    private const FUEL_COSTS_AT_LEAST_KM = 1000;
+    public const FUEL_COSTS_AT_LEAST_KM = 1000;
 
     /** The estimates of the model, by the fuel type they are the price of. */
     private const ESTIMATES = [

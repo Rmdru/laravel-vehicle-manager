@@ -10,6 +10,7 @@ use App\Models\Vehicle;
 use App\Support\Cost;
 use App\Traits\VehicleStats;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
@@ -88,18 +89,22 @@ class DashboardService
             }
 
             $byTime = $maintenance['date']->isFuture() ? str($maintenance['date']->diffForHumans())->ucfirst()->toString() : __('Now');
-            $byDistance = $maintenance['daysTillDistance'] === null ? null : __('About :distance km (:timeTillDistanceDeadlineHumans)', [
-                'distance' => $maintenance['distance'],
-                'timeTillDistanceDeadlineHumans' => now()->addDays($maintenance['daysTillDistance'])->diffForHumans(),
-            ]);
+            // Past the distance: due now, not in a negative number of kilometers.
+            $byDistance = match (true) {
+                $maintenance['daysTillDistance'] === null => null,
+                $maintenance['distance'] <= 0 => __('Now'),
+                default => __('About :distance km', ['distance' => number_format((float) $maintenance['distance'], 0, ',', '.')]),
+            };
 
-            // Whichever deadline comes first is the one to show prominently.
+            // Whichever deadline comes first is the one to show prominently, the other one below it.
             $distanceFirst = $byDistance !== null && $maintenance['due']->lt($maintenance['date']);
+            $primary = $distanceFirst ? $byDistance : $byTime;
+            $secondary = ($distanceFirst ? $byTime : $byDistance) ?? '';
 
             $statuses[] = [
                 'title' => $maintenance['label'],
-                'primary' => $distanceFirst ? $byDistance : $byTime,
-                'secondary' => ($distanceFirst ? $byTime : $byDistance) ?? '',
+                'primary' => $primary,
+                'secondary' => $secondary === $primary ? '' : $secondary,
                 'icon' => 'mdi:car-wrench',
             ];
         }
@@ -115,7 +120,48 @@ class DashboardService
             ];
         }
 
+        $refueling = $this->nextRefuelingStatus($vehicle);
+
+        if ($refueling !== null) {
+            $statuses[] = $refueling;
+        }
+
         return $statuses;
+    }
+
+    /**
+     * When the next refueling (or charge) is expected, by the pace of the
+     * refuelings, with what is estimated to be left in the tank.
+     *
+     * @return array{title: string, primary: string, secondary: string, icon: string}|null
+     */
+    private function nextRefuelingStatus(Vehicle $vehicle): ?array
+    {
+        $next = $this->fuelAdviceFacts->nextRefueling($vehicle);
+
+        if (! isset($next['expected_date'])) {
+            return null;
+        }
+
+        $electric = $vehicle->powertrain === 'electricity';
+        $date = Carbon::parse($next['expected_date']);
+        $level = $next['estimated_tank_percentage_now'] ?? null;
+
+        return [
+            'title' => $electric ? __('Next charge') : __('Next refueling'),
+            'primary' => match (true) {
+                $next['overdue'] ?? false => __('Now'),
+                $date->isToday() => __('Today'),
+                $date->isTomorrow() => __('Tomorrow'),
+                // In days rather than "1 week": a refueling is planned by the day.
+                default => str($date->diffForHumans(today(), ['syntax' => CarbonInterface::DIFF_RELATIVE_TO_NOW, 'skip' => ['week']]))->ucfirst()->toString(),
+            },
+            'secondary' => collect([
+                str($date->isoFormat('dd D MMM'))->ucfirst()->toString(),
+                $level === null ? null : __($electric ? '± :percentage% in the battery' : '± :percentage% in the tank', ['percentage' => $level]),
+            ])->filter()->implode(' · '),
+            'icon' => $electric ? 'mdi:battery-charging' : 'ic:round-local-gas-station',
+        ];
     }
 
     /**

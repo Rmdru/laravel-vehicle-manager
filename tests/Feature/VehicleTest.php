@@ -162,11 +162,15 @@ class VehicleTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->where('form.defaults.model', $vehicle->model));
 
-        $this->patch(route('vehicles.update', $vehicle), $this->validData(['model' => 'A4']))
+        $this->patch(route('vehicles.update', $vehicle), $this->validData(['model' => 'A4', 'body_type' => 'station_wagon']))
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('vehicles.index'));
 
         $this->assertSame('A4', $vehicle->refresh()->model);
+        $this->assertSame('station_wagon', $vehicle->body_type);
+
+        $this->patch(route('vehicles.update', $vehicle), $this->validData(['body_type' => 'limousine']))
+            ->assertSessionHasErrors('body_type');
     }
 
     public function test_an_image_can_be_uploaded_and_is_only_served_to_the_owner()

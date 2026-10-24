@@ -45,7 +45,7 @@ final class Odometer
             ->filter(fn (array $reading) => $reading[0] !== null && ($reading[1] > 0 || ($reading[2] ?? false)))
             ->map(fn (array $reading) => ['date' => CarbonImmutable::parse($reading[0])->startOfDay(), 'km' => $reading[1]])
             ->groupBy(fn (array $reading) => $reading['date']->toDateString())
-            ->map(fn (Collection $day) => ['date' => $day->first()['date'], 'km' => $day->max('km')])
+            ->map(fn (Collection $day) => ['date' => $day->first()['date'], 'km' => (int) $day->max('km')])
             ->sortKeys()
             ->filter(function (array $reading) use (&$highest) {
                 if ($reading['km'] < $highest) {

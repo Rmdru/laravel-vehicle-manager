@@ -24,7 +24,7 @@ class Navigation
             'create' => match (true) {
                 ! $quickAdd => null,
                 str_ends_with($route, '.create') => route($route, absolute: false),
-                str_ends_with($route, '.index') && Route::has($create = str_replace('.index', '.create', $route)) => route($create, absolute: false),
+                str_ends_with($route, '.index') && Route::has(str_replace('.index', '.create', $route)) => route(str_replace('.index', '.create', $route), absolute: false),
                 default => null,
             },
         ];

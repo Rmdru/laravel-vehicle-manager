@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Ai\Agents\PowertrainAlternativesAdvisor;
 use App\Ai\ApiKeys;
+use App\Enums\BodyType;
 use App\Models\PowertrainComparison;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -39,7 +40,7 @@ class PowertrainComparisonService
     public const COSTS = ['fuel', 'road_tax', 'insurance', 'maintenance', 'depreciation'];
 
     /** Raised when what calculate() gives changes, so that the costs of earlier today are not shown. */
-    private const COSTS_VERSION = 2;
+    private const COSTS_VERSION = 3;
 
     public function __construct(private readonly PowertrainComparisonFacts $facts)
     {
@@ -96,8 +97,10 @@ class PowertrainComparisonService
                 throw $exception;
             }
 
+            $current = $this->estimates((array) ($response['current'] ?? []), (string) $vehicle->powertrain);
             $answer = [
-                'current' => $this->estimates((array) ($response['current'] ?? []), (string) $vehicle->powertrain),
+                // The body the model took the vehicle for, shown when the owner did not fill it in.
+                'current' => $current === null ? null : [...$current, 'body_type' => BodyType::tryFrom((string) ($response['current']['body_type'] ?? ''))?->value],
                 'alternatives' => $this->alternatives((array) ($response['alternatives'] ?? []), array_keys($powertrains)),
                 'model' => $response->meta->model ?? $model,
             ];
@@ -147,13 +150,15 @@ class PowertrainComparisonService
                 'model' => $vehicle->model,
                 'version' => $vehicle->version,
                 'engine' => $vehicle->engine,
+                'power_hp' => $vehicle->power_hp,
                 'powertrain' => trans('powertrains', [], 'en')[$vehicle->powertrain]['name'] ?? $vehicle->powertrain,
                 'build_year' => $vehicle->construction_date?->year,
                 'mileage_km' => $vehicle->mileage_latest ?: null,
                 'tank_capacity_l' => $vehicle->tank_capacity ?: null,
                 'curb_weight_kg' => $rdw['massa_rijklaar'] ?? null,
                 'catalog_price_eur' => $rdw['catalogusprijs'] ?? null,
-                'body' => $rdw['inrichting'] ?? null,
+                // Not the "inrichting" of the RDW: it registers most hatchbacks as a station wagon.
+                'body_type' => BodyType::tryFrom((string) $vehicle->body_type)?->englishName(),
             ]),
             'owner' => $filled([
                 'country' => $vehicle->country_registration,
@@ -241,6 +246,7 @@ class PowertrainComparisonService
                     'brand' => $name('brand', 40),
                     'model' => $name('model', 60),
                     'version' => $name('version', 80),
+                    'body_type' => BodyType::tryFrom((string) ($alternative['body_type'] ?? ''))?->value,
                     ...$estimates,
                     'reason' => Str::limit(trim(strip_tags((string) ($alternative['reason'] ?? ''))), 200),
                 ];
@@ -262,6 +268,9 @@ class PowertrainComparisonService
         return hash('sha256', (string) json_encode([
             $vehicle->brand, $vehicle->model, $vehicle->version, $vehicle->engine, $vehicle->powertrain,
             $vehicle->construction_date?->toDateString(), (float) $vehicle->tank_capacity, $vehicle->country_registration,
+            // Only when known: a vehicle without them keeps its alternatives.
+            ...($vehicle->body_type ? [$vehicle->body_type] : []),
+            ...($vehicle->power_hp ? ['power', (int) $vehicle->power_hp] : []),
         ]));
     }
 
@@ -404,7 +413,8 @@ class PowertrainComparisonService
             'fuel_per_100km' => $burns && $usage['consumption'] ? $usage['consumption'] : $current['fuel_per_100km'],
             'electricity_kwh_per_100km' => ! $burns && $usage['consumption'] ? $usage['consumption'] : $current['electricity_kwh_per_100km'],
             'tank_capacity' => $burns && (float) $vehicle->tank_capacity > 0 ? (float) $vehicle->tank_capacity : $current['tank_capacity'],
-            'build_year' => $vehicle->construction_date?->year ?? $current['build_year'],
+            'build_year' => $vehicle->construction_date->year ?? $current['build_year'],
+            'power_hp' => (int) $vehicle->power_hp ?: $current['power_hp'],
         ];
 
         $brand = config('vehicles.brands')[$vehicle->brand] ?? (string) $vehicle->brand;
@@ -430,6 +440,7 @@ class PowertrainComparisonService
                 'brandLogo' => VehiclePresenter::brandLogo($brand),
                 'model' => $vehicle->model,
                 'version' => $vehicle->version ?: $vehicle->engine,
+                'bodyType' => BodyType::tryFrom((string) ($vehicle->body_type ?: ($current['body_type'] ?? '')))?->getLabel(),
                 'purchasePrice' => (float) $vehicle->purchase_price > 0 ? (float) $vehicle->purchase_price : null,
                 'reason' => null,
                 'consumptionEstimated' => $usage['consumption'] === null,
@@ -443,6 +454,7 @@ class PowertrainComparisonService
                 'brandLogo' => VehiclePresenter::brandLogo($alternative['brand']),
                 'model' => $alternative['model'],
                 'version' => $alternative['version'],
+                'bodyType' => BodyType::tryFrom((string) ($alternative['body_type'] ?? ''))?->getLabel(),
                 'purchasePrice' => null,
                 'reason' => $alternative['reason'],
                 'consumptionEstimated' => true,
@@ -474,7 +486,7 @@ class PowertrainComparisonService
     {
         $amounts = $usage['fuel_amounts'];
 
-        if ($usage['fuel_distance'] < 1000 || $amounts === []
+        if ($usage['fuel_distance'] < PowertrainComparisonFacts::FUEL_COSTS_AT_LEAST_KM || $amounts === []
             || ($electric && array_diff(array_keys($amounts), ['Electricity AC', 'Electricity DC']) !== [])) {
             return null;
         }
