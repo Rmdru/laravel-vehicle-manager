@@ -1055,5 +1055,6 @@
     "Next charge": "Próxima recarga",
     "Tomorrow": "Mañana",
     "± :percentage% in the tank": "± :percentage% en el depósito",
-    "± :percentage% in the battery": "± :percentage% en la batería"
+    "± :percentage% in the battery": "± :percentage% en la batería",
+    ":distance km ago (:timeTillDistanceDeadlineHumans)": "Hace :distance km (:timeTillDistanceDeadlineHumans)"
 }

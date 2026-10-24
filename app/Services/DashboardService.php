@@ -88,23 +88,23 @@ class DashboardService
                 continue;
             }
 
-            $byTime = $maintenance['date']->isFuture() ? str($maintenance['date']->diffForHumans())->ucfirst()->toString() : __('Now');
-            // Past the distance: due now, not in a negative number of kilometers.
-            $byDistance = match (true) {
-                $maintenance['daysTillDistance'] === null => null,
-                $maintenance['distance'] <= 0 => __('Now'),
-                default => __('About :distance km', ['distance' => number_format((float) $maintenance['distance'], 0, ',', '.')]),
-            };
+            // The deadline by time, and by distance with when that distance is estimated to be reached;
+            // once past, how long and how far ago.
+            $byTime = str($maintenance['date']->diffForHumans())->ucfirst()->toString();
+            $byDistance = $maintenance['daysTillDistance'] === null ? null : __($maintenance['distance'] > 0
+                ? 'About :distance km (:timeTillDistanceDeadlineHumans)'
+                : ':distance km ago (:timeTillDistanceDeadlineHumans)', [
+                    'distance' => number_format(abs((float) $maintenance['distance']), 0, ',', '.'),
+                    'timeTillDistanceDeadlineHumans' => now()->addDays($maintenance['daysTillDistance'])->diffForHumans(),
+                ]);
 
-            // Whichever deadline comes first is the one to show prominently, the other one below it.
+            // Whichever deadline comes first is the one to show prominently.
             $distanceFirst = $byDistance !== null && $maintenance['due']->lt($maintenance['date']);
-            $primary = $distanceFirst ? $byDistance : $byTime;
-            $secondary = ($distanceFirst ? $byTime : $byDistance) ?? '';
 
             $statuses[] = [
                 'title' => $maintenance['label'],
-                'primary' => $primary,
-                'secondary' => $secondary === $primary ? '' : $secondary,
+                'primary' => $distanceFirst ? $byDistance : $byTime,
+                'secondary' => ($distanceFirst ? $byTime : $byDistance) ?? '',
                 'icon' => 'mdi:car-wrench',
             ];
         }

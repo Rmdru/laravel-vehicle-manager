@@ -425,7 +425,7 @@ const label = (key: string) => {
                 <!-- A row per status, so that the block stays as high as the photo with three or four of them. -->
                 <ul
                     v-if="statuses?.length"
-                    class="flex-1 basis-72 self-center divide-y rounded-lg border"
+                    class="flex-1 basis-72 divide-y self-center rounded-lg border"
                 >
                     <li
                         v-for="status in statuses"
