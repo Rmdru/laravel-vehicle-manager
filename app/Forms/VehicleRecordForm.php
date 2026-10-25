@@ -8,6 +8,7 @@ use App\Contracts\HasIcon;
 use App\Contracts\HasLabel;
 use App\Models\Vehicle;
 use App\Support\CurrentVehicle;
+use App\Support\Html;
 use App\Traits\CountryOptions;
 use Illuminate\Validation\Rule;
 use TranquilTools\FormBuilder\AbstractForm;
@@ -52,6 +53,24 @@ abstract class VehicleRecordForm extends AbstractForm
     {
         return collect($enum::cases())
             ->mapWithKeys(fn ($case) => [$case->value => $case->getLabel()])
+            ->all();
+    }
+
+    /**
+     * The options of a select, each preceded by the icon of its case. The select
+     * renders the labels as HTML; not for a searchable one, which searches the labels.
+     *
+     * @param  class-string<\BackedEnum&HasLabel&HasIcon>  $enum
+     * @return array<string, string>
+     */
+    protected function iconEnumOptions(string $enum): array
+    {
+        return collect($enum::cases())
+            ->mapWithKeys(fn ($case) => [$case->value => '<span class="inline-flex items-center gap-2">'
+                // An empty square without an icon, so that the labels stay aligned.
+                .(Html::icon($case->getIcon(), 'size-4 shrink-0 text-muted-foreground') ?: '<span class="size-4 shrink-0"></span>')
+                .'<span>'.e($case->getLabel()).'</span>'
+                .'</span>'])
             ->all();
     }
 

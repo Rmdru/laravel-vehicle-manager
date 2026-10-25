@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Maintenance;
+use App\Models\Product;
 use App\Models\Vehicle;
 use App\Models\VehicleComponent;
 use App\Support\Odometer;
@@ -115,10 +116,12 @@ class MaintenancePlanService
      * When each component was done last according to the maintenances: the
      * latest one with a task that names it. The air conditioning service is
      * also done with an airco check, a check with a maintenance of its type.
+     * A part the owner replaced, recorded as a product, counts as well: at
+     * the mileage of the odometer on its day.
      *
-     * @return array<string, array{date: CarbonImmutable, km: int|null, price: float|null, garage: string|null, maintenance_id: string}>
+     * @return array<string, array{date: CarbonImmutable, km: int|null, price: float|null, garage: string|null, maintenance_id: string|null, product_id: string|null}>
      */
-    private function lastDone(Vehicle $vehicle): array
+    private function lastDone(Vehicle $vehicle, Odometer $odometer): array
     {
         $done = [];
         $checks = collect(config('maintenance_plan.components'))->filter(fn (array $component) => isset($component['check']))->map(fn (array $component) => $component['check']);
@@ -145,8 +148,32 @@ class MaintenancePlanService
                     'price' => isset($task['price']) && (float) $task['price'] > 0 ? (float) $task['price'] : null,
                     'garage' => $maintenance->garage ?: null,
                     'maintenance_id' => $maintenance->id,
+                    'product_id' => null,
                 ];
             }
+        }
+
+        $components = config('maintenance_plan.components');
+
+        foreach ($vehicle->products->whereNotNull('component')->sortBy('date') as $product) {
+            /** @var Product $product */
+            $key = (string) $product->component;
+            $date = CarbonImmutable::parse($product->date)->startOfDay();
+
+            if (! isset($components[$key]) || (isset($done[$key]) && $done[$key]['date']->gt($date))) {
+                continue;
+            }
+
+            [$km] = $odometer->at($date);
+
+            $done[$key] = [
+                'date' => $date,
+                'km' => $km === null ? null : (int) round($km),
+                'price' => (float) $product->price > 0 ? (float) $product->price : null,
+                'garage' => null,
+                'maintenance_id' => null,
+                'product_id' => $product->id,
+            ];
         }
 
         return $done;
@@ -160,11 +187,11 @@ class MaintenancePlanService
      */
     public function plan(Vehicle $vehicle): array
     {
-        $vehicle->loadMissing(['maintenances', 'refuelings']);
+        $vehicle->loadMissing(['maintenances', 'products', 'refuelings']);
 
         $odometer = Odometer::of($vehicle);
         [$mileage] = $odometer->at(CarbonImmutable::today());
-        $done = $this->lastDone($vehicle);
+        $done = $this->lastDone($vehicle, $odometer);
         $states = array_flip(self::STATES);
 
         $new = $vehicle->construction_date ? CarbonImmutable::parse($vehicle->construction_date)->startOfDay() : null;
@@ -181,7 +208,7 @@ class MaintenancePlanService
     }
 
     /**
-     * @param  array{date: CarbonImmutable, km: int|null, price: float|null, garage: string|null, maintenance_id: string}|null  $done
+     * @param  array{date: CarbonImmutable, km: int|null, price: float|null, garage: string|null, maintenance_id: string|null, product_id: string|null}|null  $done
      * @param  CarbonImmutable|null  $new  The construction date: what is never recorded is counted from it.
      * @return array<string, mixed>
      */
@@ -195,6 +222,7 @@ class MaintenancePlanService
                 'price' => null,
                 'garage' => null,
                 'maintenance_id' => null,
+                'product_id' => null,
             ];
         }
 

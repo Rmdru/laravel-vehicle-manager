@@ -149,6 +149,9 @@ class Navigation
             ':amount per 1000 km',
             'Circumstances often go together, such as winter tires and the heater: a difference is not always caused by the circumstance itself.',
             'Toll by section', ':count× · usually :price · last on :date',
+            // The washing costs.
+            'Washing costs', 'per wash', 'Combined',
+            'Washing yourself costs the detailing products bought in the period, divided over the times you washed the outside yourself.',
             'At the pace of the last 3 months: :count× a month, about :amount a year.',
             ':distance of toll road · as you usually paid there',
             // The summary of the month.
@@ -216,7 +219,10 @@ class Navigation
             'Fetching what the service areas offer…', 'Planning the stops…',
             'Ask for the fuel prices and the traffic again', 'Refresh', 'Fuel prices and traffic of :time',
             'about :amount', 'at least :amount', 'plus toll', ':amount more than the cheapest', 'Energy', 'Toll', 'Total',
-            'charging prices are not known', ':liters l at :price', 'The fuel prices are looked up…',
+            'charging prices are not known', ':liters l at :price', 'The fuel prices are looked up…', 'about :liters l at :price',
+            'estimated at :price/kWh, as you fast charged lately',
+            'estimated at :price/kWh, a usual price for fast charging', 'estimated at a usual price', 'estimated at the average prices of the countries',
+            'estimated at the prices of your latest refuelings',
             'about :liters l · no fuel prices known', ':distance of toll road · amount not known', 'Vignette :country',
             'You have one for the dates of this trip', 'As much as the last one you bought',
             'Price not known: none registered yet', 'Known costs',

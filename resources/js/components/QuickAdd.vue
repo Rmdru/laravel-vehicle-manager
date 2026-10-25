@@ -32,10 +32,12 @@ const groups = computed(() =>
 <template>
     <DropdownMenu v-if="groups.length">
         <DropdownMenuTrigger as-child>
-            <!-- On a phone a round button at the bottom, in reach of the thumb. -->
+            <!-- On a phone a round button at the bottom, in reach of the thumb. It keeps
+                 the colors of a primary button over those of the outline one, also when
+                 hovered (a tap sticks) and in the dark. -->
             <Button
                 variant="outline"
-                class="max-sm:fixed max-sm:right-4 max-sm:bottom-[calc(1rem+env(safe-area-inset-bottom))] max-sm:z-30 max-sm:size-14 max-sm:rounded-full max-sm:border-0 max-sm:bg-primary max-sm:text-primary-foreground max-sm:shadow-lg"
+                class="max-sm:fixed max-sm:right-4 max-sm:bottom-[calc(1rem+env(safe-area-inset-bottom))] max-sm:z-30 max-sm:size-14 max-sm:rounded-full max-sm:border-0 max-sm:bg-primary! max-sm:text-primary-foreground! max-sm:shadow-lg max-sm:hover:bg-primary/90!"
                 data-test="quick-add"
             >
                 <Plus class="size-4 max-sm:size-6" />
