@@ -109,7 +109,7 @@ class FindingService
                 'date' => $date,
                 'title' => Str::limit(Str::ucfirst((string) $defect['description']), 250),
                 'description' => collect([
-                    $inspection['type'] ?? null,
+                    $inspection['type'],
                     filled($defect['article'] ?? null) ? __('Article :article', ['article' => $defect['article']]) : null,
                     ($defect['count'] ?? 1) > 1 ? __(':count times', ['count' => $defect['count']]) : null,
                 ])->filter()->implode(' · ') ?: null,
@@ -146,12 +146,12 @@ class FindingService
      */
     public function resolveWith(Maintenance $maintenance, array $ids): void
     {
-        $vehicle = $maintenance->vehicle;
+        $findings = fn () => Finding::query()->where('vehicle_id', $maintenance->vehicle_id);
 
-        $vehicle->findings()->where('maintenance_id', $maintenance->id)->whereNotIn('id', $ids)->get()
+        $findings()->where('maintenance_id', $maintenance->id)->whereNotIn('id', $ids)->get()
             ->each(fn (Finding $finding) => $finding->update(['status' => FindingStatus::Open, 'resolved_date' => null, 'maintenance_id' => null]));
 
-        $vehicle->findings()->whereIn('id', $ids)->get()
+        $findings()->whereIn('id', $ids)->get()
             ->reject(fn (Finding $finding) => $finding->maintenance_id === $maintenance->id)
             ->each(fn (Finding $finding) => $finding->resolve($maintenance));
     }

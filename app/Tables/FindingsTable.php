@@ -32,9 +32,9 @@ class FindingsTable extends VehicleRecordTable
             ->withGlobalSearch(columns: ['title', 'description', 'garage'])
             ->column('date', __('Date'), sortable: true, as: fn ($value, Finding $finding) => $this->text($this->date($finding->date)))
             ->column('title', __('What'), sortable: true, as: fn ($value, Finding $finding) => new HtmlString(e($value).($finding->for_garage ? ' '.Html::badge(__('For the garage'), icon: 'mdi:garage-alert') : '')))
-            ->column('source', __('Source'), sortable: true, as: fn ($value, Finding $finding) => $this->enumBadge(FindingSource::class, $finding->source?->value))
-            ->column('severity', __('Urgency'), sortable: true, as: fn ($value, Finding $finding) => $this->enumBadge(FindingSeverity::class, $finding->severity?->value))
-            ->column('status', __('Status'), sortable: true, as: fn ($value, Finding $finding) => $this->enumBadge(FindingStatus::class, $finding->status?->value))
+            ->column('source', __('Source'), sortable: true, as: fn ($value, Finding $finding) => $this->enumBadge(FindingSource::class, $finding->source->value))
+            ->column('severity', __('Urgency'), sortable: true, as: fn ($value, Finding $finding) => $this->enumBadge(FindingSeverity::class, $finding->severity->value))
+            ->column('status', __('Status'), sortable: true, as: fn ($value, Finding $finding) => $this->enumBadge(FindingStatus::class, $finding->status->value))
             ->column('estimated_cost', __('Estimated costs'), sortable: true, as: fn ($value) => filled($value) ? $this->amount($this->money($value)) : '')
             ->paginate(25);
 

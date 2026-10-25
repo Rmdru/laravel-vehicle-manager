@@ -64,11 +64,12 @@ class FindingController extends VehicleRecordController
     protected function prepare(array $data, ?Model $record): array
     {
         $resolved = ($data['status'] ?? null) !== FindingStatus::Open->value;
+        $finding = $record instanceof Finding ? $record : null;
 
         return [
             ...$data,
-            'resolved_date' => $resolved ? ($record?->resolved_date ?? today()) : null,
-            'maintenance_id' => $resolved ? $record?->maintenance_id : null,
+            'resolved_date' => $resolved ? ($finding->resolved_date ?? today()) : null,
+            'maintenance_id' => $resolved ? $finding?->maintenance_id : null,
             // Done with, it no longer goes to the garage.
             'for_garage' => ! $resolved && ($data['for_garage'] ?? false),
         ];
@@ -105,7 +106,7 @@ class FindingController extends VehicleRecordController
                     'busyLabel' => __('Thinking…'),
                 ] : null,
             ])),
-            'sections' => array_values(array_filter([
+            'sections' => array_filter([
                 ['title' => $this->singularTitle(), 'items' => [
                     ['label' => __('Vehicle'), 'value' => $this->vehicle()->full_name, 'logo' => VehiclePresenter::summary($this->vehicle())['brandLogo']],
                     ['label' => __('Source'), 'html' => Html::badge($finding->source->getLabel(), icon: $finding->source->getIcon())],
@@ -122,7 +123,7 @@ class FindingController extends VehicleRecordController
                     ['label' => __('Description'), 'value' => $finding->description, 'icon' => 'ic:outline-assignment-turned-in'],
                 ]],
                 $diagnosis ? $this->diagnosis($diagnosis, $finding) : null,
-            ])),
+            ]),
         ]);
     }
 

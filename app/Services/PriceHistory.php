@@ -17,28 +17,36 @@ class PriceHistory
     /**
      * Per component the prices paid, the most recent first.
      *
-     * @return Collection<string, Collection<int, array{date: string, garage: string|null, price: float, km: int|null, maintenance_id: string}>>
+     * @return Collection<array-key, Collection<int, array{date: string, garage: string|null, price: float, km: int|null, maintenance_id: string}>> By component key.
      */
     public function byComponent(Vehicle $vehicle): Collection
     {
         $vehicle->loadMissing('maintenances');
 
-        return $vehicle->maintenances
-            ->sortByDesc('date')
-            ->flatMap(fn (Maintenance $maintenance) => collect($maintenance->tasks ?? [])
-                ->filter(fn ($task) => is_array($task) && (float) ($task['price'] ?? 0) > 0)
-                ->flatMap(fn (array $task) => collect(MaintenancePlanService::componentsOf($task))
-                    // A task for more components at once: the price is theirs together.
-                    ->map(fn (string $key) => [
-                        'key' => $key,
+        $prices = [];
+
+        foreach ($vehicle->maintenances->sortByDesc('date') as $maintenance) {
+            foreach ((array) ($maintenance->tasks ?? []) as $task) {
+                if (! is_array($task) || (float) ($task['price'] ?? 0) <= 0) {
+                    continue;
+                }
+
+                $keys = MaintenancePlanService::componentsOf($task);
+
+                foreach ($keys as $key) {
+                    $prices[$key][] = [
                         'date' => $maintenance->date->toDateString(),
-                        'garage' => $maintenance->garage ?: null,
-                        'price' => round((float) $task['price'] / max(1, count(MaintenancePlanService::componentsOf($task))), 2),
+                        'garage' => filled($maintenance->garage) ? (string) $maintenance->garage : null,
+                        // A task for more components at once: the price is theirs together.
+                        'price' => round((float) $task['price'] / count($keys), 2),
                         'km' => $maintenance->mileage ? (int) $maintenance->mileage : null,
-                        'maintenance_id' => $maintenance->id,
-                    ])))
-            ->groupBy('key')
-            ->map(fn (Collection $prices) => $prices->map(fn (array $price) => collect($price)->except('key')->all())->values());
+                        'maintenance_id' => (string) $maintenance->id,
+                    ];
+                }
+            }
+        }
+
+        return collect($prices)->map(fn (array $rows) => collect($rows));
     }
 
     /**

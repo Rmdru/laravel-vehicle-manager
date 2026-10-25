@@ -169,7 +169,7 @@ class VehicleAdviceFacts
             ...$vehicle->refuelings->map(fn (Refueling $refueling) => ['km' => (int) $refueling->mileage_end, 'date' => $refueling->date]),
             ...$vehicle->maintenances->map(fn (Maintenance $maintenance) => ['km' => (int) $maintenance->mileage, 'date' => $maintenance->date]),
         ])
-            ->filter(fn (array $reading) => $reading['km'] > 0 && $reading['date'] !== null)
+            ->filter(fn (array $reading) => $reading['km'] > 0)
             ->sortByDesc(fn (array $reading) => $reading['date']->toDateString())
             ->first();
 
