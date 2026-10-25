@@ -10,14 +10,19 @@ use App\Support\CurrentVehicle;
 use App\Support\Navigation;
 use App\Tables\VehicleRecordTable;
 use BackedEnum;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 use TranquilTools\FormBuilder\AbstractForm;
+use TranquilTools\FormBuilder\Fields\BaseField;
+use TranquilTools\FormBuilder\FormConfig;
 
 /**
  * CRUD for a type of record that belongs to the current vehicle.
@@ -37,6 +42,15 @@ abstract class VehicleRecordController extends Controller
 
     /** Attribute that is reset to "now" when a record is duplicated. */
     protected string $dateAttribute = 'date';
+
+    /**
+     * Fields of the form that are asked again when a record is duplicated,
+     * such as the start and end of a period. Without any, duplicating only
+     * asks for a confirmation and resets the date.
+     *
+     * @var list<string>
+     */
+    protected array $duplicateFields = [];
 
     /** Column the average and range below the table are calculated from. */
     protected ?string $priceColumn = 'price';
@@ -80,6 +94,7 @@ abstract class VehicleRecordController extends Controller
             'createUrl' => route($this->routeName.'.create'),
             'summary' => $this->summary($table->filteredQuery()),
             'filters' => $request->only(['date_from', 'date_until']),
+            'duplicateAsks' => $this->duplicateFields !== [],
             ...$this->indexProps(),
         ]);
     }
@@ -158,13 +173,86 @@ abstract class VehicleRecordController extends Controller
         defer(fn () => app(NotificationCenter::class)->sync($vehicle->fresh()));
     }
 
-    public function duplicate(string $id): RedirectResponse
+    /**
+     * The form of the fields asked when duplicating, filled in for the copy.
+     */
+    public function duplicateDetails(string $id): JsonResponse
     {
-        $replica = $this->record($id)->replicate();
-        $replica->{$this->dateAttribute} = now();
+        $record = $this->record($id);
+
+        return response()->json(
+            $this->duplicateConfig()
+                ->fill($this->duplicateData($record))
+                ->action(route($this->routeName.'.duplicate', $record->getKey()))
+                ->method('POST'),
+        );
+    }
+
+    public function duplicate(Request $request, string $id): RedirectResponse
+    {
+        $record = $this->record($id);
+        $replica = $record->replicate();
+
+        if ($this->duplicateFields !== []) {
+            $replica->fill($request->validate($this->duplicateConfig()->getRules()));
+        } else {
+            $replica->{$this->dateAttribute} = $this->duplicateDate($record->{$this->dateAttribute});
+        }
+
         $replica->save();
+        $this->refreshNotifications();
 
         return $this->redirectToIndex(__(':name duplicated.', ['name' => $this->singularTitle()]));
+    }
+
+    protected function duplicateConfig(): FormConfig
+    {
+        $fields = array_values(array_filter(
+            $this->form::make()->getFields(),
+            fn (mixed $field) => $field instanceof BaseField && in_array($field->getName(), $this->duplicateFields, true),
+        ));
+
+        return FormConfig::make($fields)->class('space-y-4');
+    }
+
+    /**
+     * The asked fields for the copy: the date reset, other dates of the period
+     * moved along so it lasts as long, and the rest as on the record.
+     *
+     * @return array<string, mixed>
+     */
+    protected function duplicateData(Model $record): array
+    {
+        $start = $record->{$this->dateAttribute};
+        $from = $start instanceof DateTimeInterface ? CarbonImmutable::instance($start) : null;
+        $newStart = $this->duplicateDate($start);
+
+        return collect($this->duplicateFields)
+            ->mapWithKeys(function (string $field) use ($record, $from, $newStart) {
+                $value = $record->{$field};
+
+                if ($field === $this->dateAttribute) {
+                    $value = $newStart;
+                } elseif ($value instanceof DateTimeInterface && $from) {
+                    // Whole days for dates, so the end of a long month does not overflow.
+                    $value = $newStart->isStartOfDay()
+                        ? CarbonImmutable::instance($value)->addDays((int) round($from->diffInDays($newStart)))
+                        : CarbonImmutable::instance($value)->addMinutes((int) round($from->diffInMinutes($newStart)));
+                }
+
+                return [$field => $this->formValue($value)];
+            })
+            ->all();
+    }
+
+    /**
+     * The date of a copy: today, or now when the time of day is kept.
+     */
+    protected function duplicateDate(mixed $original): CarbonInterface
+    {
+        return $original instanceof DateTimeInterface && $original->format('H:i:s') === '00:00:00'
+            ? today()
+            : now();
     }
 
     protected function vehicle(): Vehicle

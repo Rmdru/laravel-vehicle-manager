@@ -48,6 +48,9 @@ return [
         // Carbon deposits on the intake valves: only direct injection engines get them, so off until the model or the owner switches it on.
         // An injector cleaner in the fuel does not count: the fuel never reaches the intake valves of such an engine.
         'intake_cleaning' => ['label' => 'Intake cleaning', 'icon' => 'material-symbols:valve-rounded', 'km' => 80000, 'months' => null, 'for' => 'engine', 'active' => false],
+        // An additive poured into the tank that keeps the injectors clean. Few manufacturers schedule it,
+        // and fuel with detergents (premium fuel) does much of the same: most useful with short trips.
+        'injector_cleaner' => ['label' => 'Injector cleaner', 'icon' => 'mdi:spray', 'km' => 15000, 'months' => 12, 'for' => 'engine'],
         'auxiliary_belt' => ['label' => 'Auxiliary belt', 'icon' => 'mdi:engine-outline', 'km' => 120000, 'months' => 72, 'for' => 'engine'],
         // A part that wears: its usual life, which the model adjusts to the gearbox.
         'clutch' => ['label' => 'Clutch', 'icon' => 'mdi:car-clutch', 'km' => 150000, 'months' => null, 'for' => 'engine'],
@@ -65,6 +68,8 @@ return [
         // Checked and adjusted by the garage: sooner after new tires, or a hit against a curb or a pothole.
         'wheel_alignment' => ['label' => 'Wheel alignment', 'icon' => 'mdi:steering', 'km' => 30000, 'months' => 24, 'for' => 'all'],
         'battery_12v' => ['label' => '12 volt battery', 'icon' => 'mdi:car-battery', 'km' => null, 'months' => 60, 'for' => 'all'],
+        // The coin cell of the key: a keyless key, always in contact with the car, empties it sooner.
+        'key_battery' => ['label' => 'Key battery', 'icon' => 'mdi:car-key', 'km' => null, 'months' => 36, 'for' => 'all'],
         // Checks rather than replacements, ticked off at once: recorded as a maintenance of their own
         // type ('check'), and due within days rather than weeks (see soon_days and due_days).
         'tire_pressure' => ['label' => 'Tire pressure check', 'icon' => 'mdi:car-tire-alert', 'km' => null, 'months' => 2, 'for' => 'all', 'check' => 'tire_pressure_checked', 'soon_days' => 14, 'due_days' => 7],

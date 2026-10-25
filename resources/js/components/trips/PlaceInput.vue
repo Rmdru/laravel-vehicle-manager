@@ -163,7 +163,7 @@ onBeforeUnmount(() => {
             />
             <button
                 type="button"
-                class="absolute top-1/2 right-1 flex size-7 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+                class="absolute top-1/2 right-1 flex size-7 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50 pointer-coarse:size-9"
                 :title="t('Use my current location')"
                 :aria-label="t('Use my current location')"
                 :disabled="locating"

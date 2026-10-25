@@ -70,6 +70,10 @@ class MaintenancePlanAdvisor implements Agent, HasStructuredOutput
               front and the rear: on a front wheel drive the front ones go first.
               The washer fluid is topped up rather than replaced: give how often to check it, with winter fluid
               before the frost.
+              The injector cleaner is an additive poured into the tank; few manufacturers schedule it, so it applies
+              to every combustion engine, gasoline and diesel: give the interval the manufacturer gives where it
+              sells one as a service item, and else about once a year or every oil change.
+              The key battery is the coin cell of the key: about every three years, sooner for a keyless key.
               Electric vehicles are not maintenance free, their maintenance is different: the cabin filter (often
               their only filter), the brake fluid, the coolant of the battery, the oil of the reduction gear where
               the manufacturer gives an interval, the air conditioning (often a heat pump) and the 12 volt battery,

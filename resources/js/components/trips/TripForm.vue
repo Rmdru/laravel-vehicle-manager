@@ -151,7 +151,7 @@ function reverse() {
                             type="number"
                             min="0"
                             max="1440"
-                            class="h-8 w-24"
+                            class="h-8 w-24 pointer-coarse:h-10"
                         />
                     </div>
                     <p

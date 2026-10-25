@@ -12,7 +12,6 @@ use App\Enums\FindingStatus;
 use App\Models\Finding;
 use App\Models\Maintenance;
 use App\Models\Vehicle;
-use App\Support\StatusNotification;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -39,39 +38,6 @@ class FindingService
         return $vehicle->findings()->open()->orderBy('date')->get()
             ->sortBy(fn (Finding $finding) => $severities[$finding->severity->value])
             ->values();
-    }
-
-    /**
-     * The open findings that are urgent or to have done soon, as notifications
-     * under "Needs attention". The ones for information are not: an MOT that
-     * found a few remarks would crowd it.
-     *
-     * @return list<array<string, mixed>>
-     */
-    public function notifications(Vehicle $vehicle): array
-    {
-        $types = StatusNotification::types();
-
-        return $this->open($vehicle)
-            ->filter(fn (Finding $finding) => $finding->severity->notificationType() !== null)
-            ->map(function (Finding $finding) use ($types) {
-                $type = $finding->severity->notificationType();
-
-                return [
-                    ...$types[$type],
-                    'key' => 'finding:'.$finding->id,
-                    'type' => $type,
-                    'text' => __('Finding: :title', ['title' => $finding->title]),
-                    'icon' => $finding->source->getIcon(),
-                    'typeIcon' => $types[$type]['icon'],
-                    'hasModal' => false,
-                    'data' => [],
-                    'url' => route('findings.show', $finding->id),
-                    'urlLabel' => __('Findings'),
-                ];
-            })
-            ->values()
-            ->all();
     }
 
     /**

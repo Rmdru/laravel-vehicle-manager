@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { ListOrdered, Map as MapIcon } from '@lucide/vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import MapLayerToggles from '@/components/trips/MapLayerToggles.vue';
 import PlanningProgress from '@/components/trips/PlanningProgress.vue';
 import RouteCosts from '@/components/trips/RouteCosts.vue';
@@ -249,6 +250,17 @@ watch(
 );
 
 onBeforeUnmount(() => clearInterval(polling));
+
+// On a phone the planning and the map take turns filling the screen, so the
+// map never stands in the way of scrolling through the planning.
+const mobileView = ref<'planning' | 'map'>('planning');
+
+async function showMap(then?: () => void) {
+    mobileView.value = 'map';
+    await nextTick();
+    map.value?.reveal();
+    then?.();
+}
 </script>
 
 <template>
@@ -258,7 +270,10 @@ onBeforeUnmount(() => clearInterval(polling));
         class="flex flex-1 flex-col lg:h-[calc(100svh-3.5rem)] lg:flex-none lg:flex-row"
     >
         <div
-            class="relative flex w-full flex-col gap-4 p-4 *:shrink-0 lg:w-110 lg:shrink-0 lg:overflow-y-auto"
+            :class="[
+                'relative flex w-full flex-col gap-4 p-4 *:shrink-0 max-lg:pb-24 lg:w-110 lg:shrink-0 lg:overflow-y-auto',
+                { 'max-lg:hidden': mobileView === 'map' },
+            ]"
         >
             <div class="flex items-center gap-2">
                 <h1 class="flex-1 text-2xl font-bold tracking-tight">
@@ -320,7 +335,7 @@ onBeforeUnmount(() => clearInterval(polling));
                     :vehicle="trip?.plan?.vehicle"
                     :logo-url="logoUrl"
                     :timezone="timezone"
-                    @focus="(stop) => map?.showStop(stop)"
+                    @focus="(stop) => showMap(() => map?.showStop(stop))"
                     @reset="chooseStop('reset')"
                 />
 
@@ -345,7 +360,12 @@ onBeforeUnmount(() => clearInterval(polling));
                     :timezone="timezone"
                     @show="
                         (incident) =>
-                            map?.flyTo(incident.latitude, incident.longitude)
+                            showMap(() =>
+                                map?.flyTo(
+                                    incident.latitude,
+                                    incident.longitude,
+                                ),
+                            )
                     "
                 />
             </template>
@@ -360,7 +380,10 @@ onBeforeUnmount(() => clearInterval(polling));
         </div>
 
         <div
-            class="relative h-[70svh] w-full overflow-hidden border-t lg:h-auto lg:flex-1 lg:border-t-0 lg:border-l"
+            :class="[
+                'relative w-full overflow-hidden max-lg:h-[calc(100svh-3.5rem)] lg:flex-1 lg:border-l',
+                { 'max-lg:hidden': mobileView === 'planning' },
+            ]"
         >
             <TripMap
                 ref="map"
@@ -385,6 +408,31 @@ onBeforeUnmount(() => clearInterval(polling));
                 :traffic-groups="trafficGroups"
                 :loading-stops="loadingStops"
             />
+        </div>
+
+        <!-- Left, as the button to add a record takes the right corner. -->
+        <div
+            class="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 z-30 flex rounded-full border bg-card p-1 shadow-lg lg:hidden"
+            role="group"
+        >
+            <Button
+                :variant="mobileView === 'planning' ? 'default' : 'ghost'"
+                class="h-11 rounded-full px-4"
+                :aria-pressed="mobileView === 'planning'"
+                @click="mobileView = 'planning'"
+            >
+                <ListOrdered class="size-4" />
+                {{ t('Planning') }}
+            </Button>
+            <Button
+                :variant="mobileView === 'map' ? 'default' : 'ghost'"
+                class="h-11 rounded-full px-4"
+                :aria-pressed="mobileView === 'map'"
+                @click="showMap()"
+            >
+                <MapIcon class="size-4" />
+                {{ t('Map') }}
+            </Button>
         </div>
     </div>
 </template>

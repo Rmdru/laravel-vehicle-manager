@@ -40,7 +40,6 @@ class DashboardService
         private readonly FuelAdviceService $fuelAdvice,
         private readonly VehicleAdviceService $vehicleAdvice,
         private readonly MaintenancePlanService $maintenancePlan,
-        private readonly FindingService $findings,
         private readonly ConsumptionDrift $consumptionDrift,
         private readonly TopUps $topUps,
         private readonly Standstill $standstill,
@@ -59,13 +58,13 @@ class DashboardService
         $fuelAdvice = $this->fuelAdvice->notification($vehicle);
 
         // The fuel advice goes on top, and the components of the maintenance
-        // plan, the findings, what the consumption and the top-ups tell, what
-        // a vehicle standing still needs and the tips that are urgent follow
-        // the other warnings; then "all is well" no longer is.
+        // plan, what the consumption and the top-ups tell, what a vehicle
+        // standing still needs and the tips that are urgent follow the other
+        // warnings; then "all is well" no longer is. The findings are left
+        // out: they have a page and the list for the garage of their own.
         $advice = array_values(array_filter([
             $fuelAdvice,
             ...$this->maintenancePlan->notifications($vehicle),
-            ...$this->findings->notifications($vehicle),
             ...$this->consumptionDrift->notifications($vehicle),
             ...$this->topUps->notifications($vehicle),
             ...$this->standstill->notifications($vehicle),

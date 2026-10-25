@@ -34,14 +34,4 @@ enum FindingSeverity: string implements HasIcon, HasLabel
             self::Info => 'ic:round-info',
         };
     }
-
-    /** The type of the notification, if any. */
-    public function notificationType(): ?string
-    {
-        return match ($this) {
-            self::Urgent => 'critical',
-            self::Soon => 'warning',
-            self::Info => null,
-        };
-    }
 }

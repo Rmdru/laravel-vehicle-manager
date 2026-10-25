@@ -450,7 +450,7 @@ const label = (key: string) => {
                             </span>
                             <span
                                 v-if="status.secondary"
-                                class="block text-xs text-muted-foreground"
+                                class="block text-xs text-muted-foreground max-sm:text-sm"
                             >
                                 {{ status.secondary }}
                             </span>
@@ -483,11 +483,11 @@ const label = (key: string) => {
                     <li
                         v-for="notification in notifications"
                         :key="notification.key"
-                        class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3"
+                        class="flex items-start gap-3 px-4 py-3"
                     >
                         <span
                             :class="[
-                                'flex items-center gap-2',
+                                'flex min-h-9 shrink-0 items-center gap-2',
                                 tones[notification.type],
                             ]"
                         >
@@ -501,43 +501,52 @@ const label = (key: string) => {
                                 class="size-6 shrink-0"
                             />
                         </span>
-                        <span class="min-w-0 flex-1 basis-56 font-medium">
-                            {{ notification.text }}
-                        </span>
-                        <button
-                            v-if="
-                                notification.hasModal ||
-                                notification.opensFuelAdvice ||
-                                notification.opensVehicleAdvice
-                            "
-                            type="button"
-                            class="min-h-9 cursor-pointer text-sm font-semibold underline"
-                            @click="showDetails(notification)"
+                        <!-- The actions wrap under the text; the dismiss button stays at the end of the first line. -->
+                        <div
+                            class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3"
                         >
-                            {{ t('More information') }}
-                        </button>
-                        <button
-                            v-if="notification.doneUrl"
-                            type="button"
-                            class="inline-flex min-h-9 cursor-pointer items-center gap-1 text-sm font-semibold underline"
-                            :disabled="handling === notification.key"
-                            @click="handle(notification, notification.doneUrl)"
-                        >
-                            <Check class="size-4" />
-                            {{ t('Done') }}
-                        </button>
-                        <Link
-                            v-if="notification.url"
-                            :href="notification.url"
-                            class="min-h-9 content-center text-sm font-semibold underline"
-                        >
-                            {{ notification.urlLabel }}
-                        </Link>
+                            <span
+                                class="min-h-9 min-w-0 flex-1 basis-56 content-center font-medium"
+                            >
+                                {{ notification.text }}
+                            </span>
+                            <button
+                                v-if="
+                                    notification.hasModal ||
+                                    notification.opensFuelAdvice ||
+                                    notification.opensVehicleAdvice
+                                "
+                                type="button"
+                                class="min-h-9 cursor-pointer text-sm font-semibold underline"
+                                @click="showDetails(notification)"
+                            >
+                                {{ t('More information') }}
+                            </button>
+                            <button
+                                v-if="notification.doneUrl"
+                                type="button"
+                                class="inline-flex min-h-9 cursor-pointer items-center gap-1 text-sm font-semibold underline"
+                                :disabled="handling === notification.key"
+                                @click="
+                                    handle(notification, notification.doneUrl)
+                                "
+                            >
+                                <Check class="size-4" />
+                                {{ t('Done') }}
+                            </button>
+                            <Link
+                                v-if="notification.url"
+                                :href="notification.url"
+                                class="min-h-9 content-center text-sm font-semibold underline"
+                            >
+                                {{ notification.urlLabel }}
+                            </Link>
+                        </div>
                         <Button
                             v-if="notification.dismissUrl"
                             variant="ghost"
                             size="icon"
-                            class="-mr-2"
+                            class="-mr-2 shrink-0"
                             :aria-label="t('Dismiss')"
                             :title="t('Dismiss')"
                             :disabled="handling === notification.key"
@@ -764,7 +773,7 @@ const label = (key: string) => {
                                             {{ cost.item || cost.type }}
                                         </span>
                                         <span
-                                            class="text-xs text-muted-foreground"
+                                            class="text-xs text-muted-foreground max-sm:text-sm"
                                         >
                                             {{ cost.type }} · {{ cost.date }}
                                         </span>
@@ -823,7 +832,7 @@ const label = (key: string) => {
                             type="button"
                             :aria-pressed="gasStationOrder === option.value"
                             :class="[
-                                'min-h-8 cursor-pointer rounded-md px-2.5 transition',
+                                'min-h-8 cursor-pointer rounded-md px-2.5 transition pointer-coarse:min-h-10',
                                 gasStationOrder === option.value
                                     ? 'bg-card text-foreground shadow-sm'
                                     : 'text-muted-foreground hover:text-foreground',
@@ -954,7 +963,9 @@ const label = (key: string) => {
                                     {{ row.fuelType }}
                                 </dt>
                                 <div>
-                                    <dt class="text-xs text-muted-foreground">
+                                    <dt
+                                        class="text-xs text-muted-foreground max-sm:text-sm"
+                                    >
                                         {{ t('Average consumption') }}
                                     </dt>
                                     <dd class="font-semibold">
@@ -962,19 +973,25 @@ const label = (key: string) => {
                                     </dd>
                                 </div>
                                 <div>
-                                    <dt class="text-xs text-muted-foreground">
+                                    <dt
+                                        class="text-xs text-muted-foreground max-sm:text-sm"
+                                    >
                                         {{ t('Average speed') }}
                                     </dt>
                                     <dd>{{ row.speed }}</dd>
                                 </div>
                                 <div>
-                                    <dt class="text-xs text-muted-foreground">
+                                    <dt
+                                        class="text-xs text-muted-foreground max-sm:text-sm"
+                                    >
                                         {{ t('Total refueled') }}
                                     </dt>
                                     <dd>{{ row.amount }}</dd>
                                 </div>
                                 <div>
-                                    <dt class="text-xs text-muted-foreground">
+                                    <dt
+                                        class="text-xs text-muted-foreground max-sm:text-sm"
+                                    >
                                         {{ t('Number of refuelings') }}
                                     </dt>
                                     <dd>{{ row.count }}</dd>
@@ -1161,7 +1178,7 @@ const label = (key: string) => {
                                                     country.prices[type]
                                                         .detourFuel !== null
                                                 "
-                                                class="text-xs text-muted-foreground"
+                                                class="text-xs text-muted-foreground max-sm:text-sm"
                                             >
                                                 {{
                                                     t(

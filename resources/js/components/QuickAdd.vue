@@ -32,8 +32,13 @@ const groups = computed(() =>
 <template>
     <DropdownMenu v-if="groups.length">
         <DropdownMenuTrigger as-child>
-            <Button variant="outline" data-test="quick-add">
-                <Plus class="size-4" />
+            <!-- On a phone a round button at the bottom, in reach of the thumb. -->
+            <Button
+                variant="outline"
+                class="max-sm:fixed max-sm:right-4 max-sm:bottom-[calc(1rem+env(safe-area-inset-bottom))] max-sm:z-30 max-sm:size-14 max-sm:rounded-full max-sm:border-0 max-sm:bg-primary max-sm:text-primary-foreground max-sm:shadow-lg"
+                data-test="quick-add"
+            >
+                <Plus class="size-4 max-sm:size-6" />
                 <span class="max-sm:sr-only">{{ t('Create') }}</span>
             </Button>
         </DropdownMenuTrigger>

@@ -326,7 +326,7 @@ function post(url: string) {
                             type="button"
                             :aria-pressed="view === option.value"
                             :class="[
-                                'min-h-8 cursor-pointer rounded-md px-2.5 transition',
+                                'min-h-8 cursor-pointer rounded-md px-2.5 transition pointer-coarse:min-h-10',
                                 view === option.value
                                     ? 'bg-card text-foreground shadow-sm'
                                     : 'text-muted-foreground hover:text-foreground',
@@ -338,7 +338,7 @@ function post(url: string) {
                     </div>
                     <span
                         v-if="data.pending"
-                        class="text-xs text-muted-foreground"
+                        class="text-xs text-muted-foreground max-sm:text-sm"
                     >
                         {{ t('The alternatives are being chosen…') }}
                     </span>
@@ -398,11 +398,13 @@ function post(url: string) {
                                         </span>
                                     </div>
                                     <div
-                                        class="mt-1 text-xs leading-snug text-muted-foreground"
+                                        class="mt-1 text-xs leading-snug text-muted-foreground max-sm:text-sm"
                                     >
                                         {{ car.version }}
                                     </div>
-                                    <div class="text-xs text-muted-foreground">
+                                    <div
+                                        class="text-xs text-muted-foreground max-sm:text-sm"
+                                    >
                                         <template v-if="car.current">
                                             {{ car.powertrainName }} ·
                                         </template>
@@ -431,7 +433,7 @@ function post(url: string) {
                                     ≈ {{ euros(car.priceNow) }}
                                     <div
                                         v-if="car.purchasePrice"
-                                        class="text-xs text-muted-foreground"
+                                        class="text-xs text-muted-foreground max-sm:text-sm"
                                     >
                                         {{
                                             t('Bought for :price', {
@@ -558,7 +560,7 @@ function post(url: string) {
                                             car.consumption.electricShare !==
                                             null
                                         "
-                                        class="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground"
+                                        class="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground max-sm:text-sm"
                                         :title="
                                             t(':share driven electric', {
                                                 share: percent(
@@ -585,7 +587,7 @@ function post(url: string) {
                                         v-if="
                                             car.consumption.fastShare !== null
                                         "
-                                        class="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground"
+                                        class="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground max-sm:text-sm"
                                     >
                                         <AppIcon
                                             name="mdi:ev-station"
@@ -624,7 +626,7 @@ function post(url: string) {
                                             price.unit
                                         }}
                                         <span
-                                            class="text-xs text-muted-foreground"
+                                            class="text-xs text-muted-foreground max-sm:text-sm"
                                         >
                                             {{ price.label }}
                                         </span>
@@ -736,7 +738,7 @@ function post(url: string) {
                                     v-for="car in cars"
                                     :key="car.key"
                                     :class="[
-                                        'max-w-56 px-3 py-2.5 text-xs leading-snug whitespace-normal text-muted-foreground',
+                                        'max-w-56 px-3 py-2.5 text-xs leading-snug whitespace-normal text-muted-foreground max-sm:text-sm',
                                         expanded ? 'min-w-32' : 'min-w-44',
                                     ]"
                                 >
