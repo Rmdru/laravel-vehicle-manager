@@ -6,12 +6,16 @@ namespace App\Http\Controllers;
 
 use App\Enums\MaintenanceTypeMaintenance;
 use App\Forms\MaintenanceForm;
+use App\Models\Finding;
+use App\Models\GarageListItem;
 use App\Models\Maintenance;
+use App\Services\FindingService;
 use App\Services\MaintenancePlanService;
 use App\Support\Html;
 use App\Support\VehiclePresenter;
 use App\Tables\MaintenancesTable;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -29,6 +33,12 @@ class MaintenanceController extends VehicleRecordController
     protected ?string $priceColumn = 'total_price';
 
     protected bool $hasShowPage = true;
+
+    /** The findings the maintenance resolved, as ticked in the form; null when the form had none. */
+    private ?array $findings = null;
+
+    /** The lines of the list for the garage the maintenance was recorded with. */
+    private array $garageLines = [];
 
     protected function title(): string
     {
@@ -51,6 +61,22 @@ class MaintenanceController extends VehicleRecordController
      */
     protected function createData(Request $request): array
     {
+        // Recorded from the list for the garage: what is on it, as tasks, resolved by it.
+        if ($request->boolean('for_garage')) {
+            $listed = $this->vehicle()->findings()->open()->where('for_garage', true)->orderBy('date')->get();
+            $lines = $this->vehicle()->garageListItems()->oldest()->get();
+
+            return [
+                'findings' => $listed->pluck('id')->all(),
+                'tasks' => [
+                    ...$listed->map(fn (Finding $finding) => ['task' => $finding->title, 'price' => $finding->estimated_cost, 'components' => (array) $finding->components]),
+                    ...$lines->map(fn (GarageListItem $line) => ['task' => $line->text, 'price' => null, 'components' => []]),
+                ],
+                // Taken off the list once the maintenance is stored.
+                'garage_lines' => $lines->pluck('id')->implode(','),
+            ];
+        }
+
         // Recorded from the maintenance plan: a task for the component.
         $component = config('maintenance_plan.components.'.$request->query('component', ''));
 
@@ -78,6 +104,33 @@ class MaintenanceController extends VehicleRecordController
                 ->when($defects->isNotEmpty(), fn ($lines) => $lines->push(__('Defects found by the inspection:'), ...$defects))
                 ->implode("\n"),
         ]);
+    }
+
+    protected function prepare(array $data, ?Model $record): array
+    {
+        $this->findings = array_key_exists('findings', $data) ? array_values(array_filter((array) $data['findings'], 'is_string')) : null;
+        $this->garageLines = array_values(array_filter(array_map('intval', explode(',', (string) ($data['garage_lines'] ?? '')))));
+        unset($data['findings'], $data['garage_lines']);
+
+        return $data;
+    }
+
+    protected function saved(Model $record): void
+    {
+        if ($this->findings !== null) {
+            /** @var Maintenance $record */
+            app(FindingService::class)->resolveWith($record, $this->findings);
+        }
+
+        $this->vehicle()->garageListItems()->whereIn('id', $this->garageLines)->delete();
+    }
+
+    protected function formData(Model $record): array
+    {
+        return [
+            ...parent::formData($record),
+            'findings' => $this->vehicle()->findings()->where('maintenance_id', $record->getKey())->pluck('id')->all(),
+        ];
     }
 
     public function show(string $id): Response

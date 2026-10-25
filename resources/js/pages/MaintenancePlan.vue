@@ -59,6 +59,8 @@ type Component = {
         // The maintenance it was done at; null when the owner filled it in.
         url: string | null;
     } | null;
+    // What was paid for it before, the most recent first.
+    prices: { date: string; garage: string | null; price: string }[];
     due: {
         date: string;
         relative: string;
@@ -560,8 +562,27 @@ function activate(key: string) {
                         <RefreshCw
                             :class="['size-4', proposing ? 'animate-spin' : '']"
                         />
-                        {{ t('Get the interval from AI') }}
+                        {{ t('Get the interval again') }}
                     </Button>
+                </div>
+                <div v-if="editing?.prices.length" class="grid gap-1 text-sm">
+                    <span class="text-muted-foreground">
+                        {{ t('Paid before') }}
+                    </span>
+                    <div
+                        v-for="price in editing.prices"
+                        :key="price.date + price.price"
+                        class="flex justify-between gap-3"
+                    >
+                        <span class="truncate">
+                            {{
+                                [price.date, price.garage]
+                                    .filter(Boolean)
+                                    .join(' · ')
+                            }}
+                        </span>
+                        <span class="tabular-nums">{{ price.price }}</span>
+                    </div>
                 </div>
                 <form class="grid gap-4" @submit.prevent="save()">
                     <div class="grid grid-cols-2 gap-3">

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Accident;
 use App\Models\EnvironmentalSticker;
 use App\Models\Ferry;
+use App\Models\Finding;
 use App\Models\Fine;
 use App\Models\Insurance;
 use App\Models\Maintenance;
@@ -36,6 +37,7 @@ class VehicleRecordTest extends TestCase
     {
         return [
             'maintenances' => ['maintenances', Maintenance::class],
+            'findings' => ['findings', Finding::class],
             'reconditionings' => ['reconditionings', Reconditioning::class],
             'accidents' => ['accidents', Accident::class],
             'products' => ['products', Product::class],
@@ -372,11 +374,9 @@ class VehicleRecordTest extends TestCase
         $this->assertSame('liquids_checked', $maintenance->type_maintenance);
         $this->assertEquals(4200, $maintenance->mileage);
 
-        // The checks would crowd the list: only with the filter.
+        // The checks would crowd the list, nor are they a type to filter on.
         $this->get(route('maintenances.index'))
             ->assertInertia(fn (Assert $page) => $page->has('table.data', 0)->etc());
-        $this->get(route('maintenances.index', ['maintenances_filter' => ['checks' => 'shown']]))
-            ->assertInertia(fn (Assert $page) => $page->has('table.data', 1)->etc());
     }
 
     public function test_a_maintenance_can_be_viewed()

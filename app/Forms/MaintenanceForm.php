@@ -7,8 +7,11 @@ namespace App\Forms;
 use App\Enums\MaintenancePaymentMethod;
 use App\Enums\MaintenanceTypeMaintenance;
 use App\Forms\Fields\Heading;
+use App\Models\Maintenance;
+use App\Services\FindingService;
 use App\Services\MaintenancePlanService;
 use App\Traits\MaintenanceTypeOptions;
+use TranquilTools\FormBuilder\Fields\Checkboxes;
 use TranquilTools\FormBuilder\Fields\Hidden;
 use TranquilTools\FormBuilder\Fields\Number;
 use TranquilTools\FormBuilder\Fields\Repeater;
@@ -76,8 +79,39 @@ class MaintenanceForm extends VehicleRecordForm
                     Hidden::make('icon'),
                 ])
                 ->rules(['nullable']),
+            ...$this->findings(),
+            // Recorded from the list for the garage: its own lines, to take off it.
+            ...(request()->boolean('for_garage') || request()->has('garage_lines')
+                ? [Hidden::make('garage_lines')->rules(['nullable', 'string', 'max:2000'])]
+                : []),
 
             Submit::make()->label(__('Save')),
+        ];
+    }
+
+    /**
+     * The open findings, to tick off the ones this maintenance resolved; none
+     * when there are none.
+     *
+     * @return list<Checkboxes>
+     */
+    private function findings(): array
+    {
+        $vehicle = $this->vehicle();
+        $record = request()->route('record');
+        $maintenance = is_string($record) && $vehicle ? $vehicle->maintenances()->find($record) : null;
+        $options = $vehicle ? app(FindingService::class)->options($vehicle, $maintenance instanceof Maintenance ? $maintenance : null) : [];
+
+        if ($options === [] && ! request()->has('findings')) {
+            return [];
+        }
+
+        return [
+            Checkboxes::make('findings')
+                ->label(__('Findings resolved'))
+                ->options(collect($options)->map(fn (string $title, string $id) => ['value' => $id, 'label' => $title])->values()->all())
+                ->help(__('Tick what the garage resolved: it is taken off the list for the garage.'))
+                ->rules(['nullable', 'array']),
         ];
     }
 }

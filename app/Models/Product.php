@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\ProductCategory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -17,12 +18,17 @@ class Product extends Model
     protected $fillable = [
         'vehicle_id',
         'name',
+        'category',
+        'quantity',
+        'mileage',
         'price',
         'date',
     ];
 
     protected $casts = [
         'date' => 'date:Y-m-d',
+        'category' => ProductCategory::class,
+        'quantity' => 'float',
     ];
 
     /**
@@ -31,5 +37,13 @@ class Product extends Model
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);
+    }
+
+    /**
+     * A fluid topped up at a mileage, such as engine oil.
+     */
+    public function isTopUp(): bool
+    {
+        return (bool) $this->category?->isFluid() && $this->mileage !== null && (float) $this->quantity > 0;
     }
 }

@@ -62,6 +62,8 @@ return [
         'rear_brake_discs' => ['label' => 'Rear brake discs', 'icon' => 'mdi:car-brake-alert', 'km' => 100000, 'months' => null, 'for' => 'all'],
         'front_tires' => ['label' => 'Front tires', 'icon' => 'mdi:tire', 'km' => 40000, 'months' => 72, 'for' => 'all', 'critical' => true],
         'rear_tires' => ['label' => 'Rear tires', 'icon' => 'mdi:tire', 'km' => 50000, 'months' => 72, 'for' => 'all', 'critical' => true],
+        // Checked and adjusted by the garage: sooner after new tires, or a hit against a curb or a pothole.
+        'wheel_alignment' => ['label' => 'Wheel alignment', 'icon' => 'mdi:steering', 'km' => 30000, 'months' => 24, 'for' => 'all'],
         'battery_12v' => ['label' => '12 volt battery', 'icon' => 'mdi:car-battery', 'km' => null, 'months' => 60, 'for' => 'all'],
         // Checks rather than replacements, ticked off at once: recorded as a maintenance of their own
         // type ('check'), and due within days rather than weeks (see soon_days and due_days).

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { ArrowLeft, Pencil } from '@lucide/vue';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import AppIcon from '@/components/AppIcon.vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import LicensePlate from '@/components/LicensePlate.vue';
@@ -19,9 +19,32 @@ const props = defineProps<{
     image?: string | null;
     imageSrcset?: string | null;
     licensePlate?: LicensePlateType;
+    // Buttons that post to a url, such as marking the record as resolved.
+    actions?: {
+        label: string;
+        url: string;
+        icon?: string | null;
+        disabled?: boolean;
+        // Shown while the action is being done, for one that takes a while.
+        busyLabel?: string | null;
+    }[];
 }>();
 
 const { t } = useT();
+
+const busy = ref<string | null>(null);
+
+function act(url: string) {
+    router.post(
+        url,
+        {},
+        {
+            preserveScroll: true,
+            onStart: () => (busy.value = url),
+            onFinish: () => (busy.value = null),
+        },
+    );
+}
 
 // Leave out what has no value, and sections that end up empty.
 const visibleSections = computed(() =>
@@ -60,12 +83,35 @@ const visibleSections = computed(() =>
                     <LicensePlate v-if="licensePlate" :plate="licensePlate" />
                 </div>
             </div>
-            <Button as-child>
-                <Link :href="editUrl">
-                    <Pencil class="size-4" />
-                    {{ t('Edit') }}
-                </Link>
-            </Button>
+            <div class="flex flex-wrap gap-2">
+                <Button
+                    v-for="action in actions ?? []"
+                    :key="action.url"
+                    variant="outline"
+                    :disabled="action.disabled || busy !== null"
+                    @click="act(action.url)"
+                >
+                    <AppIcon
+                        v-if="action.icon"
+                        :name="action.icon"
+                        :class="[
+                            'size-4',
+                            busy === action.url ? 'animate-pulse' : '',
+                        ]"
+                    />
+                    {{
+                        busy === action.url && action.busyLabel
+                            ? action.busyLabel
+                            : action.label
+                    }}
+                </Button>
+                <Button as-child>
+                    <Link :href="editUrl">
+                        <Pencil class="size-4" />
+                        {{ t('Edit') }}
+                    </Link>
+                </Button>
+            </div>
         </div>
 
         <img

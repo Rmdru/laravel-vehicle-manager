@@ -6,13 +6,17 @@ namespace App\Services;
 
 use App\Models\Maintenance;
 use App\Models\Refueling;
+use App\Models\Trip;
+use App\Models\TripWaypoint;
 use App\Models\Vehicle;
 use App\Models\VehicleTip;
 use BackedEnum;
 use Carbon\Carbon;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Locale;
 use Throwable;
 
 /**
@@ -37,6 +41,21 @@ class VehicleAdviceFacts
 
     /** Characters of a description the model gets to see, at most. */
     private const DESCRIPTION = 200;
+
+    /** Days ahead the planned trips are of. */
+    private const TRIPS_WITHIN = 60;
+
+    /** Days of the weather forecast. */
+    private const FORECAST_DAYS = 14;
+
+    /** Degrees from which a day is a hot one: the air conditioning, the cooling. */
+    private const HOT = 30;
+
+    /** Days after which a recorded mileage is estimated for today. */
+    private const MILEAGE_ESTIMATED_AFTER = 30;
+
+    /** The kilometers an estimated mileage is rounded to: it should not change the facts by the day. */
+    private const MILEAGE_ROUNDED_TO = 500;
 
     /** The RDW data that says something about the vehicle, by the name the model gets to see. */
     private const RDW = [
@@ -65,7 +84,10 @@ class VehicleAdviceFacts
             'month' => today()->englishMonth,
             'vehicle' => $this->vehicle($vehicle),
             'rdw' => $this->rdw($vehicle),
-            'usage' => $this->usage($vehicle),
+            'usage' => $usage = $this->usage($vehicle),
+            'mileage' => $this->mileage($vehicle, $usage['average_km_per_month_past_year'] ?? null),
+            'planned_trips' => $this->trips($vehicle),
+            'weather_forecast' => $this->weather($vehicle),
             'next_maintenances' => $this->nextMaintenances($vehicle),
             'maintenance_plan' => $this->maintenancePlan($vehicle),
             'maintenance_history' => $this->maintenances($vehicle),
@@ -76,6 +98,8 @@ class VehicleAdviceFacts
                 ->all(),
             'insurance' => $this->insurance($vehicle),
             'road_tax_paid_until' => $vehicle->taxes->where('start_date', '<=', today())->sortByDesc('start_date')->first()?->end_date?->toDateString(),
+            'open_findings' => app(FindingService::class)->facts($vehicle),
+            'top_ups' => app(TopUps::class)->facts($vehicle),
             'accidents' => $this->accidents($vehicle),
             'valid_vignettes_and_stickers' => $this->vignettes($vehicle),
             'average_monthly_costs_past_year_eur' => $this->costs($vehicle),
@@ -91,19 +115,143 @@ class VehicleAdviceFacts
                     'since' => $tip->updated_at->toDateString(),
                 ])
                 ->all(),
+            'previous_suggestions' => $this->previous($vehicle),
         ];
     }
 
     /**
-     * What tells whether the facts changed, apart from the day they are of.
+     * What tells whether the facts changed, apart from the day they are of
+     * and the advice itself. Of the weather only whether frost, snow or heat
+     * is coming: the forecast changes by the hour, that by the season.
      *
      * @param  array<string, mixed>  $facts
      */
     public function fingerprint(array $facts): string
     {
-        unset($facts['today'], $facts['month']);
+        unset($facts['today'], $facts['month'], $facts['previous_suggestions']);
+
+        if (isset($facts['weather_forecast'])) {
+            $facts['weather_forecast'] = array_map(
+                fn ($date) => $date !== null,
+                Arr::only($facts['weather_forecast'], ['first_frost_date', 'first_snow_date', 'first_hot_day_date']),
+            );
+        }
 
         return hash('sha256', (string) json_encode($facts));
+    }
+
+    /**
+     * The tips of the latest advice the owner did nothing with yet, so that
+     * the model keeps their keys rather than making them up anew each time.
+     *
+     * @return list<array{key: string, title: string}>
+     */
+    private function previous(Vehicle $vehicle): array
+    {
+        $handled = VehicleTip::query()->where('vehicle_id', $vehicle->id)->pluck('key')->all();
+
+        return collect($vehicle->vehicleAdvices()->latest()->first()->suggestions ?? [])
+            ->reject(fn (array $suggestion) => in_array($suggestion['key'] ?? null, $handled, true))
+            ->map(fn (array $suggestion) => ['key' => (string) $suggestion['key'], 'title' => (string) ($suggestion['title'] ?? '')])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * When the mileage was recorded last and, when that is a while ago, an
+     * estimate of today's. Null when no record tells.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function mileage(Vehicle $vehicle, ?int $perMonth): ?array
+    {
+        $latest = collect([
+            ...$vehicle->refuelings->map(fn (Refueling $refueling) => ['km' => (int) $refueling->mileage_end, 'date' => $refueling->date]),
+            ...$vehicle->maintenances->map(fn (Maintenance $maintenance) => ['km' => (int) $maintenance->mileage, 'date' => $maintenance->date]),
+        ])
+            ->filter(fn (array $reading) => $reading['km'] > 0 && $reading['date'] !== null)
+            ->sortByDesc(fn (array $reading) => $reading['date']->toDateString())
+            ->first();
+
+        if ($latest === null) {
+            return null;
+        }
+
+        $km = max($latest['km'], (int) $vehicle->mileage_latest);
+        $days = (int) $latest['date']->diffInDays(today());
+
+        return array_filter([
+            'latest_recorded_on' => $latest['date']->toDateString(),
+            'estimated_today_km' => $perMonth && $days >= self::MILEAGE_ESTIMATED_AFTER
+                ? (int) (round(($km + $perMonth * $days / 30.44) / self::MILEAGE_ROUNDED_TO) * self::MILEAGE_ROUNDED_TO)
+                : null,
+        ]);
+    }
+
+    /**
+     * The trips planned with the vehicle in the coming weeks: what it should
+     * be ready for. The trip planner gives the travel tips themselves.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function trips(Vehicle $vehicle): array
+    {
+        $country = fn (string $code) => extension_loaded('intl') ? (Locale::getDisplayRegion('-'.$code, 'en') ?: $code) : $code;
+
+        return Trip::query()
+            ->where('vehicle_id', $vehicle->id)
+            ->whereIn('status', [Trip::STATUS_ROUTED, Trip::STATUS_PLANNED])
+            ->whereBetween('time_at', [today(), today()->addDays(self::TRIPS_WITHIN)->endOfDay()])
+            ->with('waypoints')
+            ->orderBy('time_at')
+            ->get()
+            ->map(function (Trip $trip) use ($country) {
+                $route = $trip->plan['routes'][$trip->selected_route] ?? $trip->plan['routes'][0] ?? [];
+
+                return array_filter([
+                    'departure_date' => Carbon::parse($route['departure_at'] ?? $trip->time_at)->toDateString(),
+                    'destinations' => $trip->waypoints->skip(1)->map(fn (TripWaypoint $waypoint) => trim(explode(',', $waypoint->label)[0]))->values()->all(),
+                    'distance_km' => isset($route['distance']) ? (int) round($route['distance'] / 1000) : null,
+                    'countries' => array_map($country, $route['countries'] ?? []),
+                    'vignette_countries' => array_map($country, $route['vignettes'] ?? []),
+                ], fn ($value) => $value !== null && $value !== []);
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * What the weather of the coming weeks asks for where the driver lives:
+     * the first frost, snow and heat. Null when the place, or the forecast,
+     * is not known.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function weather(Vehicle $vehicle): ?array
+    {
+        $user = $vehicle->user;
+
+        if ($user?->latitude === null || $user->longitude === null) {
+            return null;
+        }
+
+        $days = collect(app(OpenMeteoService::class)->forecast($user->latitude, $user->longitude, self::FORECAST_DAYS));
+
+        if ($days->isEmpty()) {
+            return null;
+        }
+
+        $frost = $days->filter(fn (array $day) => $day['min'] <= 0);
+
+        return [
+            'days' => $days->count(),
+            'lowest_temperature_c' => (int) round($days->min('min')),
+            'highest_temperature_c' => (int) round($days->max('max')),
+            'first_frost_date' => $frost->first()['date'] ?? null,
+            'frost_days' => $frost->count(),
+            'first_snow_date' => $days->first(fn (array $day) => $day['snow_cm'] > 0)['date'] ?? null,
+            'first_hot_day_date' => $days->first(fn (array $day) => $day['max'] >= self::HOT)['date'] ?? null,
+        ];
     }
 
     /**

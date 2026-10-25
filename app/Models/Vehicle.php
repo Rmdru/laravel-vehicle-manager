@@ -1034,6 +1034,22 @@ class Vehicle extends Model
     }
 
     /**
+     * @return HasMany<Finding, $this>
+     */
+    public function findings(): HasMany
+    {
+        return $this->hasMany(Finding::class);
+    }
+
+    /**
+     * @return HasMany<GarageListItem, $this>
+     */
+    public function garageListItems(): HasMany
+    {
+        return $this->hasMany(GarageListItem::class);
+    }
+
+    /**
      * @return HasMany<Maintenance, $this>
      */
     public function maintenances(): HasMany
