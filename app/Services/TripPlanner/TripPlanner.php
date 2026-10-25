@@ -7,6 +7,7 @@ namespace App\Services\TripPlanner;
 use App\Models\Poi;
 use App\Models\Trip;
 use App\Models\TripWaypoint;
+use App\Services\TollSections;
 use App\Support\Roads;
 use Carbon\CarbonImmutable;
 use Closure;
@@ -18,12 +19,16 @@ class TripPlanner
     /** A toll booth this close to the route is passed through. */
     private const TOLL_BOOTH_ON_ROUTE = 60;
 
+    /** Toll roads less far apart than this, in meters, that come to the same section are paid once. */
+    private const TOLL_GAP = 2000;
+
     public function __construct(
         private RoutingProvider $routing,
         private PoiRepository $pois,
         private FuelPrices $prices,
         private TripNotices $notices,
         private TomTomTrafficService $traffic,
+        private TollSections $tollSections,
     ) {}
 
     /**
@@ -302,13 +307,14 @@ class TripPlanner
 
     /**
      * What a route costs, as far as it is known: the fuel, at the prices of
-     * the fuel stops or else at those along the route, and the vignettes, at
-     * the price paid for the last one of the country. The toll is not known.
+     * the fuel stops or else at those along the route, the vignettes, at the
+     * price paid for the last one of the country, and the toll roads, at what
+     * the vehicle usually paid on a section of the same road.
      *
      * @param  list<array<string, mixed>>|null  $stops  Null while the stops are not known yet.
      * @param  array<int, array{price: float}>  $prices
      * @param  list<string>  $vignettes  ISO 2 codes.
-     * @return array{fuel: ?float, fuel_price: ?float, energy: ?float, vignettes: list<array{country: string, price: ?float, owned: bool}>, total: ?float, complete: bool}
+     * @return array{fuel: ?float, fuel_price: ?float, energy: ?float, vignettes: list<array{country: string, price: ?float, owned: bool}>, tolls: list<array{distance: int, label: ?string, price: ?float, passages: int}>, total: ?float, complete: bool}
      */
     private function costs(Trip $trip, Route $route, ?VehicleRange $range, ?array $stops, array $prices, array $vignettes, CarbonImmutable $departure, CarbonImmutable $arrival): array
     {
@@ -342,16 +348,63 @@ class TripPlanner
             return ['country' => $country, 'price' => $owned ? 0.0 : $this->lastVignettePrice($trip, $country), 'owned' => $owned];
         }, $vignettes);
 
-        $known = array_filter([$fuel, ...array_column($vignetteCosts, 'price')], fn (?float $value) => $value !== null);
+        $tolls = $this->tolls($trip, $route);
+        $known = array_filter([$fuel, ...array_column($vignetteCosts, 'price'), ...array_column($tolls, 'price')], fn (?float $value) => $value !== null);
 
         return [
             'fuel' => $fuel,
             'fuel_price' => $price !== null ? round($price, 3) : null,
             'energy' => $energy,
             'vignettes' => $vignetteCosts,
+            'tolls' => $tolls,
             'total' => $known !== [] ? round(array_sum($known), 2) : null,
-            'complete' => $fuel !== null && $route->tollRoads === [] && ! in_array(null, array_column($vignetteCosts, 'price'), true),
+            'complete' => $fuel !== null && ! in_array(null, array_column($vignetteCosts, 'price'), true) && ! in_array(null, array_column($tolls, 'price'), true),
         ];
+    }
+
+    /**
+     * The toll roads of a route with what they cost, by the passages of the
+     * vehicle on the roads the route takes there. Toll roads close together
+     * that come to the same section are one: the routing provider can split
+     * a section up.
+     *
+     * @return list<array{distance: int, label: ?string, price: ?float, passages: int}>
+     */
+    private function tolls(Trip $trip, Route $route): array
+    {
+        $tolls = [];
+        // The end of the toll road before, along the route.
+        $end = null;
+
+        foreach ($route->tollRoads as $toll) {
+            $roads = array_values(array_unique(array_filter(array_merge(
+                [$route->roadAt($toll['start'])['ref'] ?? null],
+                array_column(array_filter($route->roadRuns, fn (array $run) => $run['start'] > $toll['start'] && $run['start'] < $toll['end']), 'ref'),
+            ))));
+            $country = $route->countryAt($toll['start']);
+            $section = $trip->vehicle !== null && $country !== null && $roads !== []
+                ? $this->tollSections->priceOn($trip->vehicle, CountryCodes::iso2($country), $roads)
+                : null;
+            $distance = (int) round($route->distances[$toll['end']] - $route->distances[$toll['start']]);
+            $last = array_key_last($tolls);
+            $close = $end !== null && $route->distances[$toll['start']] - $end < self::TOLL_GAP;
+            $end = $route->distances[$toll['end']];
+
+            if ($section !== null && $last !== null && $close && $tolls[$last]['label'] === $section['label']) {
+                $tolls[$last]['distance'] += $distance;
+
+                continue;
+            }
+
+            $tolls[] = [
+                'distance' => $distance,
+                'label' => $section['label'] ?? null,
+                'price' => $section['price'] ?? null,
+                'passages' => $section['passages'] ?? 0,
+            ];
+        }
+
+        return $tolls;
     }
 
     /**

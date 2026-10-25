@@ -6,9 +6,11 @@ namespace App\Http\Controllers;
 
 use App\Services\DashboardService;
 use App\Services\FuelAdviceService;
+use App\Services\FuelCostInsights;
 use App\Services\MonthlySummaryService;
 use App\Services\NotificationCenter;
 use App\Services\PowertrainComparisonService;
+use App\Services\TollSections;
 use App\Services\VehicleAdviceService;
 use App\Support\Cost;
 use App\Support\CurrentVehicle;
@@ -25,7 +27,7 @@ class DashboardController extends Controller
     /** Minutes between two refreshes of the fuel prices, at least. */
     private const REFRESH_FUEL_PRICES_EVERY = 5;
 
-    public function __invoke(Request $request, DashboardService $dashboard, FuelAdviceService $fuelAdvice, VehicleAdviceService $vehicleAdvice, MonthlySummaryService $monthlySummary, NotificationCenter $notifications, PowertrainComparisonService $powertrainComparison): Response
+    public function __invoke(Request $request, DashboardService $dashboard, FuelAdviceService $fuelAdvice, VehicleAdviceService $vehicleAdvice, MonthlySummaryService $monthlySummary, NotificationCenter $notifications, PowertrainComparisonService $powertrainComparison, FuelCostInsights $fuelCosts, TollSections $tollSections): Response
     {
         $vehicle = CurrentVehicle::get();
 
@@ -60,6 +62,11 @@ class DashboardController extends Controller
             'fuelPricesChart' => Inertia::defer(fn () => $dashboard->fuelPricesChart($vehicle, $start, $end), 'fuel'),
             'fuelUsageByType' => Inertia::defer(fn () => $dashboard->fuelUsageByType($vehicle, $start, $end), 'fuel'),
             'topGasStations' => Inertia::defer(fn () => $dashboard->topGasStations($vehicle, $start, $end), 'fuel'),
+            // Of the last months and the past year, whatever the period filter says.
+            'fuelCostChange' => Inertia::defer(fn () => $fuelCosts->change($vehicle), 'fuel'),
+            'fuelSavings' => Inertia::defer(fn () => $usesFuel ? $fuelCosts->savings($vehicle) : null, 'fuel'),
+            'consumptionByCircumstance' => Inertia::defer(fn () => $fuelCosts->circumstances($vehicle, $start, $end), 'fuel'),
+            'tollSections' => Inertia::defer(fn () => $tollSections->overview($vehicle, $start, $end), 'costs'),
             'averageMonthlyCosts' => Inertia::defer(fn () => $dashboard->averageMonthlyCostsByType($vehicle, $start, $end, $costTypes), 'costs'),
             'costsChart' => Inertia::defer(fn () => $dashboard->costsChart($vehicle, $start, $end, $costTypes), 'costs'),
             'latestCosts' => Inertia::defer(fn () => $dashboard->latestCosts($vehicle, $start, $end, $costTypes), 'costs'),

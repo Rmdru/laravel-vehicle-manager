@@ -104,6 +104,14 @@ export type TripCosts = {
     energy: number | null;
     // A vignette that is owned already costs nothing; one never bought has no known price.
     vignettes: { country: string; price: number | null; owned: boolean }[];
+    // The toll roads, at what the vehicle usually paid on a section of the same
+    // road; no price when it never recorded one. Missing in a trip planned before.
+    tolls?: {
+        distance: number;
+        label: string | null;
+        price: number | null;
+        passages: number;
+    }[];
     // The costs that are known.
     total: number | null;
     // Whether the total holds everything: not with toll or a vignette of unknown price.

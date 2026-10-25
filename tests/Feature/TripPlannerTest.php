@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Jobs\PlanTrip;
 use App\Models\Poi;
 use App\Models\PoiTile;
+use App\Models\Toll;
 use App\Models\Trip;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -699,6 +700,39 @@ class TripPlannerTest extends TestCase
         // The toll of the French motorway is not known.
         $this->assertFalse($costs['complete']);
         $this->assertSame($costs['fuel'], $costs['total']);
+    }
+
+    public function test_the_toll_of_a_road_the_vehicle_paid_on_before_is_known()
+    {
+        $this->fakeApis([
+            ['geom' => ['lat' => 49.60, 'lon' => 5.02], 'e10_prix' => 1.80, 'e10_maj' => '2026-10-19T08:00:00+00:00'],
+        ]);
+        $vehicle = $this->signInWithVehicle(['tank_capacity' => 50, 'powertrain' => 'gasoline']);
+        $toll = ['country' => 'france', 'road_type' => 'highway', 'road' => ['26'], 'type' => 'section', 'start_location' => 'Calais', 'end_location' => 'Reims'];
+
+        // The usual price, not the one with a fee on top.
+        foreach (['2026-08-01' => 30.10, '2026-09-01' => 31.20, '2026-10-01' => 49.20] as $date => $price) {
+            Toll::factory()->for($vehicle)->create([...$toll, 'start_date' => $date, 'price' => $price]);
+        }
+
+        // On another road, or in another country: not this toll road.
+        Toll::factory()->for($vehicle)->create([...$toll, 'road' => ['1'], 'start_location' => 'Paris', 'start_date' => '2026-09-01', 'price' => 20]);
+        Toll::factory()->for($vehicle)->create([...$toll, 'country' => 'italy', 'start_location' => 'Milano', 'start_date' => '2026-09-01', 'price' => 15]);
+
+        $costs = $this->plan($this->trip($vehicle, ['fuel_level' => 60]))->plan['routes'][0]['costs'];
+
+        $this->assertSame([['distance' => 111400, 'label' => 'Calais – Reims', 'price' => 31.2, 'passages' => 3]], $costs['tolls']);
+        $this->assertTrue($costs['complete']);
+        $this->assertEqualsWithDelta($costs['fuel'] + 31.2, $costs['total'], 0.01);
+    }
+
+    public function test_the_toll_of_a_road_never_paid_on_is_not_known()
+    {
+        $this->fakeApis();
+        $costs = $this->plan($this->trip($this->signInWithVehicle()))->plan['routes'][0]['costs'];
+
+        $this->assertSame([['distance' => 111400, 'label' => null, 'price' => null, 'passages' => 0]], $costs['tolls']);
+        $this->assertFalse($costs['complete']);
     }
 
     public function test_the_traffic_is_left_out_near_the_daily_limit_of_tomtom()

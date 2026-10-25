@@ -43,6 +43,7 @@ class DashboardService
         private readonly ConsumptionDrift $consumptionDrift,
         private readonly TopUps $topUps,
         private readonly Standstill $standstill,
+        private readonly TollSections $tollSections,
     ) {
         //
     }
@@ -59,15 +60,17 @@ class DashboardService
 
         // The fuel advice goes on top, and the components of the maintenance
         // plan, what the consumption and the top-ups tell, what a vehicle
-        // standing still needs and the tips that are urgent follow the other
-        // warnings; then "all is well" no longer is. The findings are left
-        // out: they have a page and the list for the garage of their own.
+        // standing still needs, what the toll costs more than it needs to and
+        // the tips that are urgent follow the other warnings; then "all is
+        // well" no longer is. The findings are left out: they have a page and
+        // the list for the garage of their own.
         $advice = array_values(array_filter([
             $fuelAdvice,
             ...$this->maintenancePlan->notifications($vehicle),
             ...$this->consumptionDrift->notifications($vehicle),
             ...$this->topUps->notifications($vehicle),
             ...$this->standstill->notifications($vehicle),
+            ...$this->tollSections->notifications($vehicle),
             ...$this->vehicleAdvice->notifications($vehicle),
         ]));
 
