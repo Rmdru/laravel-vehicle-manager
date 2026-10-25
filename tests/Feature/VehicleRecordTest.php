@@ -124,7 +124,12 @@ class VehicleRecordTest extends TestCase
         $vehicle = $this->signInWithVehicle();
         $record = $model::factory()->for($vehicle)->create();
 
-        $this->post(route("{$route}.duplicate", $record->id))->assertRedirect(route("{$route}.index"));
+        // What the duplicate dialog asks, filled in as it suggests.
+        $details = $this->getJson(route("{$route}.duplicate-details", $record->id))->assertOk()->json('defaults');
+
+        $this->post(route("{$route}.duplicate", $record->id), (array) $details)
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route("{$route}.index"));
 
         $this->assertSame(2, $model::where('vehicle_id', $vehicle->id)->count());
 
@@ -132,6 +137,54 @@ class VehicleRecordTest extends TestCase
 
         $this->assertNull($model::find($record->id));
         $this->assertSame(1, $model::where('vehicle_id', $vehicle->id)->count());
+    }
+
+    public function test_a_duplicated_period_starts_today_and_lasts_as_long()
+    {
+        $this->travelTo('2026-10-25 14:30');
+        $vehicle = $this->signInWithVehicle();
+        $insurance = Insurance::factory()->for($vehicle)->create([
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-12-31',
+            'price' => 42.5,
+        ]);
+        $parking = Parking::factory()->for($vehicle)->create([
+            'start_time' => '2026-10-01 09:00',
+            'end_time' => '2026-10-01 11:15',
+        ]);
+
+        $this->getJson(route('insurances.duplicate-details', $insurance->id))
+            ->assertJsonPath('defaults.start_date', '2026-10-25')
+            ->assertJsonPath('defaults.end_date', '2027-10-24')
+            ->assertJsonPath('defaults.price', 42.5);
+
+        $this->getJson(route('parking.duplicate-details', $parking->id))
+            ->assertJsonPath('defaults.start_time', '2026-10-25 14:30')
+            ->assertJsonPath('defaults.end_time', '2026-10-25 16:45');
+
+        $this->post(route('insurances.duplicate', $insurance->id), [
+            'price' => '45',
+            'start_date' => '2027-01-01',
+            'end_date' => '2027-12-31',
+        ])->assertRedirect(route('insurances.index'));
+
+        $copy = Insurance::whereKeyNot($insurance->id)->sole();
+        $this->assertSame('2027-01-01', $copy->start_date->format('Y-m-d'));
+        $this->assertEquals(45, $copy->price);
+    }
+
+    public function test_a_duplicate_asks_a_valid_period()
+    {
+        $vehicle = $this->signInWithVehicle();
+        $insurance = Insurance::factory()->for($vehicle)->create();
+
+        $this->post(route('insurances.duplicate', $insurance->id), [
+            'price' => '45',
+            'start_date' => '2027-01-01',
+            'end_date' => '2026-01-01',
+        ])->assertSessionHasErrors('end_date');
+
+        $this->assertSame(1, Insurance::where('vehicle_id', $vehicle->id)->count());
     }
 
     #[DataProvider('records')]
@@ -142,6 +195,7 @@ class VehicleRecordTest extends TestCase
 
         $this->get(route("{$route}.edit", $record->id))->assertNotFound();
         $this->patch(route("{$route}.update", $record->id), [])->assertNotFound();
+        $this->get(route("{$route}.duplicate-details", $record->id))->assertNotFound();
         $this->post(route("{$route}.duplicate", $record->id))->assertNotFound();
         $this->delete(route("{$route}.destroy", $record->id))->assertNotFound();
 

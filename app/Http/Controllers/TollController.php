@@ -21,6 +21,8 @@ class TollController extends VehicleRecordController
 
     protected string $dateAttribute = 'start_date';
 
+    protected array $duplicateFields = ['start_date', 'end_date'];
+
     protected function prepare(array $data, ?Model $record): array
     {
         // Roads are entered comma separated and stored as a list.
@@ -37,6 +39,18 @@ class TollController extends VehicleRecordController
     protected function formData(Model $record): array
     {
         return [...parent::formData($record), 'road' => implode(', ', (array) $record->getAttribute('road'))];
+    }
+
+    protected function duplicateData(Model $record): array
+    {
+        $data = parent::duplicateData($record);
+
+        // The form allows no end in the future: a toll session is over.
+        if ($data['end_date']) {
+            $data['end_date'] = min($data['end_date'], today()->format('Y-m-d'));
+        }
+
+        return $data;
     }
 
     protected function title(): string

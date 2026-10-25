@@ -20,6 +20,8 @@ class FerryController extends VehicleRecordController
 
     protected string $dateAttribute = 'start_date';
 
+    protected array $duplicateFields = ['start_date', 'end_date'];
+
     protected function title(): string
     {
         return __('Transport trains & ferry services');

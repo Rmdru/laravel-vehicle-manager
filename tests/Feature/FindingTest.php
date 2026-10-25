@@ -90,20 +90,15 @@ class FindingTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->where('table.data.0.id', $open->id)->etc());
     }
 
-    public function test_urgent_findings_and_those_to_have_done_soon_need_attention()
+    public function test_findings_do_not_show_under_needs_attention()
     {
         $vehicle = $this->signInWithVehicle();
-        $urgent = Finding::factory()->for($vehicle)->create(['severity' => 'urgent', 'title' => 'Brake pedal goes deep']);
-        $soon = Finding::factory()->for($vehicle)->create(['severity' => 'soon']);
-        Finding::factory()->for($vehicle)->create(['severity' => 'info']);
-        Finding::factory()->for($vehicle)->create(['severity' => 'urgent', 'status' => 'resolved']);
+        Finding::factory()->for($vehicle)->create(['severity' => 'urgent']);
+        Finding::factory()->for($vehicle)->create(['severity' => 'soon']);
 
-        $notifications = collect(app(DashboardService::class)->notifications($vehicle->fresh()))->keyBy('key');
+        $notifications = collect(app(DashboardService::class)->notifications($vehicle->fresh()));
 
-        $this->assertSame('critical', $notifications["finding:{$urgent->id}"]['type']);
-        $this->assertSame('Finding: Brake pedal goes deep', $notifications["finding:{$urgent->id}"]['text']);
-        $this->assertSame('warning', $notifications["finding:{$soon->id}"]['type']);
-        $this->assertCount(2, $notifications->filter(fn ($notification, $key) => str_starts_with($key, 'finding:')));
+        $this->assertCount(0, $notifications->filter(fn ($notification) => str_starts_with($notification['key'], 'finding:')));
     }
 
     public function test_the_defects_of_a_recent_mot_are_imported_once_for_information()

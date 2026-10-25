@@ -16,11 +16,19 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    useSidebar,
 } from '@/components/ui/sidebar';
 import { useT } from '@/composables/useT';
 
 const page = usePage();
 const { t } = useT();
+const { setOpenMobile } = useSidebar();
+
+// Switching may stay on the same URL, so the sidebar is closed here.
+function select(url: string) {
+    setOpenMobile(false);
+    router.post(url);
+}
 
 const current = computed(() => page.props.currentVehicle);
 const vehicles = computed(() => page.props.vehicles);
@@ -57,7 +65,7 @@ const vehicles = computed(() => page.props.vehicles);
                         v-for="vehicle in vehicles"
                         :key="vehicle.id"
                         class="cursor-pointer"
-                        @select="router.post(vehicle.selectUrl)"
+                        @select="select(vehicle.selectUrl)"
                     >
                         <span class="flex-1 truncate">{{ vehicle.name }}</span>
                         <span class="text-xs text-muted-foreground">{{

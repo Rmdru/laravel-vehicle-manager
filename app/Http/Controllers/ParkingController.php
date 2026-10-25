@@ -7,7 +7,6 @@ namespace App\Http\Controllers;
 use App\Forms\ParkingForm;
 use App\Models\Parking;
 use App\Tables\ParkingTable;
-use Illuminate\Http\RedirectResponse;
 
 class ParkingController extends VehicleRecordController
 {
@@ -21,15 +20,7 @@ class ParkingController extends VehicleRecordController
 
     protected string $dateAttribute = 'start_time';
 
-    public function duplicate(string $id): RedirectResponse
-    {
-        $replica = $this->record($id)->replicate();
-        $replica->setAttribute('start_time', now());
-        $replica->setAttribute('end_time', now()->addHour());
-        $replica->save();
-
-        return $this->redirectToIndex(__(':name duplicated.', ['name' => $this->singularTitle()]));
-    }
+    protected array $duplicateFields = ['start_time', 'end_time'];
 
     protected function title(): string
     {

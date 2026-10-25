@@ -20,6 +20,8 @@ class InsuranceController extends VehicleRecordController
 
     protected string $dateAttribute = 'start_date';
 
+    protected array $duplicateFields = ['price', 'start_date', 'end_date'];
+
     protected function title(): string
     {
         return __('Insurances');

@@ -8,6 +8,7 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    useSidebar,
 } from '@/components/ui/sidebar';
 import { useCurrentUrl } from '@/composables/useCurrentUrl';
 import type { NavGroup } from '@/types';
@@ -17,6 +18,8 @@ const props = defineProps<{
 }>();
 
 const { isCurrentUrl, isCurrentOrParentUrl } = useCurrentUrl();
+// The item of the page already shown keeps the URL, so it closes here too.
+const { setOpenMobile } = useSidebar();
 
 // The item of the current page: of the items whose URL is the current one or a
 // parent of it, the most specific. So /trips/create is "Plan a trip" only, and
@@ -44,7 +47,7 @@ const isActive = (href: string) => href === activeHref.value;
                     :is-active="isActive(item.href)"
                     :tooltip="item.title"
                 >
-                    <Link :href="item.href">
+                    <Link :href="item.href" @click="setOpenMobile(false)">
                         <AppIcon :name="item.icon" />
                         <span>{{ item.title }}</span>
                     </Link>

@@ -702,7 +702,13 @@ function fit() {
                       [place!.longitude!, place!.latitude!] as [number, number],
               );
 
-    if (!map || !coordinates.length || key === fitted) {
+    // A hidden map (on a phone, while the form is shown) is fitted once it shows.
+    if (
+        !map ||
+        !coordinates.length ||
+        key === fitted ||
+        !container.value?.clientWidth
+    ) {
         return;
     }
 
@@ -759,7 +765,13 @@ function showStop(stop: TripStop) {
     }
 }
 
-defineExpose({ flyTo, showStop });
+// Once the map shows again after it was hidden: its size, and the routes in view.
+function reveal() {
+    map?.resize();
+    fit();
+}
+
+defineExpose({ flyTo, showStop, reveal });
 
 onMounted(() => {
     map = new maplibregl.Map({

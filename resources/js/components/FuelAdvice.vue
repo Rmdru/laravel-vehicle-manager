@@ -468,7 +468,7 @@ defineExpose({ show: () => (open.value = true) });
                             :href="source.url"
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="inline-flex min-h-8 items-center rounded-md border px-2.5 underline-offset-2 hover:underline"
+                            class="inline-flex min-h-8 items-center rounded-md border px-2.5 underline-offset-2 hover:underline pointer-coarse:min-h-10"
                         >
                             {{ source.title }}
                         </a>

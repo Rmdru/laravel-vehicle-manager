@@ -102,6 +102,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ];
 
         foreach ($records as $uri => $controller) {
+            Route::get("{$uri}/{record}/duplicate", [$controller, 'duplicateDetails'])->name("{$uri}.duplicate-details");
             Route::post("{$uri}/{record}/duplicate", [$controller, 'duplicate'])->name("{$uri}.duplicate");
             Route::resource($uri, $controller)
                 ->parameters([$uri => 'record'])
