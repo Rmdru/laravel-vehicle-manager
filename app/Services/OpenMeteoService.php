@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -41,6 +42,70 @@ class OpenMeteoService
         }
 
         return null;
+    }
+
+    /**
+     * The weather forecast of the coming days, per day: the lowest and
+     * highest temperature and the snowfall. Kept for a few hours: it is the
+     * same for everyone nearby. Empty when the forecast is not available.
+     *
+     * @return list<array{date: string, min: float, max: float, snow_cm: float}>
+     */
+    public function forecast(float $latitude, float $longitude, int $days = 14): array
+    {
+        $latitude = round($latitude, 1);
+        $longitude = round($longitude, 1);
+
+        $forecast = Cache::get($key = "open-meteo:forecast:{$latitude}:{$longitude}:{$days}");
+
+        if ($forecast !== null) {
+            return $forecast;
+        }
+
+        try {
+            $response = Http::timeout(5)
+                ->retry(3, 100, throw: false)
+                ->get(config('open_meteo.forecast_url'), [
+                    'latitude' => $latitude,
+                    'longitude' => $longitude,
+                    'daily' => 'temperature_2m_min,temperature_2m_max,snowfall_sum',
+                    'forecast_days' => $days,
+                    'timezone' => 'auto',
+                ]);
+
+            $daily = $response->ok() ? (array) $response->json('daily') : [];
+            $forecast = collect($daily['time'] ?? [])
+                ->map(fn ($date, $index) => [
+                    'date' => (string) $date,
+                    'min' => (float) ($daily['temperature_2m_min'][$index] ?? 0),
+                    'max' => (float) ($daily['temperature_2m_max'][$index] ?? 0),
+                    'snow_cm' => (float) ($daily['snowfall_sum'][$index] ?? 0),
+                ])
+                ->values()
+                ->all();
+
+            if ($forecast === []) {
+                Log::channel('openmeteo-api')->warning('OpenMeteo forecast returned no forecast.', [
+                    'status' => $response->status(),
+                    'latitude' => $latitude,
+                    'longitude' => $longitude,
+                ]);
+
+                return [];
+            }
+
+            Cache::put($key, $forecast, now()->addHours(3));
+
+            return $forecast;
+        } catch (\Throwable $exception) {
+            Log::channel('openmeteo-api')->warning('OpenMeteo forecast call failed.', [
+                'message' => $exception->getMessage(),
+                'latitude' => $latitude,
+                'longitude' => $longitude,
+            ]);
+        }
+
+        return [];
     }
 
     public function fetchHistoricalMinTempsInDateRange(array $ipLocation, string $startDate, string $endDate): array

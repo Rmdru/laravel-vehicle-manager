@@ -1,10 +1,13 @@
 <?php
 
 use App\Http\Controllers\AccidentController;
+use App\Http\Controllers\CostForecastController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EnvironmentalStickerController;
 use App\Http\Controllers\FerryController;
+use App\Http\Controllers\FindingController;
 use App\Http\Controllers\FineController;
+use App\Http\Controllers\ForTheGarageController;
 use App\Http\Controllers\FuelAdviceController;
 use App\Http\Controllers\InsuranceController;
 use App\Http\Controllers\LocaleController;
@@ -42,6 +45,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/', DashboardController::class)->name('dashboard');
         Route::get('timeline', TimelineController::class)->name('timeline');
         Route::get('tips', [VehicleAdviceController::class, 'index'])->name('tips');
+        Route::get('cost-forecast', CostForecastController::class)->name('cost-forecast');
         Route::post('fuel-prices/refresh', [DashboardController::class, 'refreshFuelPrices'])->name('fuel-prices.refresh');
         Route::post('fuel-advice', [FuelAdviceController::class, 'store'])->name('fuel-advice.store');
         Route::post('vehicle-advice', [VehicleAdviceController::class, 'store'])->name('vehicle-advice.store');
@@ -71,8 +75,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('maintenance-plan/{key}/done', [MaintenancePlanController::class, 'done'])->name('maintenance-plan.done');
         Route::post('maintenance-plan/{key}/propose', [MaintenancePlanController::class, 'proposeOne'])->name('maintenance-plan.propose-one');
 
+        Route::get('for-the-garage', [ForTheGarageController::class, 'index'])->name('for-the-garage');
+        Route::post('for-the-garage/plan/{key}', [ForTheGarageController::class, 'plan'])->name('for-the-garage.plan');
+        Route::post('for-the-garage/lines', [ForTheGarageController::class, 'storeLine'])->name('for-the-garage.lines.store');
+        Route::delete('for-the-garage/lines/{line}', [ForTheGarageController::class, 'destroyLine'])->name('for-the-garage.lines.destroy');
+        Route::post('findings/{record}/garage', [FindingController::class, 'garage'])->name('findings.garage');
+        Route::post('findings/{record}/resolve', [FindingController::class, 'resolve'])->name('findings.resolve');
+        Route::post('findings/{record}/diagnose', [FindingController::class, 'diagnose'])->name('findings.diagnose');
+
         $records = [
             'maintenances' => MaintenanceController::class,
+            'findings' => FindingController::class,
             'reconditionings' => ReconditioningController::class,
             'accidents' => AccidentController::class,
             'products' => ProductController::class,

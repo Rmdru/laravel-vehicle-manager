@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Enums\VehicleStatus;
 use App\Models\Vehicle;
+use App\Services\FindingService;
 use App\Services\RdwService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
@@ -17,7 +18,8 @@ class ImportVehicleData extends Command
     protected $description = 'Import vehicle data from RDW API to vehicles database table';
 
     public function __construct(
-        private readonly RdwService $rdwService
+        private readonly RdwService $rdwService,
+        private readonly FindingService $findings,
     ) {
         parent::__construct();
     }
@@ -81,6 +83,9 @@ class ImportVehicleData extends Command
         }
 
         $vehicle->saveQuietly();
+
+        // The defects the MOT found need attention: once each.
+        $this->findings->importMot($vehicle);
 
         $this->info("Updated vehicle ID {$vehicle->id} with RDW data with license plate {$vehicle->license_plate}.");
     }

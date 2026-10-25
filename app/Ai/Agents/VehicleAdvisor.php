@@ -101,6 +101,27 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
             looks the tip up when needed) or not_relevant. Do not make them again, under any key, unless the facts show
             that the situation has clearly changed since (such as a new season for a seasonal tip that was done last
             year).
+            open_findings are what needs attention according to the garage, the owner or the MOT, until it is
+            resolved; the app shows the urgent ones already. A tip about one is welcome when it adds something:
+            combining it with maintenance that is due, what it usually costs, or what happens when it is left; do not
+            only repeat it. Defects of the MOT are for information: the garage may have repaired them at once.
+            top_ups tell how much engine oil the engine uses, and how often coolant or brake fluid was topped up: the
+            app warns when that is a lot; a tip may explain what it usually means for this engine.
+            previous_suggestions are the tips of the previous advice the owner did not handle yet. When you make one
+            of them again, keep its key; change its title only when the facts changed what it says. Leave one out
+            when it no longer holds.
+
+            mileage tells when the mileage was recorded last. When that is a while ago, estimated_today_km is what
+            the app estimates from the usual distance per month: use that for what is due by mileage, and say that
+            it is an estimate.
+            planned_trips are the trips planned with this vehicle in the coming weeks. Advise on what the vehicle
+            needs before such a trip: maintenance that falls due before or during it, tires and fluids before a
+            long drive, a vignette or environmental sticker for a country on the way that
+            valid_vignettes_and_stickers does not cover, or the winter equipment a country asks for in that season.
+            The trip planner gives the travel tips themselves (the route, stops, traffic): leave those out.
+            weather_forecast is the forecast of the coming days where the driver lives. Base a seasonal tip on it
+            when it shows what is coming, such as the first frost, snow or a hot spell, and give the date; without
+            it, go by the month.
 
             Every date, mileage and amount of the vehicle comes from the facts; never invent them. Where you rely on
             what you know about this make, model or engine rather than on the facts (an interval of the manufacturer, a

@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Ai\Agents\VehicleAdvisor;
 use App\Models\Maintenance;
+use App\Models\Refueling;
+use App\Models\Trip;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleAdvice;
@@ -12,6 +14,9 @@ use App\Services\VehicleAdviceFacts;
 use App\Services\VehicleAdviceService;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Sleep;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Ai\Exceptions\RateLimitedException;
@@ -115,6 +120,94 @@ class VehicleAdviceTest extends TestCase
         $vehicle->update(['mileage_latest' => 5000]);
 
         $this->assertNotSame($today, $facts->fingerprint($facts->for($vehicle->fresh())));
+    }
+
+    public function test_the_facts_tell_how_old_the_mileage_is()
+    {
+        $vehicle = $this->signInWithVehicle(['mileage_latest' => 11000]);
+        Refueling::factory()->for($vehicle)->create(['date' => '2026-06-01', 'mileage_begin' => 10000, 'mileage_end' => 10500]);
+        Refueling::factory()->for($vehicle)->create(['date' => '2026-08-01', 'mileage_begin' => 10500, 'mileage_end' => 11000]);
+
+        $facts = app(VehicleAdviceFacts::class)->for($vehicle->fresh());
+
+        // 250 km a month, for 77 days since: rounded to 500 km.
+        $this->assertSame(['latest_recorded_on' => '2026-08-01', 'estimated_today_km' => 11500], $facts['mileage']);
+    }
+
+    public function test_the_facts_tell_the_trips_planned_in_the_coming_weeks()
+    {
+        $vehicle = $this->signInWithVehicle();
+        $trip = fn (string $at, string $status) => Trip::create([
+            'user_id' => $vehicle->user_id,
+            'vehicle_id' => $vehicle->id,
+            'time_at' => $at,
+            'status' => $status,
+            'plan' => ['routes' => [['distance' => 1100000, 'countries' => ['DE', 'AT'], 'vignettes' => ['AT']]]],
+        ])->waypoints()->createMany([
+            ['position' => 0, 'label' => 'Utrecht', 'latitude' => 52.0, 'longitude' => 5.0],
+            ['position' => 1, 'label' => 'Innsbruck, Tirol, Austria', 'latitude' => 47.3, 'longitude' => 11.4],
+        ]);
+        $trip('2026-11-20 07:00:00', Trip::STATUS_PLANNED);
+        $trip('2027-02-01 07:00:00', Trip::STATUS_PLANNED);
+        $trip('2026-11-01 07:00:00', Trip::STATUS_FAILED);
+
+        $facts = app(VehicleAdviceFacts::class)->for($vehicle->fresh());
+
+        $this->assertCount(1, $facts['planned_trips']);
+        $this->assertSame('2026-11-20', $facts['planned_trips'][0]['departure_date']);
+        $this->assertSame(['Innsbruck'], $facts['planned_trips'][0]['destinations']);
+        $this->assertSame(1100, $facts['planned_trips'][0]['distance_km']);
+        $this->assertContains('Austria', $facts['planned_trips'][0]['vignette_countries']);
+    }
+
+    public function test_the_facts_tell_the_weather_but_only_frost_snow_or_heat_changes_the_fingerprint()
+    {
+        $minimum = 4;
+        Http::swap(new Factory);
+        Http::fake(['api.open-meteo.com/*' => function () use (&$minimum) {
+            return Http::response(['daily' => [
+                'time' => ['2026-10-17', '2026-10-18', '2026-10-19'],
+                'temperature_2m_min' => [6, $minimum, $minimum - 1],
+                'temperature_2m_max' => [14, 12, 11],
+                'snowfall_sum' => [0, 0, 0],
+            ]]);
+        }]);
+        $vehicle = $this->signInWithVehicle();
+        $vehicle->user->update(['latitude' => 52.09, 'longitude' => 5.12]);
+        $facts = app(VehicleAdviceFacts::class);
+
+        $before = $facts->for($vehicle->fresh());
+        $this->assertSame(3, $before['weather_forecast']['lowest_temperature_c']);
+        $this->assertNull($before['weather_forecast']['first_frost_date']);
+
+        // Colder, but no frost yet.
+        $minimum = 2;
+        Cache::flush();
+        $this->assertSame($facts->fingerprint($before), $facts->fingerprint($facts->for($vehicle->fresh())));
+
+        $minimum = 0;
+        Cache::flush();
+        $after = $facts->for($vehicle->fresh());
+        $this->assertSame('2026-10-18', $after['weather_forecast']['first_frost_date']);
+        $this->assertSame(2, $after['weather_forecast']['frost_days']);
+        $this->assertNotSame($facts->fingerprint($before), $facts->fingerprint($after));
+    }
+
+    public function test_the_tips_not_handled_yet_are_given_again_without_changing_the_fingerprint()
+    {
+        VehicleAdvisor::fake([$this->answer([$this->suggestion(), $this->suggestion(['key' => 'battery', 'title' => 'Laat de accu testen'])])]);
+        $vehicle = $this->signInWithVehicle();
+        $facts = app(VehicleAdviceFacts::class);
+        $before = $facts->fingerprint($facts->for($vehicle->fresh()));
+
+        app(VehicleAdviceService::class)->generate($vehicle->fresh(), 'nl');
+
+        $this->assertSame($before, $facts->fingerprint($facts->for($vehicle->fresh())));
+
+        // A tip the owner handled is among those instead.
+        $this->tip($vehicle, 'battery', VehicleTip::DONE);
+
+        $this->assertSame([['key' => 'timing_belt', 'title' => 'Laat de distributieriem vervangen']], $facts->for($vehicle->fresh())['previous_suggestions']);
     }
 
     public function test_the_advice_is_generated_from_the_facts_in_the_language_of_the_user()

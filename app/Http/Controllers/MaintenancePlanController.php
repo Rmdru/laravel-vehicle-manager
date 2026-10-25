@@ -8,10 +8,12 @@ use App\Models\VehicleComponent;
 use App\Services\MaintenancePlanAi;
 use App\Services\MaintenancePlanService;
 use App\Services\NotificationCenter;
+use App\Services\PriceHistory;
 use App\Support\CurrentVehicle;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -34,14 +36,15 @@ class MaintenancePlanController extends Controller
         MaintenancePlanService::NO_INTERVAL => 'When needed',
     ];
 
-    public function index(MaintenancePlanService $plan, MaintenancePlanAi $ai): Response
+    public function index(MaintenancePlanService $plan, MaintenancePlanAi $ai, PriceHistory $prices): Response
     {
         $vehicle = CurrentVehicle::get();
         $options = MaintenancePlanService::options($vehicle);
         $stored = $plan->components($vehicle);
+        $history = $prices->byComponent($vehicle);
 
         return Inertia::render('MaintenancePlan', [
-            'components' => array_map(fn (array $item) => $this->present($item), $plan->plan($vehicle)),
+            'components' => array_map(fn (array $item) => $this->present($item, $history->get($item['key'], collect())), $plan->plan($vehicle)),
             // The components the vehicle has not: to switch them on again.
             'inactive' => $stored->reject(fn (VehicleComponent $component) => $component->active)
                 ->map(fn (VehicleComponent $component, string $key) => ['key' => $key, 'label' => $options[$key], 'icon' => config("maintenance_plan.components.{$key}.icon"), 'note' => $component->note])
@@ -56,9 +59,10 @@ class MaintenancePlanController extends Controller
 
     /**
      * @param  array<string, mixed>  $item
+     * @param  Collection<int, array<string, mixed>>  $prices  What was paid for it, the most recent first.
      * @return array<string, mixed>
      */
-    private function present(array $item): array
+    private function present(array $item, Collection $prices): array
     {
         $component = config("maintenance_plan.components.{$item['key']}");
         $number = fn (?int $value) => $value === null ? null : number_format($value, 0, ',', '.');
@@ -93,6 +97,12 @@ class MaintenancePlanController extends Controller
                 'price' => $done['price'] === null ? null : '€ '.number_format($done['price'], 2, ',', '.'),
                 'url' => $done['maintenance_id'] ? route('maintenances.show', $done['maintenance_id']) : null,
             ],
+            // What was paid for it before, and where.
+            'prices' => $prices->take(3)->map(fn (array $price) => [
+                'date' => Carbon::parse($price['date'])->isoFormat('MMM YYYY'),
+                'garage' => $price['garage'],
+                'price' => '€ '.number_format($price['price'], 2, ',', '.'),
+            ])->values()->all(),
             // Never recorded: counted from new, the day it was built.
             'assumedSince' => $item['assumed_since'] ? Carbon::parse($item['assumed_since'])->isoFormat('D MMMM YYYY') : null,
             // To be checked, it is overdue going by its age only: no date to give.
