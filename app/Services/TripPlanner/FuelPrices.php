@@ -199,6 +199,30 @@ class FuelPrices
     }
 
     /**
+     * The average price of the fuel of a vehicle along a route: that of each
+     * country it passes through, by the distance driven there. Null when the
+     * price is known in none of them.
+     */
+    public function averageAlong(Route $route, VehicleRange $range): ?float
+    {
+        $fuel = self::fuel($range->fuelType);
+        $sum = 0.0;
+        $meters = 0.0;
+
+        foreach ($fuel === null ? [] : $route->countries as $section) {
+            $distance = ($route->distances[$section['end']] ?? 0) - ($route->distances[$section['start']] ?? 0);
+            $price = $distance > 0 ? $this->average(CountryCodes::iso2($section['country']), (string) $range->fuelType, $fuel) : null;
+
+            if ($price !== null) {
+                $sum += $price * $distance;
+                $meters += $distance;
+            }
+        }
+
+        return $meters > 0 ? $sum / $meters : null;
+    }
+
+    /**
      * The average price of a fuel in a country: from the prices the app reads
      * every day, or else from the averages of the ANWB.
      */

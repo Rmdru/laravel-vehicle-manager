@@ -95,7 +95,11 @@ class MaintenancePlanController extends Controller
                 'km' => $done['km'] === null ? null : $number($done['km']).' km',
                 'garage' => $done['garage'],
                 'price' => $done['price'] === null ? null : '€ '.number_format($done['price'], 2, ',', '.'),
-                'url' => $done['maintenance_id'] ? route('maintenances.show', $done['maintenance_id']) : null,
+                'url' => match (true) {
+                    $done['maintenance_id'] !== null => route('maintenances.show', $done['maintenance_id']),
+                    $done['product_id'] !== null => route('products.show', $done['product_id']),
+                    default => null,
+                },
             ],
             // What was paid for it before, and where.
             'prices' => $prices->take(3)->map(fn (array $price) => [

@@ -21,6 +21,7 @@ class Product extends Model
         'category',
         'quantity',
         'mileage',
+        'component',
         'price',
         'date',
     ];

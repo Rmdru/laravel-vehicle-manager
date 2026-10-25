@@ -100,6 +100,10 @@ export type TripCosts = {
     // The fuel, at the prices of the fuel stops or else of those along the route.
     fuel: number | null;
     fuel_price: number | null;
+    // Without prices on the route, or for charging, an estimate: at the average
+    // prices of its countries, at those of the latest refuelings, or at a usual
+    // price. Missing in a trip planned before.
+    fuel_estimate?: 'countries' | 'refuelings' | 'typical' | null;
     // The liters, or the kWh, the route takes.
     energy: number | null;
     // A vignette that is owned already costs nothing; one never bought has no known price.

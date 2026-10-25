@@ -7,6 +7,7 @@ namespace App\Services\TripPlanner;
 use App\Models\Poi;
 use App\Models\Trip;
 use App\Models\TripWaypoint;
+use App\Models\Vehicle;
 use App\Services\TollSections;
 use App\Support\Roads;
 use Carbon\CarbonImmutable;
@@ -21,6 +22,9 @@ class TripPlanner
 
     /** Toll roads less far apart than this, in meters, that come to the same section are paid once. */
     private const TOLL_GAP = 2000;
+
+    /** The latest refuelings an estimate of the fuel price is the average of. */
+    private const RECENT_REFUELINGS = 5;
 
     public function __construct(
         private RoutingProvider $routing,
@@ -306,6 +310,41 @@ class TripPlanner
     }
 
     /**
+     * The fuel type a trip is estimated at: an electric vehicle charges at
+     * fast chargers on the way, not at the cheaper slow ones near home.
+     */
+    private function estimatedFuelType(VehicleRange $range): ?string
+    {
+        return $range->electric ? 'Electricity DC' : $range->fuelType;
+    }
+
+    /**
+     * The average price per liter, or per kWh, of the latest refuelings of a
+     * vehicle with the fuel of the trip, leaving out a typo or a price of
+     * another unit; null when it has none.
+     */
+    private function recentUnitPrice(?Vehicle $vehicle, VehicleRange $range): ?float
+    {
+        $fuelType = $this->estimatedFuelType($range);
+
+        if ($vehicle === null || $fuelType === null) {
+            return null;
+        }
+
+        [$least, $most] = config("powertrain_comparison.price_bounds.{$fuelType}", [0.01, PHP_FLOAT_MAX]);
+
+        $price = $vehicle->refuelings()
+            ->newest()
+            ->where('fuel_type', $fuelType)
+            ->whereBetween('unit_price', [$least, $most])
+            ->limit(self::RECENT_REFUELINGS)
+            ->pluck('unit_price')
+            ->avg();
+
+        return $price !== null ? (float) $price : null;
+    }
+
+    /**
      * What a route costs, as far as it is known: the fuel, at the prices of
      * the fuel stops or else at those along the route, the vignettes, at the
      * price paid for the last one of the country, and the toll roads, at what
@@ -314,7 +353,7 @@ class TripPlanner
      * @param  list<array<string, mixed>>|null  $stops  Null while the stops are not known yet.
      * @param  array<int, array{price: float}>  $prices
      * @param  list<string>  $vignettes  ISO 2 codes.
-     * @return array{fuel: ?float, fuel_price: ?float, energy: ?float, vignettes: list<array{country: string, price: ?float, owned: bool}>, tolls: list<array{distance: int, label: ?string, price: ?float, passages: int}>, total: ?float, complete: bool}
+     * @return array{fuel: ?float, fuel_price: ?float, fuel_estimate: ?string, energy: ?float, vignettes: list<array{country: string, price: ?float, owned: bool}>, tolls: list<array{distance: int, label: ?string, price: ?float, passages: int}>, total: ?float, complete: bool}
      */
     private function costs(Trip $trip, Route $route, ?VehicleRange $range, ?array $stops, array $prices, array $vignettes, CarbonImmutable $departure, CarbonImmutable $arrival): array
     {
@@ -341,6 +380,24 @@ class TripPlanner
         }
 
         $vehicle = $trip->vehicle;
+
+        // Without a price on the route (yet), or for charging: an estimate, at
+        // the average prices of the countries of the route, or else at what
+        // the vehicle was refueled or charged for lately, or else at a usual price.
+        $estimate = null;
+
+        if ($energy !== null && $price === null) {
+            $typical = config('powertrain_comparison.fallback_prices.'.$this->estimatedFuelType($range));
+
+            [$price, $estimate] = match (true) {
+                ! $range->electric && ($average = $this->prices->averageAlong($route, $range)) !== null => [$average, 'countries'],
+                ($own = $this->recentUnitPrice($vehicle, $range)) !== null => [$own, 'refuelings'],
+                is_numeric($typical) => [(float) $typical, 'typical'],
+                default => [null, null],
+            };
+            $fuel = $price !== null ? round($price * $energy, 2) : null;
+        }
+
         $vignetteCosts = array_map(function (string $country) use ($trip, $vehicle, $departure, $arrival) {
             // A vignette that holds for the trip is paid for already.
             $owned = $vehicle !== null && $this->notices->holds($vehicle->vignettes, $country, $departure, $arrival);
@@ -354,6 +411,8 @@ class TripPlanner
         return [
             'fuel' => $fuel,
             'fuel_price' => $price !== null ? round($price, 3) : null,
+            // How the fuel was estimated, or null when it is at the prices on the route.
+            'fuel_estimate' => $estimate,
             'energy' => $energy,
             'vignettes' => $vignetteCosts,
             'tolls' => $tolls,

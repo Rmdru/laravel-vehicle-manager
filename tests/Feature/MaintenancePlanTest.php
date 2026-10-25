@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Ai\Agents\MaintenancePlanAdvisor;
 use App\Ai\Agents\MaintenanceTaskClassifier;
+use App\Enums\ProductCategory;
 use App\Models\Maintenance;
+use App\Models\Product;
 use App\Models\Vehicle;
 use App\Models\VehicleComponent;
 use App\Services\DashboardService;
@@ -129,6 +131,42 @@ class MaintenancePlanTest extends TestCase
 
         $this->assertSame('2026-09-01', $fluid['due_date']);
         $this->assertSame(MaintenancePlanService::OVERDUE, $fluid['state']);
+    }
+
+    public function test_a_part_replaced_by_the_owner_counts_as_done()
+    {
+        $vehicle = $this->vehicle();
+        Product::factory()->for($vehicle)->create([
+            'name' => 'Ruitenwissers',
+            'category' => ProductCategory::Part,
+            'component' => 'wiper_blades',
+            'price' => 25,
+            'date' => '2026-07-23',
+        ]);
+
+        $wipers = $this->item($vehicle->fresh(), 'wiper_blades');
+
+        $this->assertSame('2026-07-23', $wipers['done']['date']);
+        // At the odometer of that day, at about 1.000 km a month.
+        $this->assertEqualsWithDelta(19000, $wipers['done']['km'], 100);
+        $this->assertEquals(25, $wipers['done']['price']);
+        $this->assertNotNull($wipers['done']['product_id']);
+        $this->assertSame('2027-07-23', $wipers['due_date']);
+    }
+
+    public function test_a_product_that_is_no_part_replaces_nothing()
+    {
+        $vehicle = $this->vehicle();
+
+        $this->post(route('products.store'), [
+            'name' => 'Shampoo',
+            'category' => ProductCategory::Cleaning->value,
+            'component' => 'wiper_blades',
+            'price' => 15,
+            'date' => '2026-10-01',
+        ])->assertRedirect();
+
+        $this->assertNull($vehicle->products()->first()->component);
     }
 
     public function test_an_electric_vehicle_has_a_plan_too_without_the_engine()

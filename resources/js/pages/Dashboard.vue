@@ -39,6 +39,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import VehicleAdvice from '@/components/VehicleAdvice.vue';
 import type { VehicleAdviceData } from '@/components/VehicleAdvice.vue';
+import WashingCosts from '@/components/WashingCosts.vue';
+import type { WashingCostsData } from '@/components/WashingCosts.vue';
 import { useT } from '@/composables/useT';
 import { periodLabel as formatPeriod } from '@/lib/period';
 import type { DateRange } from '@/lib/period';
@@ -160,6 +162,8 @@ const props = defineProps<{
     fuelSavings?: FuelSavingsData | null;
     consumptionByCircumstance?: ConsumptionByCircumstanceData | null;
     tollSections?: TollSectionsData;
+    // Null when nothing was washed in the period.
+    washingCosts?: WashingCostsData | null;
     averageMonthlyCosts?: {
         key: number;
         label: string;
@@ -198,6 +202,7 @@ const filteredProps = [
     'costsChart',
     'latestCosts',
     'tollSections',
+    'washingCosts',
 ];
 
 const filtering = ref(false);
@@ -1306,6 +1311,16 @@ const label = (key: string) => {
             </template>
         </Deferred>
 
+        <Deferred data="washingCosts">
+            <template #fallback><Skeleton class="h-24 w-full" /></template>
+            <WashingCosts
+                v-if="washingCosts"
+                :class="{ 'opacity-60': filtering }"
+                :data="washingCosts"
+                :badge="periodLabel || undefined"
+            />
+        </Deferred>
+
         <!-- Of the past year and today's prices: the period filter does not apply. -->
         <Deferred data="powertrainComparison">
             <template #fallback><Skeleton class="h-24 w-full" /></template>
@@ -1315,11 +1330,17 @@ const label = (key: string) => {
             />
         </Deferred>
 
-        <!-- At the pump the phone is in one hand: adding a refueling is one tap away. -->
+        <!-- At the pump the phone is in one hand: adding a refueling is one tap away.
+             On a phone the round add button of the header sits at the right of this bar,
+             level with this button, instead of on top of it. -->
         <div
-            class="sticky bottom-0 z-10 -mx-4 -mb-4 border-t bg-card p-3 md:hidden"
+            class="sticky bottom-0 z-10 -mx-4 -mb-4 border-t bg-card p-3 max-sm:fixed max-sm:inset-x-0 max-sm:mx-0 max-sm:mb-0 max-sm:pt-2 max-sm:pr-24 max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))] md:hidden"
         >
-            <Button as-child size="lg" class="w-full">
+            <Button
+                as-child
+                size="lg"
+                class="w-full max-sm:h-14 max-sm:rounded-full"
+            >
                 <Link href="/refuelings/create">
                     <Plus class="size-4" />
                     {{ t('Add refueling') }}

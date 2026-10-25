@@ -50,7 +50,54 @@ const { kilometers, money, perLiter, countryName } = useTripFormat(
                                     kwh: Math.round(costs.energy),
                                 })
                             }}
-                            · {{ t('charging prices are not known') }}
+                            ·
+                            {{
+                                costs.fuel_price == null
+                                    ? t('charging prices are not known')
+                                    : costs.fuel_estimate === 'refuelings'
+                                      ? t(
+                                            'estimated at :price/kWh, as you fast charged lately',
+                                            {
+                                                price: perLiter(
+                                                    costs.fuel_price,
+                                                ),
+                                            },
+                                        )
+                                      : t(
+                                            'estimated at :price/kWh, a usual price for fast charging',
+                                            {
+                                                price: perLiter(
+                                                    costs.fuel_price,
+                                                ),
+                                            },
+                                        )
+                            }}
+                        </template>
+                        <template
+                            v-else-if="
+                                costs.fuel_price != null && costs.fuel_estimate
+                            "
+                        >
+                            {{
+                                t('about :liters l at :price', {
+                                    liters: Math.round(costs.energy),
+                                    price: perLiter(costs.fuel_price),
+                                })
+                            }}
+                            ·
+                            {{
+                                loadingStops
+                                    ? t('The fuel prices are looked up…')
+                                    : costs.fuel_estimate === 'countries'
+                                      ? t(
+                                            'estimated at the average prices of the countries',
+                                        )
+                                      : costs.fuel_estimate === 'refuelings'
+                                        ? t(
+                                              'estimated at the prices of your latest refuelings',
+                                          )
+                                        : t('estimated at a usual price')
+                            }}
                         </template>
                         <template v-else-if="costs.fuel_price != null">
                             {{
@@ -73,7 +120,11 @@ const { kilometers, money, perLiter, countryName } = useTripFormat(
                     </span>
                 </div>
                 <span class="font-medium tabular-nums">{{
-                    costs.fuel != null ? money(costs.fuel) : '–'
+                    costs.fuel == null
+                        ? '–'
+                        : costs.fuel_estimate
+                          ? `≈ ${money(costs.fuel)}`
+                          : money(costs.fuel)
                 }}</span>
             </li>
             <li

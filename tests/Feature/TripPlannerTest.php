@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Jobs\PlanTrip;
+use App\Models\FuelPrice;
 use App\Models\Poi;
 use App\Models\PoiTile;
+use App\Models\Refueling;
 use App\Models\Toll;
 use App\Models\Trip;
 use App\Models\User;
@@ -700,6 +702,67 @@ class TripPlannerTest extends TestCase
         // The toll of the French motorway is not known.
         $this->assertFalse($costs['complete']);
         $this->assertSame($costs['fuel'], $costs['total']);
+    }
+
+    public function test_without_prices_on_the_route_the_fuel_is_estimated_at_the_averages_of_the_countries()
+    {
+        // No places along the route, so no fuel stops with a price.
+        config(['trip_planner.overpass.budget' => 0]);
+        $this->fakeApis();
+        $vehicle = $this->signInWithVehicle(['tank_capacity' => 50, 'powertrain' => 'gasoline', 'fuel_types' => ['Unleaded 95 (E10)']]);
+
+        foreach (['netherlands' => 2.00, 'france' => 1.80] as $country => $price) {
+            FuelPrice::create(['date' => today(), 'country' => $country, 'fuel_type' => 'Unleaded 95 (E10)', 'price' => $price]);
+        }
+
+        $costs = $this->plan($this->trip($vehicle, ['fuel_level' => 60]))->plan['routes'][0]['costs'];
+
+        $this->assertSame('countries', $costs['fuel_estimate']);
+        // Between the two, by the distance driven in each.
+        $this->assertGreaterThan(1.80, $costs['fuel_price']);
+        $this->assertLessThan(2.00, $costs['fuel_price']);
+        $this->assertEqualsWithDelta($costs['energy'] * $costs['fuel_price'], $costs['fuel'], 0.05);
+    }
+
+    public function test_without_any_known_price_the_fuel_is_estimated_at_the_latest_refuelings()
+    {
+        $this->fakeApis();
+        $vehicle = $this->signInWithVehicle(['tank_capacity' => 50, 'powertrain' => 'gasoline', 'fuel_types' => ['Unleaded 95 (E10)']]);
+        Refueling::factory()->for($vehicle)->create(['date' => today()->subWeek(), 'fuel_type' => 'Unleaded 95 (E10)', 'unit_price' => 1.90]);
+        // Another fuel: not what the trip is driven on.
+        Refueling::factory()->for($vehicle)->create(['date' => today()->subDays(3), 'fuel_type' => 'Super Plus (E5)', 'unit_price' => 2.30]);
+
+        $costs = $this->plan($this->trip($vehicle, ['fuel_level' => 60]))->plan['routes'][0]['costs'];
+
+        $this->assertSame('refuelings', $costs['fuel_estimate']);
+        $this->assertSame(1.9, $costs['fuel_price']);
+    }
+
+    public function test_charging_is_estimated_at_the_latest_fast_charging_sessions()
+    {
+        $this->fakeApis();
+        $vehicle = $this->signInWithVehicle(['powertrain' => 'electricity', 'fuel_types' => ['Electricity AC', 'Electricity DC']]);
+        Refueling::factory()->for($vehicle)->count(2)->create(['date' => today()->subWeek(), 'fuel_type' => 'Electricity DC', 'unit_price' => 0.69]);
+        // Charged slowly near home: not what is paid on the way.
+        Refueling::factory()->for($vehicle)->create(['date' => today()->subDays(2), 'fuel_type' => 'Electricity AC', 'unit_price' => 0.35]);
+
+        $costs = $this->plan($this->trip($vehicle))->plan['routes'][0]['costs'];
+
+        $this->assertSame('refuelings', $costs['fuel_estimate']);
+        $this->assertSame(0.69, $costs['fuel_price']);
+        $this->assertEqualsWithDelta($costs['energy'] * 0.69, $costs['fuel'], 0.05);
+    }
+
+    public function test_without_charging_sessions_charging_is_estimated_at_a_usual_price()
+    {
+        $this->fakeApis();
+        $vehicle = $this->signInWithVehicle(['powertrain' => 'electricity', 'fuel_types' => ['Electricity DC']]);
+
+        $costs = $this->plan($this->trip($vehicle))->plan['routes'][0]['costs'];
+
+        $this->assertSame('typical', $costs['fuel_estimate']);
+        $this->assertSame(0.75, $costs['fuel_price']);
+        $this->assertNotNull($costs['fuel']);
     }
 
     public function test_the_toll_of_a_road_the_vehicle_paid_on_before_is_known()

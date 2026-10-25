@@ -14,7 +14,9 @@ enum ProductCategory: string implements HasIcon, HasLabel
     case BrakeFluid = 'brake_fluid';
     case WasherFluid = 'washer_fluid';
     case AdBlue = 'adblue';
+    case DeIcer = 'de_icer';
     case Cleaning = 'cleaning';
+    case Part = 'part';
     case Accessory = 'accessory';
     case Safety = 'safety';
     case Other = 'other';
@@ -30,7 +32,9 @@ enum ProductCategory: string implements HasIcon, HasLabel
             self::BrakeFluid => __('Brake fluid'),
             self::WasherFluid => __('Washer fluid'),
             self::AdBlue => __('AdBlue'),
-            self::Cleaning => __('Cleaning products'),
+            self::DeIcer => __('De-icer'),
+            self::Cleaning => __('Detailing products'),
+            self::Part => __('Car part'),
             self::Accessory => __('Accessory'),
             self::Safety => __('Safety equipment'),
             self::Other => __('Other'),
@@ -44,8 +48,10 @@ enum ProductCategory: string implements HasIcon, HasLabel
             self::Coolant => 'mdi:car-coolant-level',
             self::BrakeFluid => 'mdi:car-brake-fluid-level',
             self::WasherFluid => 'mdi:wiper-wash',
-            self::AdBlue => 'mdi:molecule-co2',
+            self::AdBlue => 'mdi:fuel',
+            self::DeIcer => 'mdi:car-defrost-front',
             self::Cleaning => 'mdi:spray-bottle',
+            self::Part => 'mdi:car-cog',
             self::Accessory => 'mdi:car-seat',
             self::Safety => 'mdi:hazard-lights',
             self::Other => '',
