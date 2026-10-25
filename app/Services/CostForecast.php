@@ -117,7 +117,7 @@ class CostForecast
     {
         $until = today()->addMonths(self::MONTHS);
         $open = $this->findings->open($vehicle);
-        $covered = $open->filter(fn (Finding $finding) => $finding->estimated_cost)->flatMap(fn (Finding $finding) => (array) $finding->components)->unique();
+        $covered = $open->filter(fn (Finding $finding) => $finding->estimated_cost > 0)->flatMap(fn (Finding $finding) => (array) $finding->components)->unique();
         $items = [];
 
         foreach ($this->plan->plan($vehicle) as $component) {
@@ -148,7 +148,7 @@ class CostForecast
             $items[] = $item(__('MOT'), 'ic:baseline-security', (float) config('cost_forecast.mot_eur'), __('A usual price'), Carbon::parse($mot)->isoFormat('MMMM YYYY'));
         }
 
-        foreach ($open->filter(fn (Finding $finding) => $finding->estimated_cost) as $finding) {
+        foreach ($open->filter(fn (Finding $finding) => $finding->estimated_cost > 0) as $finding) {
             $items[] = $item($finding->title, $finding->source->getIcon(), (float) $finding->estimated_cost, __('Estimated with the finding'), $finding->severity->getLabel());
         }
 
@@ -276,6 +276,6 @@ class CostForecast
      */
     private function comparison(Vehicle $vehicle): array
     {
-        return (array) ($vehicle->powertrainComparisons()->latest()->first()?->current ?? []);
+        return (array) ($vehicle->powertrainComparisons()->latest()->first()->current ?? []);
     }
 }

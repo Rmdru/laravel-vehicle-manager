@@ -96,7 +96,7 @@ class Finding extends Model
     {
         $this->update([
             'status' => FindingStatus::Resolved,
-            'resolved_date' => $maintenance?->date ?? today(),
+            'resolved_date' => $maintenance === null ? today() : $maintenance->date,
             'maintenance_id' => $maintenance?->id,
             'for_garage' => false,
         ]);
