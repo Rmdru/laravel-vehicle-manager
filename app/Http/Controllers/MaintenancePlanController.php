@@ -97,7 +97,7 @@ class MaintenancePlanController extends Controller
                 'price' => $done['price'] === null ? null : '€ '.number_format($done['price'], 2, ',', '.'),
                 'url' => match (true) {
                     $done['maintenance_id'] !== null => route('maintenances.show', $done['maintenance_id']),
-                    $done['product_id'] !== null => route('products.show', $done['product_id']),
+                    $done['product_id'] !== null => route('products.edit', $done['product_id']),
                     default => null,
                 },
             ],
