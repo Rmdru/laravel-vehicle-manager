@@ -152,6 +152,9 @@ class MaintenancePlanTest extends TestCase
         $this->assertEquals(25, $wipers['done']['price']);
         $this->assertNotNull($wipers['done']['product_id']);
         $this->assertSame('2027-07-23', $wipers['due_date']);
+
+        // Products have no page of their own: the plan links to the form.
+        $this->get(route('maintenance-plan'))->assertOk();
     }
 
     public function test_a_product_that_is_no_part_replaces_nothing()
