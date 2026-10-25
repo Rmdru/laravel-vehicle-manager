@@ -12,6 +12,7 @@ use App\Support\StatusNotification;
 use App\Traits\VehicleStats;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
+use Closure;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
@@ -161,29 +162,7 @@ class FuelAdviceFacts
     private function gasStations(Vehicle $vehicle, array $fuelTypes): array
     {
         $since = today()->subYear();
-
-        $averages = FuelPrice::query()
-            ->whereIn('fuel_type', $fuelTypes)
-            ->whereDate('date', '>=', $since->copy()->subWeek())
-            ->orderBy('date')
-            ->get(['country', 'fuel_type', 'date', 'price'])
-            ->groupBy(fn (FuelPrice $price) => $price->country.'|'.$price->fuel_type);
-
-        // The average of the country on the day, or the last one of the week before.
-        $average = function (Refueling $refueling) use ($averages, $fuelTypes): ?float {
-            $date = Carbon::parse($refueling->date);
-
-            foreach ([$refueling->fuel_type, ...$fuelTypes] as $fuelType) {
-                $price = $averages->get($refueling->country.'|'.$fuelType)
-                    ?->last(fn (FuelPrice $price) => $price->date->lte($date) && $price->date->gte($date->copy()->subWeek()));
-
-                if ($price !== null) {
-                    return (float) $price->price;
-                }
-            }
-
-            return null;
-        };
+        $average = $this->countryAverage($fuelTypes, $since);
 
         return Refueling::query()
             ->where('vehicle_id', $vehicle->id)
@@ -212,6 +191,40 @@ class FuelAdviceFacts
             ->take(5)
             ->values()
             ->all();
+    }
+
+    /**
+     * What tells the average price of the country of a refueling on its day,
+     * or the last one of the week before: of its own fuel, else of the first
+     * of the fuels given that has one. Without fuels given, of the fuels
+     * comparable to its own.
+     *
+     * @param  list<string>|null  $fuelTypes
+     * @return Closure(Refueling): ?float
+     */
+    public function countryAverage(?array $fuelTypes, CarbonInterface $since): Closure
+    {
+        $averages = FuelPrice::query()
+            ->when($fuelTypes !== null, fn ($query) => $query->whereIn('fuel_type', $fuelTypes))
+            ->whereDate('date', '>=', $since->copy()->subWeek())
+            ->orderBy('date')
+            ->get(['country', 'fuel_type', 'date', 'price'])
+            ->groupBy(fn (FuelPrice $price) => $price->country.'|'.$price->fuel_type);
+
+        return function (Refueling $refueling) use ($averages, $fuelTypes): ?float {
+            $date = Carbon::parse($refueling->date);
+
+            foreach ([$refueling->fuel_type, ...$fuelTypes ?? self::COMPARABLE[$refueling->fuel_type] ?? []] as $fuelType) {
+                $price = $averages->get($refueling->country.'|'.$fuelType)
+                    ?->last(fn (FuelPrice $price) => $price->date->lte($date) && $price->date->gte($date->copy()->subWeek()));
+
+                if ($price !== null) {
+                    return (float) $price->price;
+                }
+            }
+
+            return null;
+        };
     }
 
     /**

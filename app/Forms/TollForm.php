@@ -34,7 +34,7 @@ class TollForm extends VehicleRecordForm
                 ->rules('required_with:road'),
             Text::make('road')
                 ->label(__('Road'))
-                ->help(__('Separate multiple roads with a comma'))
+                ->help(__('Separate multiple roads with a comma. With the country and the road, the trip planner knows the toll of a next trip on it.'))
                 ->rules(['nullable', 'string', 'max:255']),
             Text::make('start_location')
                 ->label(__('Start location'))

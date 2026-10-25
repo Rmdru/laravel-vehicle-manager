@@ -172,7 +172,13 @@ function moreThanCheapest(item: TripRoute): number | null {
                             }}
                         </span>
                         <span
-                            v-if="item.toll_distance > 0"
+                            v-if="
+                                item.costs.tolls
+                                    ? item.costs.tolls.some(
+                                          (toll) => toll.price == null,
+                                      )
+                                    : item.toll_distance > 0
+                            "
                             class="text-xs text-muted-foreground"
                         >
                             {{ t('plus toll') }}

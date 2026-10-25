@@ -6,6 +6,8 @@ import AppIcon from '@/components/AppIcon.vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue';
 import ColorBadge from '@/components/ColorBadge.vue';
+import ConsumptionByCircumstance from '@/components/ConsumptionByCircumstance.vue';
+import type { ConsumptionByCircumstanceData } from '@/components/ConsumptionByCircumstance.vue';
 import CostsChart from '@/components/CostsChart.vue';
 import CountryFlag from '@/components/CountryFlag.vue';
 import FilterChips from '@/components/FilterChips.vue';
@@ -13,7 +15,11 @@ import type { FilterChip } from '@/components/FilterChips.vue';
 import FilterSheet from '@/components/FilterSheet.vue';
 import FuelAdvice from '@/components/FuelAdvice.vue';
 import type { FuelAdviceData } from '@/components/FuelAdvice.vue';
+import FuelCostChange from '@/components/FuelCostChange.vue';
+import type { FuelCostChangeData } from '@/components/FuelCostChange.vue';
 import FuelPricesChart from '@/components/FuelPricesChart.vue';
+import FuelSavings from '@/components/FuelSavings.vue';
+import type { FuelSavingsData } from '@/components/FuelSavings.vue';
 import LicensePlate from '@/components/LicensePlate.vue';
 import MonthlySummary from '@/components/MonthlySummary.vue';
 import type { MonthlySummaryData } from '@/components/MonthlySummary.vue';
@@ -21,6 +27,8 @@ import PeriodFilter from '@/components/PeriodFilter.vue';
 import PowertrainComparison from '@/components/PowertrainComparison.vue';
 import type { PowertrainComparisonData } from '@/components/PowertrainComparison.vue';
 import SectionCard from '@/components/SectionCard.vue';
+import TollSections from '@/components/TollSections.vue';
+import type { TollSectionsData } from '@/components/TollSections.vue';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -147,6 +155,11 @@ const props = defineProps<{
         // Per fuel type, the one refueled most often first.
         fuelTypes: ({ key: string; label: string } & GasStationRanking)[];
     };
+    // Null when there are too few refuelings to tell.
+    fuelCostChange?: FuelCostChangeData | null;
+    fuelSavings?: FuelSavingsData | null;
+    consumptionByCircumstance?: ConsumptionByCircumstanceData | null;
+    tollSections?: TollSectionsData;
     averageMonthlyCosts?: {
         key: number;
         label: string;
@@ -180,9 +193,11 @@ const filteredProps = [
     'fuelPricesChart',
     'fuelUsageByType',
     'topGasStations',
+    'consumptionByCircumstance',
     'averageMonthlyCosts',
     'costsChart',
     'latestCosts',
+    'tollSections',
 ];
 
 const filtering = ref(false);
@@ -815,6 +830,17 @@ const label = (key: string) => {
             class="grid items-start gap-4 xl:grid-cols-2"
             :class="{ 'opacity-60': filtering }"
         >
+            <!-- Of the last months and the past year: the period filter does not apply. -->
+            <Deferred data="fuelCostChange">
+                <template #fallback><Skeleton class="h-56 w-full" /></template>
+                <FuelCostChange v-if="fuelCostChange" :data="fuelCostChange" />
+            </Deferred>
+
+            <Deferred data="fuelSavings">
+                <template #fallback><Skeleton class="h-56 w-full" /></template>
+                <FuelSavings v-if="fuelSavings" :data="fuelSavings" />
+            </Deferred>
+
             <SectionCard :title="t('Top gas stations')" flush>
                 <template #actions>
                     <div
@@ -1062,7 +1088,18 @@ const label = (key: string) => {
                         </p>
                     </Deferred>
                 </SectionCard>
+            </template>
 
+            <Deferred data="consumptionByCircumstance">
+                <template #fallback><Skeleton class="h-40 w-full" /></template>
+                <ConsumptionByCircumstance
+                    v-if="consumptionByCircumstance"
+                    :data="consumptionByCircumstance"
+                    :badge="periodLabel || undefined"
+                />
+            </Deferred>
+
+            <template v-if="usesFuel">
                 <SectionCard
                     class="xl:col-span-2"
                     :title="t('Fuel prices abroad')"
@@ -1246,6 +1283,28 @@ const label = (key: string) => {
                 </SectionCard>
             </template>
         </div>
+
+        <!-- The period filter of the statistics applies here too. Left out without toll in the period. -->
+        <Deferred data="tollSections">
+            <template #fallback><Skeleton class="h-24 w-full" /></template>
+            <template v-if="tollSections?.length">
+                <h2
+                    class="flex flex-wrap items-center gap-2 pt-2 text-lg font-semibold"
+                >
+                    {{ t('Toll') }}
+                    <span
+                        v-if="periodLabel"
+                        class="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                    >
+                        {{ periodLabel }}
+                    </span>
+                </h2>
+                <TollSections
+                    :class="{ 'opacity-60': filtering }"
+                    :sections="tollSections"
+                />
+            </template>
+        </Deferred>
 
         <!-- Of the past year and today's prices: the period filter does not apply. -->
         <Deferred data="powertrainComparison">

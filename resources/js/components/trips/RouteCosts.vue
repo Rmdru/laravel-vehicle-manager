@@ -77,7 +77,37 @@ const { kilometers, money, perLiter, countryName } = useTripFormat(
                 }}</span>
             </li>
             <li
-                v-if="tollDistance > 0"
+                v-for="(toll, index) in costs.tolls ?? []"
+                :key="`toll-${index}`"
+                class="flex items-start gap-3 px-4 py-2.5"
+            >
+                <AppIcon
+                    name="mdi:boom-gate"
+                    class="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                />
+                <div class="flex flex-1 flex-col">
+                    <span>{{ toll.label ?? t('Toll') }}</span>
+                    <span class="text-xs text-muted-foreground">
+                        {{
+                            toll.price != null
+                                ? t(
+                                      ':distance of toll road · as you usually paid there',
+                                      { distance: kilometers(toll.distance) },
+                                  )
+                                : t(
+                                      ':distance of toll road · amount not known',
+                                      { distance: kilometers(toll.distance) },
+                                  )
+                        }}
+                    </span>
+                </div>
+                <span class="font-medium tabular-nums">{{
+                    toll.price != null ? money(toll.price) : '?'
+                }}</span>
+            </li>
+            <!-- A trip planned before the toll was priced. -->
+            <li
+                v-if="!costs.tolls && tollDistance > 0"
                 class="flex items-start gap-3 px-4 py-2.5"
             >
                 <AppIcon
