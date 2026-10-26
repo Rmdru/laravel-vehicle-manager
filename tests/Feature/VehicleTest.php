@@ -173,6 +173,30 @@ class VehicleTest extends TestCase
             ->assertSessionHasErrors('body_type');
     }
 
+    public function test_the_push_notifications_are_chosen_per_vehicle_in_its_form()
+    {
+        $vehicle = $this->signInWithVehicle();
+
+        $this->get(route('vehicles.edit', $vehicle))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('form.defaults.push__info', true)
+                ->where('form.defaults.push__quiet_from', '21:00'));
+
+        $this->patch(route('vehicles.update', $vehicle), $this->validData([
+            'push__info' => '0',
+            'push__moment' => '19:30',
+            'push__quiet_from' => '',
+            'push__quiet_until' => '',
+        ]))->assertSessionHasNoErrors();
+
+        $preferences = $vehicle->refresh()->pushPreferences();
+        $this->assertFalse($preferences['info']);
+        $this->assertTrue($preferences['critical']);
+        $this->assertSame('19:30', $preferences['moment']);
+        // Emptied: no quiet hours.
+        $this->assertNull($preferences['quiet_from']);
+    }
+
     public function test_an_image_can_be_uploaded_and_is_only_served_to_the_owner()
     {
         Storage::fake('private');

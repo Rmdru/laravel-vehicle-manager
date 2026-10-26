@@ -63,6 +63,7 @@ class Vehicle extends Model
         'maintenance_intervals',
         'specifications',
         'notifications',
+        'push_preferences',
         'rdw_data',
     ];
 
@@ -73,6 +74,7 @@ class Vehicle extends Model
         'maintenance_intervals' => 'array',
         'specifications' => 'array',
         'notifications' => 'array',
+        'push_preferences' => 'array',
         'rdw_data' => 'array',
     ];
 
@@ -153,6 +155,17 @@ class Vehicle extends Model
         $brands = config('vehicles.brands');
 
         return $brands[$this->brand].' '.$this->model.' ('.$this->license_plate.')';
+    }
+
+    /**
+     * Which push notifications the owner wants for the vehicle, and when: what
+     * they did not choose is as in config/push.php.
+     *
+     * @return array{critical: bool, warning: bool, info: bool, tips: bool, summary: bool, moment: ?string, quiet_from: ?string, quiet_until: ?string}
+     */
+    public function pushPreferences(): array
+    {
+        return [...config('push.defaults'), ...($this->push_preferences ?? [])];
     }
 
     public function getLicensePlateNormalizedAttribute(): string

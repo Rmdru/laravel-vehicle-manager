@@ -8,6 +8,7 @@ use App\Enums\StatusNotificationOk;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleNotification;
+use App\Services\Push\PushOutbox;
 use App\Support\StatusNotification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -26,8 +27,10 @@ class NotificationCenter
     /** Notifications in the history on the page, at most. */
     private const HISTORY = 100;
 
-    public function __construct(private readonly DashboardService $dashboard)
-    {
+    public function __construct(
+        private readonly DashboardService $dashboard,
+        private readonly PushOutbox $push,
+    ) {
         //
     }
 
@@ -36,9 +39,12 @@ class NotificationCenter
      * are added, changed ones updated (and shown again when dismissed), and
      * the ones that no longer apply are resolved. The open ones, by key.
      *
+     * With push, the new and changed ones are put in line to be sent to the
+     * devices of the owner; not when the owner is in the app and sees them.
+     *
      * @return Collection<string, VehicleNotification>
      */
-    public function sync(Vehicle $vehicle): Collection
+    public function sync(Vehicle $vehicle, bool $push = false): Collection
     {
         $current = collect($this->dashboard->notifications($vehicle))
             ->reject(fn (array $notification) => $notification['type'] === 'success')
@@ -50,9 +56,10 @@ class NotificationCenter
             $notification->update(['resolved_at' => $now]);
         }
 
-        return $current->map(function (array $notification, string $key) use ($open, $vehicle, $now) {
+        return $current->map(function (array $notification, string $key) use ($open, $vehicle, $now, $push) {
             $fingerprint = VehicleNotification::fingerprint($notification['type'], $notification['text']);
             $stored = $open->get($key) ?? new VehicleNotification(['vehicle_id' => $vehicle->id, 'key' => $key, 'first_seen_at' => $now, 'notified_at' => $now]);
+            $new = ! $stored->exists;
             $changed = $stored->exists && $stored->fingerprint !== $fingerprint;
 
             $stored->fill([
@@ -64,6 +71,10 @@ class NotificationCenter
                 // Changed, it is new again: shown when dismissed, and counted in the bell.
                 ...($changed ? ['dismissed_at' => null, 'notified_at' => $now] : []),
             ])->save();
+
+            if ($push && ($new || $changed)) {
+                $this->push->notification($stored->setRelation('vehicle', $vehicle));
+            }
 
             return $stored;
         });

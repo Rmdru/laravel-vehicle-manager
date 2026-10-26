@@ -18,6 +18,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ParkingController;
 use App\Http\Controllers\PowertrainComparisonController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\PushMessageController;
 use App\Http\Controllers\ReconditioningController;
 use App\Http\Controllers\RefuelingController;
 use App\Http\Controllers\ServiceController;
@@ -34,12 +35,21 @@ use Illuminate\Support\Facades\Route;
 Route::post('locale', LocaleController::class)->name('locale.update');
 Route::get('manifest.webmanifest', ManifestController::class)->name('manifest');
 
+// A button of a push notification, sent by the service worker without the app
+// being open: the signed link stands in for the login and the CSRF token.
+Route::post('push/{message}/action/{action}', [PushMessageController::class, 'action'])
+    ->middleware(['signed', 'throttle:30,1'])
+    ->whereIn('action', ['dismiss', 'done'])
+    ->name('push.action');
+
 Route::middleware(['auth', 'verified'])->group(function () {
     // The garage is reachable without a vehicle, so that the first one can be created.
     Route::get('vehicles/rdw-lookup', [VehicleController::class, 'rdwLookup'])->name('vehicles.rdw-lookup');
     Route::get('vehicles/{vehicle}/image', [VehicleController::class, 'image'])->name('vehicle.image');
     Route::post('vehicles/{vehicle}/select', [VehicleController::class, 'select'])->name('vehicles.select');
     Route::resource('vehicles', VehicleController::class);
+    // A push notification was tapped.
+    Route::get('push/{message}/open', [PushMessageController::class, 'open'])->name('push.open');
 
     Route::middleware(CreateFirstVehicle::class)->group(function () {
         Route::get('/', DashboardController::class)->name('dashboard');
