@@ -318,9 +318,24 @@ class VehicleController extends Controller
             unset($data[$field]);
         }
 
+        $push = [];
+
+        foreach (VehicleForm::PUSH_KINDS as $kind) {
+            $push[$kind] = (bool) ($data[VehicleForm::PUSH_PREFIX.$kind] ?? config("push.defaults.{$kind}"));
+        }
+
+        // Emptied, a time is none: no quiet hours, or the usual moment. Not sent, it is the default.
+        foreach (VehicleForm::PUSH_TIMES as $time) {
+            if (array_key_exists(VehicleForm::PUSH_PREFIX.$time, $data)) {
+                $push[$time] = $data[VehicleForm::PUSH_PREFIX.$time] ?: null;
+            }
+        }
+
+        $data = array_filter($data, fn (string $key) => ! str_starts_with($key, VehicleForm::PUSH_PREFIX), ARRAY_FILTER_USE_KEY);
+
         unset($data['image'], $data['_method']);
 
-        return [...$data, 'notifications' => $notifications];
+        return [...$data, 'notifications' => $notifications, 'push_preferences' => $push];
     }
 
     /**
@@ -341,6 +356,10 @@ class VehicleController extends Controller
             $category = $notification['category'];
 
             $data[VehicleForm::notificationField($category, $key)] = (bool) ($vehicle->notifications[$category][$key] ?? true);
+        }
+
+        foreach ($vehicle->pushPreferences() as $preference => $value) {
+            $data[VehicleForm::PUSH_PREFIX.$preference] = $value;
         }
 
         return $data;

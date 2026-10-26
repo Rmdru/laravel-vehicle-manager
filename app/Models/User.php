@@ -85,6 +85,16 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * The devices that receive push notifications.
+     *
+     * @return HasMany<PushSubscription, $this>
+     */
+    public function pushSubscriptions(): HasMany
+    {
+        return $this->hasMany(PushSubscription::class);
+    }
+
+    /**
      * @return HasMany<Trip, $this>
      */
     public function trips(): HasMany

@@ -19,12 +19,21 @@ use TranquilTools\FormBuilder\Fields\Repeater;
 use TranquilTools\FormBuilder\Fields\Select;
 use TranquilTools\FormBuilder\Fields\Submit;
 use TranquilTools\FormBuilder\Fields\Text;
+use TranquilTools\FormBuilder\Fields\Time;
 
 class VehicleForm extends VehicleRecordForm
 {
     use PowerTrainOptions;
 
     public const NOTIFICATION_PREFIX = 'notifications__';
+
+    /** The push notification preferences, named "push__{preference}" (see config/push.php). */
+    public const PUSH_PREFIX = 'push__';
+
+    /** What can be sent as a push notification, each to be turned off. */
+    public const PUSH_KINDS = ['critical', 'warning', 'info', 'tips', 'summary'];
+
+    public const PUSH_TIMES = ['moment', 'quiet_from', 'quiet_until'];
 
     public function fields(): array
     {
@@ -153,6 +162,9 @@ class VehicleForm extends VehicleRecordForm
             Heading::make(__('Notifications')),
             ...$this->notificationFields(),
 
+            Heading::make(__('Push notifications')),
+            ...$this->pushFields(),
+
             Submit::make()->label(__('Save')),
         ];
     }
@@ -171,6 +183,46 @@ class VehicleForm extends VehicleRecordForm
                 ->rules(['boolean']))
             ->values()
             ->all();
+    }
+
+    /**
+     * What is sent to the devices of the owner, and when.
+     *
+     * @return list<Checkbox|Time>
+     */
+    private function pushFields(): array
+    {
+        $labels = [
+            'critical' => __('Critical notifications'),
+            'warning' => __('Warnings'),
+            'info' => __('Information'),
+            'tips' => __('New tips'),
+            'summary' => __('Summary of the month'),
+        ];
+        $defaults = config('push.defaults');
+
+        return [
+            ...collect(self::PUSH_KINDS)->map(fn (string $kind) => Checkbox::make(self::PUSH_PREFIX.$kind)
+                ->label($labels[$kind])
+                ->checked((bool) $defaults[$kind])
+                ->rules(['boolean']))->all(),
+            Time::make(self::PUSH_PREFIX.'moment')
+                ->label(__('Moment of the day'))
+                ->step(15)
+                ->clearable()
+                ->help(__('When what is not critical is sent, the same day it arises. Empty: the moment you usually use the app.')),
+            Time::make(self::PUSH_PREFIX.'quiet_from')
+                ->label(__('Quiet hours from'))
+                ->step(15)
+                ->clearable()
+                ->default($defaults['quiet_from'])
+                ->help(__('Nothing is sent in the quiet hours, not even something critical: it waits until they end.')),
+            Time::make(self::PUSH_PREFIX.'quiet_until')
+                ->label(__('Quiet hours until'))
+                ->step(15)
+                ->clearable()
+                ->default($defaults['quiet_until']),
+        ];
     }
 
     public static function notificationField(string $category, string $key): string

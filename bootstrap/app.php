@@ -18,6 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
+        // Signed instead, see routes/web.php.
+        $middleware->validateCsrfTokens(except: ['push/*/action/*']);
 
         $middleware->web(append: [
             SetLocale::class,

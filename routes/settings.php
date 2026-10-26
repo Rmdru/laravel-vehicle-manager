@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Settings\ProfileController;
+use App\Http\Controllers\Settings\PushController;
 use App\Http\Controllers\Settings\SecurityController;
 use Illuminate\Auth\Middleware\RequirePassword;
 use Illuminate\Support\Facades\Route;
@@ -26,6 +27,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('user-password.update');
 
     Route::inertia('settings/appearance', 'settings/Appearance')->name('appearance.edit');
+
+    Route::get('settings/notifications', [PushController::class, 'edit'])->name('notifications.settings');
+    Route::post('settings/notifications/devices', [PushController::class, 'store'])->name('push-subscriptions.store');
+    Route::delete('settings/notifications/devices', [PushController::class, 'destroy'])->name('push-subscriptions.destroy');
+    Route::post('settings/notifications/test', [PushController::class, 'test'])->middleware('throttle:6,1')->name('push.test');
 });
 
 Route::get('.well-known/passkey-endpoints', function () {

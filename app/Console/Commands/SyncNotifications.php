@@ -16,13 +16,14 @@ class SyncNotifications extends Command
 {
     protected $signature = 'notifications:sync';
 
-    protected $description = 'Bring the notifications of every drivable vehicle up to date, in the language of its owner, for the bell';
+    protected $description = 'Bring the notifications of every drivable vehicle up to date, in the language of its owner, for the bell and the push notifications';
 
     public function handle(NotificationCenter $notifications): void
     {
         Vehicle::query()
             ->where('status', VehicleStatus::Drivable->value)
-            ->whereHas('user', fn ($query) => $query->recentlyLoggedIn())
+            // Owners with push notifications may hardly open the app: they are what tells them.
+            ->whereHas('user', fn ($query) => $query->where(fn ($query) => $query->recentlyLoggedIn()->orWhereHas('pushSubscriptions')))
             ->with('user')
             ->chunkById(50, function ($vehicles) use ($notifications) {
                 foreach ($vehicles as $vehicle) {
@@ -30,7 +31,7 @@ class SyncNotifications extends Command
                     App::setLocale($vehicle->user->language ?: config('app.locale'));
 
                     try {
-                        $notifications->sync($vehicle);
+                        $notifications->sync($vehicle, push: true);
                     } catch (Throwable $exception) {
                         Log::warning('The notifications could not be brought up to date', [
                             'vehicle' => $vehicle->id,

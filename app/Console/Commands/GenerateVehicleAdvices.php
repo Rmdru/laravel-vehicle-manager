@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Enums\VehicleStatus;
 use App\Models\Vehicle;
+use App\Services\Push\PushOutbox;
 use App\Services\VehicleAdviceService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -18,7 +19,7 @@ class GenerateVehicleAdvices extends Command
 
     protected $description = 'Generate the tips of every drivable vehicle whose facts changed or whose tips are a week old, in the language of its owner';
 
-    public function handle(VehicleAdviceService $advices): void
+    public function handle(VehicleAdviceService $advices, PushOutbox $push): void
     {
         $asked = false;
 
@@ -26,7 +27,7 @@ class GenerateVehicleAdvices extends Command
             ->where('status', VehicleStatus::Drivable->value)
             ->whereHas('user', fn ($query) => $query->recentlyLoggedIn())
             ->with('user')
-            ->chunkById(50, function ($vehicles) use ($advices, &$asked) {
+            ->chunkById(50, function ($vehicles) use ($advices, $push, &$asked) {
                 foreach ($vehicles as $vehicle) {
                     $locale = $vehicle->user->language ?: config('app.locale');
 
@@ -36,7 +37,14 @@ class GenerateVehicleAdvices extends Command
                     }
 
                     try {
-                        $asked = $advices->refresh($vehicle, $locale) !== null;
+                        $previous = $advices->latest($vehicle, $locale);
+                        $advice = $advices->refresh($vehicle, $locale);
+                        $asked = $advice !== null;
+
+                        // The tips that are new are worth a push notification.
+                        if ($advice !== null) {
+                            $push->tips($vehicle, $advice, $previous);
+                        }
                     } catch (Throwable $exception) {
                         $asked = true;
 
