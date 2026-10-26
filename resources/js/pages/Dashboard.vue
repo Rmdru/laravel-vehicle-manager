@@ -698,7 +698,7 @@ const label = (key: string) => {
         </Deferred>
 
         <div
-            class="grid items-start gap-4 lg:grid-cols-3"
+            class="grid grid-cols-1 items-start gap-4 lg:grid-cols-3"
             :class="{ 'opacity-60': filtering }"
         >
             <SectionCard :title="t('Monthly costs')" class="lg:col-span-2">
@@ -832,7 +832,7 @@ const label = (key: string) => {
         </h2>
 
         <div
-            class="grid items-start gap-4 xl:grid-cols-2"
+            class="grid grid-cols-1 items-start gap-4 xl:grid-cols-2"
             :class="{ 'opacity-60': filtering }"
         >
             <!-- Of the last months and the past year: the period filter does not apply. -->
