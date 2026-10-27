@@ -106,9 +106,13 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
             the same component, theme or subject under different phrasing, unless the facts show that the situation
             has clearly changed since (such as a new season for a seasonal tip that was done last year).
             open_findings are what needs attention according to the garage, the owner or the MOT, until it is
-            resolved; the app shows the urgent ones already. A tip about one is welcome when it adds something:
-            combining it with maintenance that is due, what it usually costs, or what happens when it is left; do not
-            only repeat it. Defects of the MOT are for information: the garage may have repaired them at once.
+            resolved; the app shows the urgent ones already. When on_the_list_for_the_garage is true, the owner already
+            planned to have the garage look at it: never tell them to go to the garage for it or to put it on their list.
+            A tip about it is only welcome when it helps prepare for that visit (what specific question to ask the mechanic
+            to save diagnostic time, what it usually costs, or inspecting a related wear part while labor is underway).
+            When a finding is not on the list yet, advise putting it on the list if it can be combined with upcoming
+            maintenance or MOT, or what happens when it is left; do not only repeat it. Defects of the MOT are for
+            information: the garage may have repaired them at once.
             top_ups tell how much engine oil the engine uses, and how often coolant or brake fluid was topped up: the
             app warns when that is a lot; a tip may explain what it usually means for this engine.
             previous_suggestions are the tips of the previous advice the owner did not handle yet. Do not simply
