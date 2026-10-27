@@ -264,6 +264,8 @@ class VehicleAdviceFacts
             'model' => $vehicle->model,
             'version' => $vehicle->version,
             'engine' => $vehicle->engine,
+            'body_type' => $vehicle->body_type,
+            'transmission' => $vehicle->transmission->value,
             'powertrain' => $vehicle->powertrain,
             'fuel_types' => $vehicle->fuel_types ?: null,
             'tank_capacity_liters' => $vehicle->tank_capacity ?: null,

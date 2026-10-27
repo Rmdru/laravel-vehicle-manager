@@ -111,6 +111,19 @@ function destroy(vehicle: VehicleCard) {
                             />
                             {{ vehicle.age }} {{ t('years old') }}
                         </span>
+                        <span
+                            v-if="vehicle.transmissionLabel"
+                            class="flex items-center gap-1"
+                        >
+                            <AppIcon
+                                :name="
+                                    vehicle.transmissionIcon ||
+                                    'mdi:car-shift-pattern'
+                                "
+                                class="size-4"
+                            />
+                            {{ vehicle.transmissionLabel }}
+                        </span>
                     </div>
                     <div class="flex flex-wrap gap-2">
                         <ColorBadge :color="vehicle.statusColor">
