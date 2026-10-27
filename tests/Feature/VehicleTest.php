@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\Transmission;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\DashboardService;
@@ -30,6 +31,7 @@ class VehicleTest extends TestCase
             'model' => 'A3',
             'version' => 'Sportback',
             'engine' => '1.4 TFSI',
+            'transmission' => 'manual',
             'powertrain' => 'gasoline',
             'fuel_types' => ['Unleaded 95 (E10)'],
             'tank_capacity' => 50,
@@ -169,8 +171,22 @@ class VehicleTest extends TestCase
         $this->assertSame('A4', $vehicle->refresh()->model);
         $this->assertSame('station_wagon', $vehicle->body_type);
 
+        $this->patch(route('vehicles.update', $vehicle), $this->validData(['transmission' => 'automatic']))
+            ->assertSessionHasNoErrors();
+        $this->assertSame(Transmission::Automatic, $vehicle->refresh()->transmission);
+
+        $this->patch(route('vehicles.update', $vehicle), $this->validData(['transmission' => 'invalid']))
+            ->assertSessionHasErrors('transmission');
+
         $this->patch(route('vehicles.update', $vehicle), $this->validData(['body_type' => 'limousine']))
             ->assertSessionHasErrors('body_type');
+    }
+
+    public function test_an_electric_vehicle_is_always_automatic()
+    {
+        $vehicle = $this->signInWithVehicle(['powertrain' => 'electricity', 'transmission' => 'manual']);
+
+        $this->assertSame(Transmission::Automatic, $vehicle->transmission);
     }
 
     public function test_the_push_notifications_are_chosen_per_vehicle_in_its_form()

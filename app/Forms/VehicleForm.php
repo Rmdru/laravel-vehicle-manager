@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Forms;
 
 use App\Enums\BodyType;
+use App\Enums\Transmission;
 use App\Enums\VehicleStatus;
 use App\Forms\Fields\Heading;
 use App\Models\Vehicle;
@@ -84,6 +85,11 @@ class VehicleForm extends VehicleRecordForm
                 ->attributes(['clearable' => true, 'clearLabel' => trans('form-builder::fields.clear')])
                 ->help(__('The alternative powertrains are compared in the same body type.'))
                 ->rules(['nullable', Rule::enum(BodyType::class)]),
+            Select::make('transmission')
+                ->label(__('Transmission'))
+                ->options($this->enumOptions(Transmission::class))
+                ->default(Transmission::Manual->value)
+                ->rules(['required', Rule::enum(Transmission::class)]),
             Select::make('powertrain')
                 ->label(__('Powertrain'))
                 ->options($powertrains)

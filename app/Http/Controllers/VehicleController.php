@@ -110,6 +110,7 @@ class VehicleController extends Controller
                     ['label' => __('Engine'), 'value' => $vehicle->engine ?: $unknown, 'icon' => 'mdi:engine'],
                     ['label' => __('Power'), 'value' => filled($vehicle->power_hp) ? $vehicle->power_hp.' '.__('hp') : $unknown, 'icon' => 'mdi:speedometer'],
                     ['label' => __('Body type'), 'value' => BodyType::tryFrom((string) $vehicle->body_type)?->getLabel() ?? $unknown, 'icon' => 'mdi:car-side'],
+                    ['label' => __('Transmission'), 'value' => $vehicle->transmission->getLabel(), 'icon' => 'mdi:car-shift-pattern'],
                     ['label' => __('Powertrain'), 'value' => trans('powertrains')[$vehicle->powertrain]['name'] ?? $unknown, 'icon' => 'ic:baseline-local-gas-station'],
                     ['label' => __('Compatible fuel types'), 'html' => collect($vehicle->fuel_types)
                         ->map(fn ($type) => Html::badge($fuelTypes[$type] ?? (string) $type))
@@ -285,6 +286,7 @@ class VehicleController extends Controller
                 'engine' => $engine,
                 'power_hp' => $rdwService->getPowerHp($fuelData),
                 'body_type' => $rdwService->getBodyType($vehicleData)?->value,
+                'transmission' => $powertrain === 'electricity' ? 'automatic' : null,
                 'purchase_date' => $date($vehicleData['datum_tenaamstelling'] ?? null),
                 'construction_date' => $date($vehicleData['datum_eerste_toelating'] ?? null),
                 'country_registration' => 'netherlands',
@@ -344,10 +346,12 @@ class VehicleController extends Controller
     private function formData(Vehicle $vehicle): array
     {
         $data = $vehicle->only([
-            'license_plate', 'brand', 'model', 'version', 'engine', 'power_hp', 'body_type', 'powertrain', 'fuel_types', 'tank_capacity',
+            'license_plate', 'brand', 'model', 'version', 'engine', 'power_hp', 'body_type', 'transmission', 'powertrain', 'fuel_types', 'tank_capacity',
             'maintenance_intervals', 'mileage_start', 'purchase_price',
             'country_registration', 'status', 'specifications',
         ]);
+
+        $data['transmission'] = $vehicle->transmission->value;
 
         $data['purchase_date'] = $vehicle->purchase_date?->format('Y-m-d');
         $data['construction_date'] = $vehicle->construction_date?->format('Y-m-d');

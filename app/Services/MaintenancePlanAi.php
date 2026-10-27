@@ -96,6 +96,7 @@ class MaintenancePlanAi
             'model' => $vehicle->model,
             'version' => $vehicle->version,
             'engine' => $vehicle->engine,
+            'transmission' => $vehicle->transmission->value,
             'powertrain' => $vehicle->powertrain,
             'fuel_types' => $vehicle->fuel_types ?: null,
             'construction_date' => $vehicle->construction_date?->toDateString(),

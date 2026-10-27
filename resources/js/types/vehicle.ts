@@ -14,6 +14,9 @@ export type VehicleSummary = {
     licensePlate: LicensePlate;
     mileage: number | null;
     powertrain: string;
+    transmission?: string;
+    transmissionLabel?: string | null;
+    transmissionIcon?: string | null;
     imageUrl: string | null;
     // The image in the widths it is stored at, for the browser to pick from.
     imageSrcset: string | null;

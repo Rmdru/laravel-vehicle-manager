@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\MaintenanceTypeMaintenance;
+use App\Enums\Transmission;
 use App\Services\OpenMeteoService;
 use App\Services\VehicleCostsService;
 use App\Support\Cost;
@@ -49,6 +50,7 @@ class Vehicle extends Model
         'engine',
         'power_hp',
         'body_type',
+        'transmission',
         'mileage_start',
         'mileage_latest',
         'purchase_date',
@@ -68,6 +70,7 @@ class Vehicle extends Model
     ];
 
     protected $casts = [
+        'transmission' => Transmission::class,
         'purchase_date' => 'date:Y-m-d',
         'construction_date' => 'date:Y-m-d',
         'fuel_types' => 'array',
@@ -155,6 +158,22 @@ class Vehicle extends Model
         $brands = config('vehicles.brands');
 
         return $brands[$this->brand].' '.$this->model.' ('.$this->license_plate.')';
+    }
+
+    public function getTransmissionAttribute($value): Transmission
+    {
+        if ($this->powertrain === 'electricity') {
+            return Transmission::Automatic;
+        }
+
+        return $value instanceof Transmission ? $value : (Transmission::tryFrom((string) $value) ?? Transmission::Manual);
+    }
+
+    public function setTransmissionAttribute($value): void
+    {
+        $this->attributes['transmission'] = $this->powertrain === 'electricity'
+            ? Transmission::Automatic->value
+            : ($value instanceof Transmission ? $value->value : (string) $value);
     }
 
     /**
