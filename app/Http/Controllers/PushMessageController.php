@@ -31,7 +31,14 @@ class PushMessageController extends Controller
 
         $request->session()->put(ResolveCurrentVehicle::SESSION_KEY, $message->vehicle_id);
 
-        return redirect($request->query('to') === 'notifications' ? route('notifications.index') : ($message->url ?? route('dashboard')));
+        if ($request->query('to') === 'notifications' || $message->url === null) {
+            return redirect()->route($request->query('to') === 'notifications' ? 'notifications.index' : 'dashboard');
+        }
+
+        // Only its path: the url may have been made on the command line, with the host of APP_URL.
+        $url = parse_url($message->url);
+
+        return redirect(($url['path'] ?? '/').(isset($url['query']) ? '?'.$url['query'] : ''));
     }
 
     /**

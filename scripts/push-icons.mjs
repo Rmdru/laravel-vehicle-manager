@@ -2,7 +2,7 @@
  * Turns the icons of resources/icons into the PNGs of the push notifications
  * in public/push-icons: Android shows no SVG in a notification. Per icon one
  * per urgency, white on a circle in its color (see App\Services\Push\PushIcons),
- * and the badge: the white car in the status bar. Runs before `npm run build`;
+ * and the badge: the favicon in the status bar. Runs before `npm run build`;
  * an image that is newer than its icon is left as it is.
  */
 import {
@@ -92,11 +92,19 @@ for (const set of readdirSync(source)) {
     }
 }
 
-// The badge: Android only uses its shape, so white on nothing.
-const car = readFileSync(join(source, 'mdi/car.svg'), 'utf8').replace(
-    /<svg\b/,
-    '<svg color="#ffffff"',
-);
-render(car, 96, join(target, 'badge.png'));
+// The badge: the favicon. Android only uses its shape, so the square in white
+// with the car cut out of it.
+const favicon = readFileSync(join(root, 'public/favicon.svg'), 'utf8');
+const [, viewBox] = favicon.match(/viewBox="([^"]*)"/);
+const shape = favicon
+    .replace(/<\?xml[^>]*>/, '')
+    .replace(/<svg\b[^>]*>|<\/svg>/g, '');
+const badge = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}"><mask id="cut">${shape
+    .replace(/<rect\b([^>]*?)fill="[^"]*"/, '<rect$1fill="#ffffff"')
+    .replace(
+        /<path\b([^>]*?)fill="[^"]*"/,
+        '<path$1fill="#000000"',
+    )}</mask><rect width="100%" height="100%" fill="#ffffff" mask="url(#cut)"/></svg>`;
+render(badge, 96, join(target, 'badge.png'));
 
 console.log(`Push icons: ${made} made, in public/push-icons`);

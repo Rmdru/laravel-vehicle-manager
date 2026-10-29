@@ -268,7 +268,7 @@ class PushNotificationTest extends TestCase
 
         $this->post(route('push.action', [$message, 'dismiss']))->assertForbidden();
 
-        $this->post(URL::temporarySignedRoute('push.action', now()->addDay(), [$message, 'dismiss']))->assertNoContent();
+        $this->post(URL::temporarySignedRoute('push.action', now()->addDay(), [$message, 'dismiss'], false))->assertNoContent();
         $this->assertNotNull($notification->fresh()->dismissed_at);
     }
 

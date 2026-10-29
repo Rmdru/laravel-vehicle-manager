@@ -38,7 +38,7 @@ Route::get('manifest.webmanifest', ManifestController::class)->name('manifest');
 // A button of a push notification, sent by the service worker without the app
 // being open: the signed link stands in for the login and the CSRF token.
 Route::post('push/{message}/action/{action}', [PushMessageController::class, 'action'])
-    ->middleware(['signed', 'throttle:30,1'])
+    ->middleware(['signed:relative', 'throttle:30,1'])
     ->whereIn('action', ['dismiss', 'done'])
     ->name('push.action');
 

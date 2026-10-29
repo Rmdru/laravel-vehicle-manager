@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\ProductCategory;
 use App\Models\Maintenance;
 use App\Models\Product;
 use App\Models\Vehicle;
@@ -116,8 +117,8 @@ class MaintenancePlanService
      * When each component was done last according to the maintenances: the
      * latest one with a task that names it. The air conditioning service is
      * also done with an airco check, a check with a maintenance of its type.
-     * A part the owner replaced, recorded as a product, counts as well: at
-     * the mileage of the odometer on its day.
+     * A part the owner replaced, or a fluid topped up, recorded as a product,
+     * counts as well: at its mileage, or that of the odometer on its day.
      *
      * @return array<string, array{date: CarbonImmutable, km: int|null, price: float|null, garage: string|null, maintenance_id: string|null, product_id: string|null}>
      */
@@ -155,28 +156,53 @@ class MaintenancePlanService
 
         $components = config('maintenance_plan.components');
 
-        foreach ($vehicle->products->whereNotNull('component')->sortBy('date') as $product) {
+        foreach ($vehicle->products->sortBy('date') as $product) {
             /** @var Product $product */
-            $key = (string) $product->component;
             $date = CarbonImmutable::parse($product->date)->startOfDay();
 
-            if (! isset($components[$key]) || (isset($done[$key]) && $done[$key]['date']->gt($date))) {
-                continue;
+            foreach ($this->renewedBy($product) as $key => $paid) {
+                if (! isset($components[$key]) || (isset($done[$key]) && $done[$key]['date']->gt($date))) {
+                    continue;
+                }
+
+                [$km] = $product->mileage !== null ? [(float) $product->mileage] : $odometer->at($date);
+
+                $done[$key] = [
+                    'date' => $date,
+                    'km' => $km === null ? null : (int) round($km),
+                    'price' => $paid && (float) $product->price > 0 ? (float) $product->price : null,
+                    'garage' => null,
+                    'maintenance_id' => null,
+                    'product_id' => $product->id,
+                ];
             }
-
-            [$km] = $odometer->at($date);
-
-            $done[$key] = [
-                'date' => $date,
-                'km' => $km === null ? null : (int) round($km),
-                'price' => (float) $product->price > 0 ? (float) $product->price : null,
-                'garage' => null,
-                'maintenance_id' => null,
-                'product_id' => $product->id,
-            ];
         }
 
         return $done;
+    }
+
+    /**
+     * The components a product renews, with whether its price is what that
+     * cost: the part the owner replaced, and a fluid topped up at a mileage.
+     * Topping up checks the level, and washer fluid is topped up rather than
+     * replaced; the others, such as coolant, are renewed by the garage only.
+     *
+     * @return array<string, bool>
+     */
+    private function renewedBy(Product $product): array
+    {
+        if ($product->component !== null) {
+            return [(string) $product->component => true];
+        }
+
+        if (! $product->category?->isFluid() || $product->mileage === null) {
+            return [];
+        }
+
+        return array_filter([
+            'fluid_levels' => false,
+            'washer_fluid' => $product->category === ProductCategory::WasherFluid ? true : null,
+        ], fn (?bool $paid) => $paid !== null);
     }
 
     /**
@@ -265,18 +291,28 @@ class MaintenancePlanService
 
     /**
      * Records that a component was done today, at the current mileage, without
-     * a form: a check as a maintenance of its own type, anything else as a
-     * maintenance with a task for it.
+     * a form: a check on the component itself, as when it was done last, as a
+     * maintenance would be too much for a glance under the hood; anything else
+     * as a maintenance with a task for it.
      */
-    public function done(Vehicle $vehicle, string $key): Maintenance
+    public function done(Vehicle $vehicle, string $key): void
     {
         $component = config("maintenance_plan.components.{$key}");
+        $mileage = $vehicle->mileage_latest ?: $vehicle->mileage_start ?: null;
 
-        return $vehicle->maintenances()->create([
-            'type_maintenance' => $component['check'] ?? null,
+        if (isset($component['check'])) {
+            $this->components($vehicle)->get($key)?->fill([
+                'done_date' => today()->toDateString(),
+                'done_km' => $mileage,
+            ])->save();
+
+            return;
+        }
+
+        $vehicle->maintenances()->create([
             'date' => today()->toDateString(),
-            'mileage' => $vehicle->mileage_latest ?: $vehicle->mileage_start ?: 0,
-            'tasks' => isset($component['check']) ? null : [['task' => __($component['label']), 'price' => null, 'components' => [$key]]],
+            'mileage' => $mileage ?? 0,
+            'tasks' => [['task' => __($component['label']), 'price' => null, 'components' => [$key]]],
         ]);
     }
 

@@ -417,16 +417,23 @@ class VehicleRecordTest extends TestCase
         ])->assertSessionHasErrors(['country', 'road_type']);
     }
 
-    public function test_a_check_is_ticked_off_in_the_maintenance_plan_and_left_out_of_the_list()
+    public function test_a_check_is_ticked_off_in_the_maintenance_plan_without_a_maintenance()
     {
         $vehicle = $this->signInWithVehicle(['mileage_latest' => 4200]);
 
         $this->post(route('maintenance-plan.done', 'fluid_levels'))->assertSessionHasNoErrors();
 
-        $maintenance = $vehicle->maintenances()->sole();
+        $component = $vehicle->components()->where('key', 'fluid_levels')->sole();
 
-        $this->assertSame('liquids_checked', $maintenance->type_maintenance);
-        $this->assertEquals(4200, $maintenance->mileage);
+        $this->assertSame(today()->toDateString(), $component->done_date->toDateString());
+        $this->assertSame(4200, $component->done_km);
+        $this->assertSame(0, $vehicle->maintenances()->count());
+    }
+
+    public function test_a_check_recorded_as_a_maintenance_is_left_out_of_the_list()
+    {
+        $vehicle = $this->signInWithVehicle();
+        Maintenance::factory()->for($vehicle)->create(['type_maintenance' => 'liquids_checked', 'tasks' => null]);
 
         // The checks would crowd the list, nor are they a type to filter on.
         $this->get(route('maintenances.index'))

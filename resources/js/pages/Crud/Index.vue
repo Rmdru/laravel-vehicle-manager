@@ -491,5 +491,16 @@ function destroy(id: string) {
     .records :deep(tbody td:last-child:not([colspan]) > div) {
         flex-direction: column;
     }
+
+    /* The pagination below it: the count above the buttons, which take the
+       full width, rather than everything squeezed on one line. */
+    .records :deep(.justify-between.mt-3) {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .records :deep(.justify-between.mt-3 > div) {
+        justify-content: space-between;
+    }
 }
 </style>
