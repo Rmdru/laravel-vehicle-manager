@@ -51,9 +51,9 @@ class NotificationTest extends TestCase
 
         $this->post($notification['doneUrl'])->assertRedirect();
 
-        // Checked today: it no longer applies, and stays in the history.
+        // Checked today: it no longer applies, and the component knows when.
         $this->assertNotNull($this->tirePressure($vehicle)->resolved_at);
-        $this->assertSame('tire_pressure_checked', $vehicle->maintenances()->latest('date')->first()->type_maintenance);
+        $this->assertSame(today()->toDateString(), $vehicle->components()->where('key', 'tire_pressure')->sole()->done_date->toDateString());
     }
 
     public function test_a_dismissed_notification_comes_back_when_it_changes()

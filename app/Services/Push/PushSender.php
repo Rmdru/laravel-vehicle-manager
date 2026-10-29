@@ -63,7 +63,7 @@ class PushSender
             'icon' => $this->icons->icon('mdi:bell-ring-outline', 'info'),
             'badge' => $this->icons->badge(),
             'tag' => 'test',
-            'url' => route('notifications.settings'),
+            'url' => route('notifications.settings', absolute: false),
             'actions' => [],
         ]);
 
@@ -153,7 +153,7 @@ class PushSender
             'icon' => $this->icons->icon($message->icon, $message->urgency),
             'badge' => $this->icons->badge(),
             'tag' => $this->tag($message),
-            'url' => route('push.open', $message),
+            'url' => route('push.open', $message, false),
             'actions' => $actions,
             'timestamp' => $message->send_after->getTimestampMs(),
         ];
@@ -175,10 +175,11 @@ class PushSender
                 ->map(fn (PushMessage $message) => self::DOTS[$message->urgency].' '.Str::limit($message->title, 80))
                 ->push(trim($vehicle->full_name.' ('.$vehicle->license_plate.')'))
                 ->implode("\n"),
-            'icon' => $this->icons->icon(PushIcons::FALLBACK, $urgency),
+            // The subject on top, as under "Needs attention".
+            'icon' => $this->icons->icon($messages->first()->icon, $urgency),
             'badge' => $this->icons->badge(),
             'tag' => 'bundle-'.$vehicle->id,
-            'url' => route('push.open', [$messages->first(), 'to' => 'notifications']),
+            'url' => route('push.open', [$messages->first(), 'to' => 'notifications'], false),
             'actions' => [],
             'timestamp' => now()->getTimestampMs(),
         ];
@@ -196,7 +197,7 @@ class PushSender
 
     private function actionUrl(PushMessage $message, string $action): string
     {
-        return URL::temporarySignedRoute('push.action', now()->addDays(14), ['message' => $message, 'action' => $action]);
+        return URL::temporarySignedRoute('push.action', now()->addDays(14), ['message' => $message, 'action' => $action], false);
     }
 
     /**

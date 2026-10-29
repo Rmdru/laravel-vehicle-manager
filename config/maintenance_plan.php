@@ -70,8 +70,9 @@ return [
         'battery_12v' => ['label' => '12 volt battery', 'icon' => 'mdi:car-battery', 'km' => null, 'months' => 60, 'for' => 'all'],
         // The coin cell of the key: a keyless key, always in contact with the car, empties it sooner.
         'key_battery' => ['label' => 'Key battery', 'icon' => 'mdi:car-key', 'km' => null, 'months' => 36, 'for' => 'all'],
-        // Checks rather than replacements, ticked off at once: recorded as a maintenance of their own
-        // type ('check'), and due within days rather than weeks (see soon_days and due_days).
+        // Checks rather than replacements, ticked off at once on the component itself; a maintenance
+        // of their own type ('check') counts too, and a fluid topped up for the fluid levels. Due
+        // within days rather than weeks (see soon_days and due_days).
         'tire_pressure' => ['label' => 'Tire pressure check', 'icon' => 'mdi:car-tire-alert', 'km' => null, 'months' => 2, 'for' => 'all', 'check' => 'tire_pressure_checked', 'soon_days' => 14, 'due_days' => 7],
         'fluid_levels' => ['label' => 'Fluid levels check', 'icon' => 'mdi:oil', 'km' => null, 'months' => 2, 'for' => 'all', 'check' => 'liquids_checked', 'soon_days' => 14, 'due_days' => 7],
         // Topped up rather than replaced: checked twice a year, with winter fluid before the frost.

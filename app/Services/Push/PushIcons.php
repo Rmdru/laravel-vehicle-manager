@@ -9,6 +9,10 @@ namespace App\Services\Push;
  * so `npm run build` turns the icons of resources/icons into PNGs in
  * public/push-icons (see scripts/push-icons.mjs): one per urgency, white on a
  * circle in its color, as under "Needs attention".
+ *
+ * Paths rather than full URLs: messages are sent from the command line, which
+ * only knows APP_URL. The service worker loads them from the address the
+ * device opened the app at.
  */
 class PushIcons
 {
@@ -26,19 +30,19 @@ class PushIcons
             $path = $this->path((string) $name, $urgency);
 
             if ($path !== null && is_file(public_path($path))) {
-                return asset($path);
+                return '/'.$path;
             }
         }
 
-        return asset('icons/icon-192.png');
+        return '/icons/icon-192.png';
     }
 
     /**
-     * The small white car in the status bar, that tells the app the notification is from.
+     * The favicon in white in the status bar, that tells the app the notification is from.
      */
     public function badge(): string
     {
-        return asset(self::DIRECTORY.'/badge.png');
+        return '/'.self::DIRECTORY.'/badge.png';
     }
 
     private function path(string $icon, string $urgency): ?string
