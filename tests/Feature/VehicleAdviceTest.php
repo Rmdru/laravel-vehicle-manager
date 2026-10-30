@@ -100,7 +100,7 @@ class VehicleAdviceTest extends TestCase
         $this->assertSame(12, $facts['vehicle']['age_years']);
         $this->assertSame(182000, $facts['vehicle']['mileage_km']);
         $this->assertSame('hatchback', $facts['rdw']['body']);
-        $this->assertSame('big_maintenance', $facts['maintenance_history'][0]['type']);
+        $this->assertSame(['big_maintenance'], $facts['maintenance_history'][0]['types']);
         $this->assertSame(['Oil change'], $facts['maintenance_history'][0]['tasks']);
         // The MOT expires within two months: the dashboard says so already.
         $this->assertContains('apk', array_column($facts['already_shown_notifications'], 'key'));

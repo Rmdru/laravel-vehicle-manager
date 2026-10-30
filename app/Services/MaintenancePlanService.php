@@ -136,9 +136,7 @@ class MaintenancePlanService
                 $keys->push('airco_service');
             }
 
-            if ($check = $checks->search($maintenance->type_maintenance)) {
-                $keys->push($check);
-            }
+            $keys->push(...$checks->intersect($maintenance->type_maintenance)->keys());
 
             foreach ($keys->unique() as $key) {
                 $task = $tasks->first(fn (array $task) => in_array($key, self::componentsOf($task), true));

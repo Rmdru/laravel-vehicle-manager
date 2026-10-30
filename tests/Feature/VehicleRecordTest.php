@@ -440,6 +440,54 @@ class VehicleRecordTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->has('table.data', 0)->etc());
     }
 
+    public function test_a_maintenance_can_have_several_types()
+    {
+        $this->travelTo('2026-10-30 12:00:00');
+        $vehicle = $this->signInWithVehicle(['mileage_latest' => 20000, 'maintenance_intervals' => [
+            ['types' => ['oil_service', 'inspection_service'], 'km' => null, 'months' => 12],
+        ]]);
+        Maintenance::factory()->for($vehicle)->create(['type_maintenance' => 'small_maintenance', 'date' => '2025-01-01', 'mileage' => 10000]);
+
+        $this->post(route('maintenances.store'), [
+            'date' => '2026-10-20',
+            'mileage' => 20000,
+            'total_price' => 450,
+            'type_maintenance' => ['oil_service', 'inspection_service', 'no_type'],
+        ])->assertSessionHasNoErrors();
+
+        $maintenance = Maintenance::query()->where('date', '2026-10-20')->sole();
+        $this->assertSame(['oil_service', 'inspection_service'], $maintenance->type_maintenance);
+        // Done together, they restart the interval of both.
+        $this->assertSame('2027-10-20', $vehicle->fresh()->nextMaintenance()['date']->toDateString());
+
+        // Found by either type.
+        $this->get(route('maintenances.index', ['maintenances_filter' => ['type_maintenance' => 'inspection_service']]))
+            ->assertInertia(fn (Assert $page) => $page->has('table.data', 1)->where('table.data.0.id', $maintenance->id)->etc());
+
+        $this->get(route('maintenances.show', $maintenance->id))->assertOk();
+    }
+
+    public function test_a_new_maintenance_starts_with_the_types_of_the_interval_that_is_due()
+    {
+        $vehicle = $this->signInWithVehicle(['maintenance_intervals' => [
+            ['types' => ['oil_service', 'inspection_service'], 'km' => null, 'months' => 12],
+        ]]);
+        $default = fn (Assert $page) => collect($page->toArray()['props']['form']['fields'])->firstWhere('name', 'type_maintenance')['default'];
+
+        $this->get(route('maintenances.create'))
+            ->assertInertia(fn (Assert $page) => $this->assertSame(['oil_service', 'inspection_service'], $default($page)) ?? $page);
+
+        // Recorded from the maintenance plan, it is about the component.
+        $this->get(route('maintenances.create', ['component' => 'wiper_blades']))
+            ->assertInertia(fn (Assert $page) => $page->where('form.defaults.type_maintenance', [])->etc());
+
+        // An interval any maintenance restarts suggests none.
+        $vehicle->update(['maintenance_intervals' => [['types' => Vehicle::MAINTENANCE_TYPES, 'km' => 15000, 'months' => 12]]]);
+
+        $this->get(route('maintenances.create'))
+            ->assertInertia(fn (Assert $page) => $this->assertSame([], $default($page)) ?? $page);
+    }
+
     public function test_a_maintenance_can_be_viewed()
     {
         $vehicle = $this->signInWithVehicle();

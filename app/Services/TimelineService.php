@@ -56,7 +56,7 @@ class TimelineService
         $fuelTypes = trans('fuel_types');
 
         $vehicle->load([
-            'maintenances' => fn ($query) => $query->whereIn('type_maintenance', Vehicle::MAINTENANCE_TYPES),
+            'maintenances' => fn ($query) => $query->where(fn ($query) => collect(Vehicle::MAINTENANCE_TYPES)->each(fn (string $type) => $query->orWhereJsonContains('type_maintenance', $type))),
             'refuelings', 'insurances', 'taxes', 'parkings', 'tolls', 'fines', 'reconditionings',
             'vignettes', 'environmentalStickers', 'ferries', 'products', 'services', 'accidents',
         ]);
@@ -68,7 +68,7 @@ class TimelineService
                 'price' => $maintenance->total_price,
                 'location' => $maintenance->garage,
                 'badges' => array_values(array_filter([
-                    $this->badge(MaintenanceTypeMaintenance::tryFrom((string) $maintenance->type_maintenance)?->getLabel(), icon: 'mdi:car-wrench'),
+                    ...array_map(fn (string $type) => $this->badge(MaintenanceTypeMaintenance::tryFrom($type)?->getLabel(), icon: 'mdi:car-wrench'), $maintenance->type_maintenance),
                     $maintenance->apk ? $this->badge(__('MOT'), icon: 'ic:baseline-security') : null,
                 ])),
             ]));
@@ -219,7 +219,7 @@ class TimelineService
             if ($date->isFuture()) {
                 $items->push($this->item($lastMaintenance, $nextMaintenance['label'], 'mdi:car-wrench', null, $date, [
                     'location' => $lastMaintenance->garage,
-                    'badges' => [$this->badge(MaintenanceTypeMaintenance::from($lastMaintenance->type_maintenance)->getLabel(), icon: 'mdi:car-wrench')],
+                    'badges' => array_map(fn (string $type) => $this->badge(MaintenanceTypeMaintenance::from($type)->getLabel(), icon: 'mdi:car-wrench'), $lastMaintenance->type_maintenance),
                 ]));
             }
         }

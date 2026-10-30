@@ -82,6 +82,8 @@ class MaintenanceController extends VehicleRecordController
 
         if (is_array($component) && is_string($request->query('component'))) {
             return [
+                // Not the types of the interval that is due: this is about the component.
+                'type_maintenance' => [],
                 'tasks' => [['task' => __($component['label']), 'price' => null, 'components' => [$request->query('component')]]],
             ];
         }
@@ -96,14 +98,15 @@ class MaintenanceController extends VehicleRecordController
         $defects = collect($inspection['defects'] ?? [])
             ->map(fn (array $defect) => '- '.$defect['description'].($defect['count'] > 1 ? ' ('.$defect['count'].'x)' : ''));
 
-        return array_filter([
+        // A MOT, not the types of the interval that is due.
+        return [...array_filter([
             'apk' => true,
             'date' => $inspection['date'] ?? null,
             'apk_date' => $inspection['date'] ?? null,
             'description' => collect([__('MOT')])
                 ->when($defects->isNotEmpty(), fn ($lines) => $lines->push(__('Defects found by the inspection:'), ...$defects))
                 ->implode("\n"),
-        ]);
+        ]), 'type_maintenance' => []];
     }
 
     protected function prepare(array $data, ?Model $record): array
@@ -138,7 +141,16 @@ class MaintenanceController extends VehicleRecordController
         /** @var Maintenance $maintenance */
         $maintenance = $this->record($id);
         $money = fn ($value) => '€ '.number_format((float) $value, 2, ',', '.');
-        $type = MaintenanceTypeMaintenance::tryFrom((string) $maintenance->type_maintenance);
+        $types = array_map(fn (string $type) => MaintenanceTypeMaintenance::from($type), $maintenance->type_maintenance);
+        $typeBadge = fn (?MaintenanceTypeMaintenance $type) => Html::badge($type?->getLabel() ?? __('No maintenance'), icon: match ($type) {
+            MaintenanceTypeMaintenance::Maintenance => 'mdi:car-wrench',
+            MaintenanceTypeMaintenance::SmallMaintenance => 'mdi:oil',
+            MaintenanceTypeMaintenance::BigMaintenance => 'mdi:engine',
+            MaintenanceTypeMaintenance::OilService => 'mdi:oil-level',
+            MaintenanceTypeMaintenance::InspectionService => 'mdi:clipboard-check-outline',
+            MaintenanceTypeMaintenance::Longlife => 'mdi:history',
+            default => 'ic:round-close',
+        });
 
         return Inertia::render('Crud/Show', [
             'title' => __('Maintenance'),
@@ -153,15 +165,7 @@ class MaintenanceController extends VehicleRecordController
                     ['label' => __('Mileage'), 'value' => filled($maintenance->mileage) ? $maintenance->mileage.' km' : null, 'icon' => 'ic:baseline-route'],
                 ]],
                 ['title' => __('Tasks'), 'items' => [
-                    ['label' => __('Type maintenance'), 'html' => Html::badge($type?->getLabel() ?? __('No maintenance'), icon: match ($type) {
-                        MaintenanceTypeMaintenance::Maintenance => 'mdi:car-wrench',
-                        MaintenanceTypeMaintenance::SmallMaintenance => 'mdi:oil',
-                        MaintenanceTypeMaintenance::BigMaintenance => 'mdi:engine',
-                        MaintenanceTypeMaintenance::OilService => 'mdi:oil-level',
-                        MaintenanceTypeMaintenance::InspectionService => 'mdi:clipboard-check-outline',
-                        MaintenanceTypeMaintenance::Longlife => 'mdi:history',
-                        default => 'ic:round-close',
-                    })],
+                    ['label' => __('Type maintenance'), 'html' => $types === [] ? $typeBadge(null) : implode(' ', array_map($typeBadge, $types))],
                     ['label' => __('MOT'), 'html' => Html::badge($maintenance->apk ? __('MOT') : __('No MOT'), icon: $maintenance->apk ? 'ic:baseline-security' : 'ic:round-close')],
                     ['label' => __('MOT date'), 'value' => $maintenance->apk_date?->isoFormat('ll') ?? __('Unknown'), 'icon' => 'ic:baseline-security'],
                     ['label' => __('Airco check'), 'html' => Html::badge($maintenance->airco_check ? __('Airco check') : __('No airco check'), icon: $maintenance->airco_check ? 'mdi:air-conditioner' : 'ic:round-close')],

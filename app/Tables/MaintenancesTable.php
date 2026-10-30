@@ -25,7 +25,8 @@ class MaintenancesTable extends VehicleRecordTable
      */
     public function for(): Builder
     {
-        return parent::for()->where(fn (Builder $query) => $query->whereNull('type_maintenance')->orWhereNotIn('type_maintenance', self::CHECKS));
+        return parent::for()->where(fn (Builder $query) => $query->whereNull('type_maintenance')->orWhere(fn (Builder $query) => collect(self::CHECKS)
+            ->each(fn (string $check) => $query->whereJsonDoesntContain('type_maintenance', $check))));
     }
 
     public function configure(TableBuilder $table): void
@@ -35,7 +36,7 @@ class MaintenancesTable extends VehicleRecordTable
             ->withGlobalSearch(columns: ['garage', 'description'])
             ->column('date', __('Date'), sortable: true, as: fn ($value, Maintenance $maintenance) => $this->text($this->date($maintenance->date)))
             ->column('garage', __('Garage'), sortable: true, as: fn ($value) => $this->text($value ?: __('Unknown')))
-            ->column('type_maintenance', __('Type maintenance'), sortable: true, as: fn ($value) => $this->enumBadge(MaintenanceTypeMaintenance::class, $value))
+            ->column('type_maintenance', __('Type maintenance'), as: fn ($value, Maintenance $maintenance) => $this->enumBadge(MaintenanceTypeMaintenance::class, $maintenance->type_maintenance))
             ->column('apk', __('MOT'), sortable: true, as: fn ($value, Maintenance $maintenance) => new HtmlString(Html::badge($maintenance->apk ? __('MOT') : __('No MOT'))))
             ->column('mileage', __('Mileage'), sortable: true, as: fn ($value) => filled($value) ? $this->text($value.' km') : '')
             ->column('total_price', __('Total price'), sortable: true, as: fn ($value) => $this->amount($this->money($value) ?: __('Unknown')))
@@ -44,7 +45,7 @@ class MaintenancesTable extends VehicleRecordTable
         $this->optionsFilter($table, 'type_maintenance', __('Type maintenance'), collect(MaintenanceTypeMaintenance::cases())
             ->reject(fn (MaintenanceTypeMaintenance $type) => in_array($type->value, self::CHECKS, true))
             ->mapWithKeys(fn (MaintenanceTypeMaintenance $type) => [$type->value => (string) $type->getLabel()])
-            ->all());
+            ->all(), json: true);
         $this->booleanFilter($table, 'apk', __('MOT'));
         $this->enumFilter($table, 'payment_method', __('Payment method'), MaintenancePaymentMethod::class);
     }
