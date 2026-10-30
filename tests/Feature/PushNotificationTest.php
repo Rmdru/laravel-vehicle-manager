@@ -117,7 +117,7 @@ class PushNotificationTest extends TestCase
         $this->assertSame('2026-11-10 21:30:00', $sendAfter('critical', '2026-11-10 21:30:00'));
     }
 
-    public function test_the_moment_is_the_hour_the_owner_enters_most_records_in()
+    public function test_the_moment_is_when_the_owner_usually_enters_records_in_their_busiest_hour()
     {
         $vehicle = $this->signInWithVehicle();
 
@@ -125,9 +125,10 @@ class PushNotificationTest extends TestCase
             Refueling::factory()->for($vehicle)->create()->forceFill(['created_at' => $time])->save();
         }
 
-        // 18:xx UTC is 20:xx in Amsterdam in summer time, and 19:20 UTC too in winter time.
-        $this->assertSame('20:00', app(PushTiming::class)->usualMoment($vehicle));
-        $this->assertSame('2026-11-10 19:00:00', app(PushTiming::class)->sendAfter($vehicle, 'warning')->toDateTimeString());
+        // 18:xx UTC is 20:xx in Amsterdam in summer time, and 19:20 UTC too in winter time:
+        // the minutes 05, 10, 20, 40 and 55, of which 20 is the middle one. Not rounded to the hour.
+        $this->assertSame('20:20', app(PushTiming::class)->usualMoment($vehicle));
+        $this->assertSame('2026-11-10 19:20:00', app(PushTiming::class)->sendAfter($vehicle, 'warning')->toDateTimeString());
     }
 
     public function test_the_nightly_sync_puts_new_notifications_in_line_for_owners_with_a_device()

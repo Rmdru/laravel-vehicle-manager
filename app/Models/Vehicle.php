@@ -306,7 +306,8 @@ class Vehicle extends Model
 
     /**
      * The name of an interval: its maintenance types, or just maintenance
-     * when any restarts it.
+     * when any restarts it. Several as in a sentence, such as "Oil and
+     * inspection service" ("Olie- en inspectieservice").
      *
      * @param  list<string>  $types
      */
@@ -314,11 +315,41 @@ class Vehicle extends Model
     {
         $label = fn (string $type) => $type === self::AIRCO_CHECK ? __('Airco check') : MaintenanceTypeMaintenance::from($type)->getLabel();
 
-        if (array_diff(self::MAINTENANCE_TYPES, $types) === []) {
-            return collect([__('Maintenance'), ...array_map($label, array_diff($types, self::MAINTENANCE_TYPES))])->implode(' / ');
+        $labels = array_diff(self::MAINTENANCE_TYPES, $types) === []
+            ? [__('Maintenance'), ...array_map($label, array_values(array_diff($types, self::MAINTENANCE_TYPES)))]
+            : array_map($label, $types);
+
+        if (count($labels) < 2) {
+            return $labels[0] ?? '';
         }
 
-        return collect($types)->map($label)->implode(' / ');
+        // Names that end in the same word share it: "Oil and inspection service".
+        $word = __('service');
+        $shared = collect($labels)->every(fn (string $name) => mb_strlen($name) > mb_strlen($word)
+            && mb_strtolower(mb_substr($name, -mb_strlen($word))) === mb_strtolower($word));
+        $last = count($labels) - 1;
+
+        $parts = array_map(function (string $name, int $index) use ($word, $shared, $last) {
+            // Within a sentence in lower case; German keeps the capital of a noun.
+            if ($index > 0 && app()->getLocale() !== 'de') {
+                $name = mb_strtolower(mb_substr($name, 0, 1)).mb_substr($name, 1);
+            }
+
+            if (! $shared || $index === $last) {
+                return $name;
+            }
+
+            // Separate words lose the shared one ("Oil"), a compound keeps a hyphen ("Olie-").
+            $head = mb_substr($name, 0, -mb_strlen($word));
+
+            return match (true) {
+                str_ends_with($head, ' ') => rtrim($head),
+                str_ends_with($head, '-') => $head,
+                default => $head.'-',
+            };
+        }, $labels, array_keys($labels));
+
+        return __(':list and :last', ['list' => implode(', ', array_slice($parts, 0, -1)), 'last' => end($parts)]);
     }
 
     /**
@@ -335,8 +366,9 @@ class Vehicle extends Model
     /**
      * When each maintenance interval is due: after its interval in time, and
      * after its interval in distance at the pace the vehicle is driven. The
-     * date is when it is due by time, else by distance. Intervals whose
-     * maintenance was never recorded are left out.
+     * date is when it is due by time, else by distance. An interval whose
+     * maintenance types were never recorded counts from the latest
+     * maintenance; without any, it is left out.
      *
      * @return list<array{label: string, types: list<string>, km: int|null, months: int|null, maintenance: Maintenance, date: Carbon, due: Carbon, distance: int|float|null, dueKm: int|null, daysTillDistance: int|float|null}>
      */
@@ -346,11 +378,15 @@ class Vehicle extends Model
 
         return collect($this->maintenanceIntervals())
             ->map(function (array $interval) use (&$monthlyDistance) {
-                $latest = $this->maintenances
-                    ->filter(fn (Maintenance $maintenance) => in_array($maintenance->type_maintenance, $interval['types'], true)
-                        || (in_array(self::AIRCO_CHECK, $interval['types'], true) && $maintenance->airco_check))
+                $latestOf = fn (array $types) => $this->maintenances
+                    ->filter(fn (Maintenance $maintenance) => in_array($maintenance->type_maintenance, $types, true)
+                        || (in_array(self::AIRCO_CHECK, $types, true) && $maintenance->airco_check))
                     ->sortByDesc('date')
                     ->first();
+
+                // Never recorded as such yet, such as an oil service: from the latest maintenance, which usually included it.
+                $latest = $latestOf($interval['types'])
+                    ?? ($interval['types'] === [self::AIRCO_CHECK] ? null : $latestOf(self::MAINTENANCE_TYPES));
 
                 if ($latest === null) {
                     return null;

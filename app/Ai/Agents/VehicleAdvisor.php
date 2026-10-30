@@ -101,6 +101,13 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
             plan's. Keep in mind that official manufacturer schedules (such as long-life oil intervals or 'sealed-for-life'
             transmissions) are often designed for lease periods rather than 200,000+ km longevity: point out where
             more frequent fluid changes (engine oil, transmission, differential) protect the powertrain.
+            vehicle.maintenance_intervals are the service intervals the owner set for this vehicle: per interval the
+            maintenance types that restart it, and the interval in km and in months, whichever comes first. Types that
+            share an interval (such as oil_service and inspection_service) are always done together, at one visit.
+            next_maintenances tells per interval when it was done last and when it is due again. Take them as the
+            owner's schedule: plan service jobs, checks and repairs in with the next service rather than advising a
+            separate visit, and point out where an interval is longer than this make, model or engine needs for a
+            long life, or where it differs from what the manufacturer gives.
             handled_suggestions are tips the owner already did something with: done, kept (the owner knows, and
             looks the tip up when needed) or not_relevant. Do not make them again, under any key, and avoid re-suggesting
             the same component, theme or subject under different phrasing, unless the facts show that the situation
