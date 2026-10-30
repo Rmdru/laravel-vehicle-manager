@@ -343,12 +343,12 @@ class MaintenancePlanTest extends TestCase
             'date' => '2026-10-20',
             'mileage' => 5000,
             'total_price' => 80,
-            'type_maintenance' => 'oil_service',
+            'type_maintenance' => ['oil_service'],
             'tasks' => [['task' => 'Olie verversen', 'price' => 80, 'components' => ['engine_oil']]],
         ])->assertRedirect();
 
         $maintenance = Maintenance::sole();
-        $this->assertSame('oil_service', $maintenance->type_maintenance);
+        $this->assertSame(['oil_service'], $maintenance->type_maintenance);
         $this->assertSame(['engine_oil'], $maintenance->tasks[0]['components']);
     }
 

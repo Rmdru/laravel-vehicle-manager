@@ -8,6 +8,7 @@ use App\Enums\MaintenancePaymentMethod;
 use App\Enums\MaintenanceTypeMaintenance;
 use App\Forms\Fields\Heading;
 use App\Models\Maintenance;
+use App\Models\Vehicle;
 use App\Services\FindingService;
 use App\Services\MaintenancePlanService;
 use App\Traits\MaintenanceTypeOptions;
@@ -42,14 +43,20 @@ class MaintenanceForm extends VehicleRecordForm
                 ->rules(['required', 'integer', 'min:0']),
 
             Heading::make(__('Tasks')),
-            $this->choice('type_maintenance', __('Type maintenance'), $this->getMaintenanceTypeOptions([
-                MaintenanceTypeMaintenance::Maintenance,
-                MaintenanceTypeMaintenance::SmallMaintenance,
-                MaintenanceTypeMaintenance::BigMaintenance,
-                MaintenanceTypeMaintenance::OilService,
-                MaintenanceTypeMaintenance::InspectionService,
-                MaintenanceTypeMaintenance::Longlife,
-            ])),
+            // Several when done together, such as an oil service and an inspection service.
+            Select::make('type_maintenance')
+                ->label(__('Type maintenance'))
+                ->multiple()
+                ->options($types = $this->getMaintenanceTypeOptions([
+                    MaintenanceTypeMaintenance::Maintenance,
+                    MaintenanceTypeMaintenance::SmallMaintenance,
+                    MaintenanceTypeMaintenance::BigMaintenance,
+                    MaintenanceTypeMaintenance::OilService,
+                    MaintenanceTypeMaintenance::InspectionService,
+                    MaintenanceTypeMaintenance::Longlife,
+                ]))
+                ->default(array_values(array_intersect($this->dueTypes(), array_keys($types))))
+                ->rules(['nullable', 'array']),
             Toggle::make('apk')
                 ->label(__('MOT'))
                 ->rules(['boolean']),
@@ -87,6 +94,21 @@ class MaintenanceForm extends VehicleRecordForm
 
             Submit::make()->label(__('Save')),
         ];
+    }
+
+    /**
+     * The maintenance types of the interval that is due first, to start a new
+     * maintenance with, such as the oil service and the inspection service
+     * that are done together. None when any maintenance restarts it.
+     *
+     * @return list<string>
+     */
+    private function dueTypes(): array
+    {
+        $vehicle = $this->vehicle();
+        $types = ($vehicle?->nextMaintenance() ?? $vehicle?->maintenanceIntervals()[0] ?? null)['types'] ?? [];
+
+        return array_diff(Vehicle::MAINTENANCE_TYPES, $types) === [] ? [] : array_values(array_intersect($types, Vehicle::MAINTENANCE_TYPES));
     }
 
     /**

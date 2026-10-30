@@ -418,7 +418,7 @@ class VehicleAdviceFacts
             ->map(fn (Maintenance $maintenance) => array_filter([
                 'date' => $maintenance->date->toDateString(),
                 'mileage_km' => $maintenance->mileage ?: null,
-                'type' => self::scalar($maintenance->type_maintenance),
+                'types' => $maintenance->type_maintenance ?: null,
                 'mot' => $maintenance->apk ?: null,
                 'airco_check' => $maintenance->airco_check ?: null,
                 'garage' => $maintenance->garage ?: null,

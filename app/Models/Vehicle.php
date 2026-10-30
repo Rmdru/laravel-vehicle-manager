@@ -379,7 +379,7 @@ class Vehicle extends Model
         return collect($this->maintenanceIntervals())
             ->map(function (array $interval) use (&$monthlyDistance) {
                 $latestOf = fn (array $types) => $this->maintenances
-                    ->filter(fn (Maintenance $maintenance) => in_array($maintenance->type_maintenance, $types, true)
+                    ->filter(fn (Maintenance $maintenance) => array_intersect($maintenance->type_maintenance, $types) !== []
                         || (in_array(self::AIRCO_CHECK, $types, true) && $maintenance->airco_check))
                     ->sortByDesc('date')
                     ->first();
