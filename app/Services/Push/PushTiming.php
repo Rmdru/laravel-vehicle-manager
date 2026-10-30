@@ -52,8 +52,9 @@ class PushTiming
     }
 
     /**
-     * The hour the owner enters most records of the vehicle in, in their own
-     * time; null while there are too few to tell, or when it falls in the quiet hours.
+     * The moment the owner enters most records of the vehicle at, in their own
+     * time: in the hour they enter most in, at the minute they usually do; null
+     * while there are too few to tell, or when it falls in the quiet hours.
      */
     public function usualMoment(Vehicle $vehicle): ?string
     {
@@ -72,15 +73,17 @@ class PushTiming
             return null;
         }
 
-        $hour = $times
-            ->map(fn ($time) => CarbonImmutable::parse($time, 'UTC')->setTimezone($timezone)->hour)
-            ->countBy()
+        $local = $times->map(fn ($time) => CarbonImmutable::parse($time, 'UTC')->setTimezone($timezone));
+        $hour = $local
+            ->countBy(fn (CarbonImmutable $time) => $time->hour)
             // The most records, and of those the earliest hour.
             ->sortKeys()
             ->sortDesc()
             ->keys()
             ->first();
-        $moment = sprintf('%02d:00', $hour);
+        // Within that hour, the minute they usually enter them at.
+        $minute = (int) $local->filter(fn (CarbonImmutable $time) => $time->hour === $hour)->map(fn (CarbonImmutable $time) => $time->minute)->median();
+        $moment = sprintf('%02d:%02d', $hour, $minute);
         $preferences = $vehicle->pushPreferences();
 
         return $this->inQuietHours($moment, $preferences['quiet_from'], $preferences['quiet_until']) ? null : $moment;

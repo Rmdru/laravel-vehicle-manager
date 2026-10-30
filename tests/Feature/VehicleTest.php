@@ -126,9 +126,34 @@ class VehicleTest extends TestCase
         $next = $vehicle->fresh()->nextMaintenances();
 
         // The oil service is restarted by the oil service, the inspection service only by itself; the first due first.
-        $this->assertSame(['Oil service / Inspection service', 'Inspection service'], array_column($next, 'label'));
+        $this->assertSame(['Oil and inspection service', 'Inspection service'], array_column($next, 'label'));
         $this->assertSame(['2027-03-01', '2027-06-01'], array_map(fn (array $item) => $item['date']->toDateString(), $next));
-        $this->assertSame(['Oil service / Inspection service', 'Inspection service'], array_slice(array_column(app(DashboardService::class)->statuses($vehicle->fresh()), 'title'), 0, 2));
+        $this->assertSame(['Oil and inspection service', 'Inspection service'], array_slice(array_column(app(DashboardService::class)->statuses($vehicle->fresh()), 'title'), 0, 2));
+    }
+
+    public function test_an_interval_of_several_types_is_named_as_in_a_sentence()
+    {
+        $this->assertSame('Oil and inspection service', Vehicle::intervalLabel(['oil_service', 'inspection_service']));
+        $this->assertSame('Oil service and airco check', Vehicle::intervalLabel(['oil_service', 'airco_check']));
+        $this->assertSame('Maintenance', Vehicle::intervalLabel(Vehicle::MAINTENANCE_TYPES));
+
+        app()->setLocale('nl');
+        $this->assertSame('Olie- en inspectieservice', Vehicle::intervalLabel(['oil_service', 'inspection_service']));
+
+        app()->setLocale('de');
+        $this->assertSame('Öl- und Inspektionsservice', Vehicle::intervalLabel(['oil_service', 'inspection_service']));
+    }
+
+    public function test_an_interval_never_recorded_as_such_counts_from_the_latest_maintenance()
+    {
+        $this->travelTo('2026-10-23 12:00:00');
+        $vehicle = $this->signInWithVehicle(['mileage_latest' => 20000, 'maintenance_intervals' => [
+            ['types' => ['oil_service', 'inspection_service'], 'km' => null, 'months' => 12],
+        ]]);
+        $vehicle->maintenances()->create(['type_maintenance' => 'big_maintenance', 'date' => '2026-03-01', 'mileage' => 15000, 'total_price' => 600]);
+
+        $this->assertSame([['Oil and inspection service', '2027-03-01']], array_map(fn (array $item) => [$item['label'], $item['date']->toDateString()], $vehicle->fresh()->nextMaintenances()));
+        $this->assertSame('Oil and inspection service', app(DashboardService::class)->statuses($vehicle->fresh())[0]['title']);
     }
 
     public function test_creating_a_vehicle_requires_the_mandatory_fields()

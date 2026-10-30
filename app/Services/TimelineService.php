@@ -217,7 +217,7 @@ class TimelineService
                 : $nextMaintenance['date']->min(now()->addDays($nextMaintenance['daysTillDistance']));
 
             if ($date->isFuture()) {
-                $items->push($this->item($lastMaintenance, __('Maintenance'), 'mdi:car-wrench', null, $date, [
+                $items->push($this->item($lastMaintenance, $nextMaintenance['label'], 'mdi:car-wrench', null, $date, [
                     'location' => $lastMaintenance->garage,
                     'badges' => [$this->badge(MaintenanceTypeMaintenance::from($lastMaintenance->type_maintenance)->getLabel(), icon: 'mdi:car-wrench')],
                 ]));
