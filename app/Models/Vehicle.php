@@ -969,7 +969,7 @@ class Vehicle extends Model
                         }
 
                         $paymentDay = $activeRecord->invoice_day ?? 1;
-                        $paymentDate = Carbon::createFromFormat('Y-m-d', "{$monthCursor->year}-{$monthCursor->month}-{$paymentDay}");
+                        $paymentDate = $monthCursor->copy()->day(min($paymentDay, $monthCursor->daysInMonth));
                         if ($paymentDate->between($startDate, $endDate)) {
                             $monthlyCosts[$month][$label] += $activeRecord->$priceField;
                         }
@@ -980,30 +980,25 @@ class Vehicle extends Model
             }
         }
 
+        // Walk from the first of the month: from e.g. the 31st, addMonth()
+        // overflows and skips the shorter months.
         $allMonths = collect();
-        $currentMonth = $startDate->copy();
+        $currentMonth = $startDate->copy()->startOfMonth();
         while ($currentMonth <= $endDate) {
-            $allMonths->push($currentMonth->isoFormat('Y-MM'));
+            $allMonths->push($currentMonth->copy());
             $currentMonth->addMonth();
         }
 
-        foreach ($allMonths as $month) {
-            if (! isset($monthlyCosts[$month])) {
-                $monthlyCosts[$month] = [];
-            }
-
-            foreach ($costTypes as $label => $config) {
-                if (! isset($monthlyCosts[$month][$label])) {
-                    $monthlyCosts[$month][$label] = 0;
-                }
-            }
-        }
-
-        $monthlyCosts = collect($monthlyCosts)->sortKeys()->toArray();
+        // Exactly one entry per label, in the same order.
+        $monthlyCosts = $allMonths
+            ->mapWithKeys(fn (Carbon $month) => [
+                $month->isoFormat('Y-MM') => collect(array_keys($costTypes))
+                    ->mapWithKeys(fn (string $label) => [$label => $monthlyCosts[$month->isoFormat('Y-MM')][$label] ?? 0])
+                    ->all(),
+            ])
+            ->all();
         $labels = $allMonths
-            ->map(function ($month) {
-                return str(Carbon::createFromFormat('Y-m', $month)->isoFormat('MMM YY'))->ucfirst();
-            })
+            ->map(fn (Carbon $month) => (string) str($month->isoFormat('MMM YY'))->ucfirst())
             ->values()
             ->all();
 

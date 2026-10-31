@@ -88,6 +88,24 @@ class DashboardTest extends TestCase
         $this->assertSame('6 months from now', $status['secondary']);
     }
 
+    public function test_the_costs_chart_has_every_month_with_its_own_costs_on_the_31st()
+    {
+        // From the 31st, adding a month overflows past the shorter months.
+        $this->travelTo('2026-10-31 12:00:00');
+        $vehicle = $this->signInWithVehicle();
+        Maintenance::factory()->for($vehicle)->create(['date' => '2026-09-15', 'total_price' => 500]);
+
+        $chart = app(DashboardService::class)->costsChart($vehicle->fresh(), null, null);
+        $maintenance = collect($chart['series'])->firstWhere('label', 'Maintenance')['data'];
+
+        $this->assertCount(13, $chart['labels']);
+        $this->assertCount(13, $maintenance);
+        $this->assertSame(['Oct 25', 'Nov 25', 'Dec 25'], array_slice($chart['labels'], 0, 3));
+        $this->assertSame(['Feb 26', 'Mar 26'], array_slice($chart['labels'], 4, 2));
+        $this->assertSame(['Sep 26', 'Oct 26'], array_slice($chart['labels'], -2));
+        $this->assertSame([500.0, 0.0], array_slice($maintenance, -2));
+    }
+
     public function test_users_with_a_vehicle_can_visit_the_dashboard()
     {
         $vehicle = $this->signInWithVehicle();
