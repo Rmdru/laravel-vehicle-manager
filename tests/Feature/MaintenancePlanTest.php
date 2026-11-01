@@ -157,7 +157,7 @@ class MaintenancePlanTest extends TestCase
         $this->get(route('maintenance-plan'))->assertOk();
     }
 
-    public function test_a_fluid_topped_up_counts_as_a_check_of_the_levels()
+    public function test_a_fluid_topped_up_is_no_check_of_the_levels()
     {
         $vehicle = $this->vehicle();
         Product::factory()->for($vehicle)->create([
@@ -173,17 +173,16 @@ class MaintenancePlanTest extends TestCase
         $levels = $this->item($vehicle->fresh(), 'fluid_levels');
         $washer = $this->item($vehicle->fresh(), 'washer_fluid');
 
-        $this->assertSame('2026-10-20', $levels['done']['date']);
-        $this->assertSame(21500, $levels['done']['km']);
-        // The price is that of the fluid, not of a check.
-        $this->assertNull($levels['done']['price']);
+        // Topping up one fluid checks none of the others.
+        $this->assertNull($levels['done']['product_id'] ?? null);
         $this->assertSame('2026-10-20', $washer['done']['date']);
+        $this->assertSame(21500, $washer['done']['km']);
         $this->assertEquals(6, $washer['done']['price']);
 
-        // Coolant only checks the levels: replacing it is up to the garage.
+        // Neither does coolant, and replacing it is up to the garage.
         Product::factory()->for($vehicle)->create(['category' => ProductCategory::Coolant, 'component' => null, 'quantity' => 0.5, 'mileage' => 21600, 'date' => '2026-10-21']);
 
-        $this->assertSame('2026-10-21', $this->item($vehicle->fresh(), 'fluid_levels')['done']['date']);
+        $this->assertNull($this->item($vehicle->fresh(), 'fluid_levels')['done']['product_id'] ?? null);
         $this->assertNull($this->item($vehicle->fresh(), 'coolant')['done']['product_id'] ?? null);
     }
 
