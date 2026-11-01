@@ -181,9 +181,10 @@ class MaintenancePlanService
 
     /**
      * The components a product renews, with whether its price is what that
-     * cost: the part the owner replaced, and a fluid topped up at a mileage.
-     * Topping up checks the level, and washer fluid is topped up rather than
-     * replaced; the others, such as coolant, are renewed by the garage only.
+     * cost: the part the owner replaced, and washer fluid topped up at a
+     * mileage, as it is topped up rather than replaced. Topping up one fluid
+     * is no check of the levels of all of them, and the others, such as
+     * coolant, are renewed by the garage only.
      *
      * @return array<string, bool>
      */
@@ -193,14 +194,11 @@ class MaintenancePlanService
             return [(string) $product->component => true];
         }
 
-        if (! $product->category?->isFluid() || $product->mileage === null) {
+        if ($product->category !== ProductCategory::WasherFluid || $product->mileage === null) {
             return [];
         }
 
-        return array_filter([
-            'fluid_levels' => false,
-            'washer_fluid' => $product->category === ProductCategory::WasherFluid ? true : null,
-        ], fn (?bool $paid) => $paid !== null);
+        return ['washer_fluid' => true];
     }
 
     /**
