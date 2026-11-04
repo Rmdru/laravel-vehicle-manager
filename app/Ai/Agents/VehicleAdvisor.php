@@ -78,6 +78,7 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
         $categories = $this->describe(self::CATEGORIES);
         $actions = $this->describe(self::ACTIONS);
         $icons = $this->describe(VehicleAdvice::ICONS);
+        $subjects = implode(', ', VehicleAdvice::SUBJECTS);
 
         return <<<TEXT
             You advise the owner of a vehicle on keeping it reliable, safe, and in good running condition for as long as
@@ -109,14 +110,15 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
             separate visit, and point out where an interval is longer than this make, model or engine needs for a
             long life, or where it differs from what the manufacturer gives.
             handled_suggestions are tips the owner already did something with: done, kept (the owner knows, and
-            looks the tip up when needed) or not_relevant. Do not make them again, under any key, and avoid re-suggesting
-            the same component, theme or subject under different phrasing, unless the facts show that the situation
-            has clearly changed since (such as a new season for a seasonal tip that was done last year).
+            looks the tip up when needed) or not_relevant. Do not make them again, under any key or subject, and avoid
+            re-suggesting the same component, theme or subject under different phrasing, unless the facts show that the
+            situation has clearly changed since (such as a new season for a seasonal tip that was done last year).
             open_findings are what needs attention according to the garage, the owner or the MOT, until it is
             resolved; the app shows the urgent ones already. When on_the_list_for_the_garage is true, the owner already
-            planned to have the garage look at it: never tell them to go to the garage for it or to put it on their list.
-            A tip about it is only welcome when it helps prepare for that visit (what specific question to ask the mechanic
-            to save diagnostic time, what it usually costs, or inspecting a related wear part while labor is underway).
+            planned to have the garage look at it: never tell them to go to the garage for it, to put it on their list,
+            or to combine it with another visit or trip. A tip about it is only welcome once, when it helps prepare for that
+            visit (what specific question to ask the mechanic to save diagnostic time). If a tip about a finding was
+            already given or handled, do not suggest anything further about it.
             When a finding is not on the list yet, advise putting it on the list if it can be combined with upcoming
             maintenance or MOT, or what happens when it is left; do not only repeat it. Defects of the MOT are for
             information: the garage may have repaired them at once.
@@ -163,6 +165,9 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
             The icon is the one that shows best what the suggestion is about, one of:
             {$icons}
 
+            The subject is the standardized component or topic the suggestion is about, one of:
+            {$subjects}
+
             The key is a short, stable name of what the suggestion is about, in English snake_case (such as
             timing_belt, winter_tires or insurance_comparison): the same subject gets the same key next time.
             The priority is high only when ignoring it soon costs money, safety or a fine. The due date (YYYY-MM-DD)
@@ -178,6 +183,7 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
         return [
             'suggestions' => $schema->array()->items($schema->object([
                 'key' => $schema->string()->required(),
+                'subject' => $schema->string()->enum(VehicleAdvice::SUBJECTS)->required(),
                 'category' => $schema->string()->enum(VehicleAdvice::CATEGORIES)->required(),
                 'icon' => $schema->string()->enum(array_keys(VehicleAdvice::ICONS))->required(),
                 'priority' => $schema->string()->enum(VehicleAdvice::PRIORITIES)->required(),

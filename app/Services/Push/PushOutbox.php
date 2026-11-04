@@ -64,9 +64,13 @@ class PushOutbox
      */
     public function tips(Vehicle $vehicle, VehicleAdvice $advice, ?VehicleAdvice $previous): ?PushMessage
     {
-        $before = array_column($previous->suggestions ?? [], 'key');
+        $beforeKeys = array_column($previous->suggestions ?? [], 'key');
+        $beforeSubjects = array_filter(array_column($previous->suggestions ?? [], 'subject'), fn ($s) => $s !== 'other');
+
         $new = collect($advice->suggestions)
-            ->reject(fn (array $suggestion) => in_array($suggestion['key'], $before, true) || $suggestion['priority'] === 'high')
+            ->reject(fn (array $suggestion) => in_array($suggestion['key'], $beforeKeys, true)
+                || (isset($suggestion['subject']) && $suggestion['subject'] !== 'other' && in_array($suggestion['subject'], $beforeSubjects, true))
+                || $suggestion['priority'] === 'high')
             ->values();
 
         if ($new->isEmpty() || ! $this->wants($vehicle, 'tips')) {

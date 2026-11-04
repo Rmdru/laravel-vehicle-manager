@@ -88,11 +88,12 @@ class VehicleAdviceService
     private function generateFrom(Vehicle $vehicle, string $locale, array $facts): VehicleAdvice
     {
         $response = $this->ask($facts, self::LANGUAGES[$locale] ?? 'English');
-        $handled = array_column($facts['handled_suggestions'], 'key');
+        $handledKeys = array_column($facts['handled_suggestions'], 'key');
+        $handledSubjects = array_filter(array_column($facts['handled_suggestions'], 'subject'), fn ($s) => $s !== 'other');
 
         return $vehicle->vehicleAdvices()->create([
             'locale' => $locale,
-            'suggestions' => $this->suggestions((array) ($response['suggestions'] ?? []), $handled),
+            'suggestions' => $this->suggestions((array) ($response['suggestions'] ?? []), $handledKeys, $handledSubjects),
             'facts' => $facts,
             'facts_hash' => $this->facts->fingerprint($facts),
             'model' => $response->meta->model ?? config('vehicle_advice.model'),
@@ -140,27 +141,38 @@ class VehicleAdviceService
      * and every subject once.
      *
      * @param  array<int, mixed>  $suggestions
-     * @param  list<string>  $handled
+     * @param  list<string>  $handledKeys
+     * @param  list<string>  $handledSubjects
      * @return list<array<string, mixed>>
      */
-    private function suggestions(array $suggestions, array $handled): array
+    private function suggestions(array $suggestions, array $handledKeys, array $handledSubjects = []): array
     {
         return collect($suggestions)
             ->filter(fn ($suggestion) => is_array($suggestion))
-            ->map(fn (array $suggestion) => [
-                'key' => Str::limit(Str::snake(Str::ascii(trim((string) ($suggestion['key'] ?? '')))), 60, ''),
-                'category' => in_array($suggestion['category'] ?? null, VehicleAdvice::CATEGORIES, true) ? $suggestion['category'] : null,
-                'icon' => array_key_exists((string) ($suggestion['icon'] ?? ''), VehicleAdvice::ICONS) ? $suggestion['icon'] : null,
-                'priority' => in_array($suggestion['priority'] ?? null, VehicleAdvice::PRIORITIES, true) ? $suggestion['priority'] : 'low',
-                'basis' => in_array($suggestion['basis'] ?? null, VehicleAdvice::BASES, true) ? $suggestion['basis'] : 'general_knowledge',
-                'action' => in_array($suggestion['action'] ?? null, VehicleAdvice::ACTIONS, true) ? $suggestion['action'] : 'none',
-                'due_date' => $this->date((string) ($suggestion['due_date'] ?? '')),
-                'title' => Str::limit(trim((string) ($suggestion['title'] ?? '')), 90),
-                'body' => trim((string) ($suggestion['body'] ?? '')),
-            ])
+            ->map(function (array $suggestion) {
+                $key = Str::limit(Str::snake(Str::ascii(trim((string) ($suggestion['key'] ?? '')))), 60, '');
+                $category = in_array($suggestion['category'] ?? null, VehicleAdvice::CATEGORIES, true) ? $suggestion['category'] : null;
+                $subject = in_array($suggestion['subject'] ?? null, VehicleAdvice::SUBJECTS, true)
+                    ? $suggestion['subject']
+                    : VehicleAdvice::inferSubject($key, $category);
+
+                return [
+                    'key' => $key,
+                    'subject' => $subject,
+                    'category' => $category,
+                    'icon' => array_key_exists((string) ($suggestion['icon'] ?? ''), VehicleAdvice::ICONS) ? $suggestion['icon'] : null,
+                    'priority' => in_array($suggestion['priority'] ?? null, VehicleAdvice::PRIORITIES, true) ? $suggestion['priority'] : 'low',
+                    'basis' => in_array($suggestion['basis'] ?? null, VehicleAdvice::BASES, true) ? $suggestion['basis'] : 'general_knowledge',
+                    'action' => in_array($suggestion['action'] ?? null, VehicleAdvice::ACTIONS, true) ? $suggestion['action'] : 'none',
+                    'due_date' => $this->date((string) ($suggestion['due_date'] ?? '')),
+                    'title' => Str::limit(trim((string) ($suggestion['title'] ?? '')), 90),
+                    'body' => trim((string) ($suggestion['body'] ?? '')),
+                ];
+            })
             ->filter(fn (array $suggestion) => $suggestion['key'] !== '' && $suggestion['category'] !== null && $suggestion['title'] !== '')
-            ->reject(fn (array $suggestion) => in_array($suggestion['key'], $handled, true))
-            ->unique('key')
+            ->reject(fn (array $suggestion) => in_array($suggestion['key'], $handledKeys, true))
+            ->reject(fn (array $suggestion) => $suggestion['subject'] !== 'other' && in_array($suggestion['subject'], $handledSubjects, true))
+            ->unique(fn (array $suggestion) => $suggestion['subject'] !== 'other' ? $suggestion['subject'] : $suggestion['key'])
             ->take(config('vehicle_advice.suggestions'))
             ->values()
             ->all();
@@ -221,6 +233,7 @@ class VehicleAdviceService
             'vehicle_id' => $vehicle->id,
             'status' => $status,
             'locale' => $locale,
+            'subject' => $suggestion['subject'] ?? VehicleAdvice::inferSubject((string) ($suggestion['key'] ?? ''), $suggestion['category'] ?? null),
             ...Arr::only($suggestion, ['key', 'category', 'icon', 'priority', 'basis', 'action', 'due_date', 'title', 'body']),
         ]);
 
