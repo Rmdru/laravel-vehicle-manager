@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Ai\Agents\VehicleAdvisor;
+use App\Models\Finding;
 use App\Models\Maintenance;
 use App\Models\Refueling;
 use App\Models\Trip;
@@ -536,7 +537,7 @@ class VehicleAdviceTest extends TestCase
     public function test_open_findings_on_garage_list_with_handled_tips_are_suppressed_from_facts()
     {
         $vehicle = $this->signInWithVehicle();
-        $finding = \App\Models\Finding::factory()->for($vehicle)->create([
+        $finding = Finding::factory()->for($vehicle)->create([
             'title' => 'Wielkuip rechtsvoor vervangen',
             'for_garage' => true,
         ]);

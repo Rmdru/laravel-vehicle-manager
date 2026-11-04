@@ -13,6 +13,7 @@ use App\Models\VehicleTip;
 use BackedEnum;
 use Carbon\Carbon;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -576,7 +577,7 @@ class VehicleAdviceFacts
 
     /**
      * @param  array<string, mixed>  $finding
-     * @param  \Illuminate\Support\Collection<int, VehicleTip>  $handledTips
+     * @param  Collection<int, VehicleTip>  $handledTips
      */
     private function isFindingAlreadyAdvised(array $finding, $handledTips): bool
     {
