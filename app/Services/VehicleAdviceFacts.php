@@ -586,7 +586,7 @@ class VehicleAdviceFacts
 
         $stopWords = ['voor', 'naar', 'door', 'over', 'tijdens', 'lichte', 'soort', 'graag', 'deze', 'meer', 'open', 'geen'];
         preg_match_all('/[a-z0-9]{4,}/', $title, $matches);
-        $keywords = array_diff($matches[0] ?? [], $stopWords);
+        $keywords = array_diff($matches[0], $stopWords);
 
         $translations = [
             'wielkuip' => 'wheel_well',
