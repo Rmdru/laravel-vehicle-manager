@@ -104,7 +104,7 @@ class VehicleAdviceTest extends TestCase
         $this->assertSame(['Oil change'], $facts['maintenance_history'][0]['tasks']);
         // The MOT expires within two months: the dashboard says so already.
         $this->assertContains('apk', array_column($facts['already_shown_notifications'], 'key'));
-        $this->assertSame([['key' => 'winter_tires', 'status' => 'kept', 'title' => 'Winter tires', 'since' => '2026-10-17']], $facts['handled_suggestions']);
+        $this->assertSame([['key' => 'winter_tires', 'subject' => 'tires', 'status' => 'kept', 'title' => 'Winter tires', 'since' => '2026-10-17']], $facts['handled_suggestions']);
     }
 
     public function test_the_fingerprint_does_not_change_with_the_day()
@@ -510,5 +510,56 @@ class VehicleAdviceTest extends TestCase
             ->first(fn ($event) => str_contains($event->command, 'generate:vehicle-advices'));
 
         $this->assertSame('30 2 * * *', $event?->expression);
+        $this->assertTrue($event?->withoutOverlapping);
+    }
+
+    public function test_the_tips_are_deduplicated_by_subject_even_with_different_keys()
+    {
+        $vehicle = $this->signInWithVehicle();
+        // User handled a battery tip under key battery_health
+        $this->tip($vehicle, 'battery_health', VehicleTip::DONE);
+
+        // Model returns a new tip about battery under a different key battery_age_prevention
+        VehicleAdvisor::fake([$this->answer([
+            $this->suggestion(['key' => 'battery_age_prevention', 'subject' => 'battery', 'title' => 'Staat van de 12V accu']),
+            $this->suggestion(['key' => 'wiper_blades', 'subject' => 'wiper_blades', 'title' => 'Vervang ruitenwissers']),
+        ])]);
+
+        $advice = app(VehicleAdviceService::class)->generate($vehicle->fresh(), 'nl');
+
+        // The battery suggestion is rejected because subject 'battery' was already handled
+        $keys = array_column($advice->suggestions, 'key');
+        $this->assertNotContains('battery_age_prevention', $keys);
+        $this->assertContains('wiper_blades', $keys);
+    }
+
+    public function test_open_findings_on_garage_list_with_handled_tips_are_suppressed_from_facts()
+    {
+        $vehicle = $this->signInWithVehicle();
+        $finding = \App\Models\Finding::factory()->for($vehicle)->create([
+            'title' => 'Wielkuip rechtsvoor vervangen',
+            'for_garage' => true,
+        ]);
+
+        $facts = app(VehicleAdviceFacts::class)->for($vehicle->fresh());
+        $this->assertContains('Wielkuip rechtsvoor vervangen', array_column($facts['open_findings'], 'title'));
+
+        // Once the owner handles a tip regarding this finding, it should be suppressed
+        $this->tip($vehicle, 'wheel_well_replacement', VehicleTip::KEPT);
+
+        $freshFacts = app(VehicleAdviceFacts::class)->for($vehicle->fresh());
+        $this->assertNotContains('Wielkuip rechtsvoor vervangen', array_column($freshFacts['open_findings'], 'title'));
+    }
+
+    public function test_handling_a_tip_does_not_change_the_facts_fingerprint()
+    {
+        $vehicle = $this->signInWithVehicle();
+        $facts = app(VehicleAdviceFacts::class);
+        $before = $facts->fingerprint($facts->for($vehicle->fresh()));
+
+        $this->tip($vehicle, 'wiper_blades', VehicleTip::DONE);
+
+        $after = $facts->fingerprint($facts->for($vehicle->fresh()));
+        $this->assertSame($before, $after);
     }
 }

@@ -23,6 +23,35 @@ class VehicleAdvice extends Model
 
     public const CATEGORIES = ['maintenance', 'season', 'known_issue', 'costs', 'value', 'legal', 'usage'];
 
+    /** Standard subjects for deduplicating tips across varying keys. */
+    public const SUBJECTS = [
+        'coolant',
+        'battery',
+        'washer_fluid',
+        'brake_fluid',
+        'brakes',
+        'tires',
+        'engine_oil',
+        'spark_plugs',
+        'timing_belt',
+        'auxiliary_belt',
+        'air_filter',
+        'cabin_filter',
+        'air_conditioning',
+        'wiper_blades',
+        'lights',
+        'suspension',
+        'wheel_alignment',
+        'fuel_additive',
+        'fuel_consumption',
+        'insurance',
+        'road_tax',
+        'vignette',
+        'mot',
+        'open_finding',
+        'other',
+    ];
+
     public const PRIORITIES = ['high', 'medium', 'low'];
 
     /** Where a suggestion comes from: the records in the app, or the general knowledge of the model. */
@@ -214,6 +243,77 @@ class VehicleAdvice extends Model
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);
+    }
+
+    /**
+     * Infers a standardized subject from a key and category when none was provided.
+     */
+    public static function inferSubject(string $key, ?string $category = null): string
+    {
+        $key = strtolower($key);
+
+        if (str_contains($key, 'coolant') || str_contains($key, 'anti_freeze') || str_contains($key, 'antifreeze')) {
+            return 'coolant';
+        }
+        if (str_contains($key, 'battery') || str_contains($key, 'accu')) {
+            return 'battery';
+        }
+        if (str_contains($key, 'washer') || str_contains($key, 'sproeier') || str_contains($key, 'winter_prep') || str_contains($key, 'winter_check_fluid') || str_contains($key, 'winter_maintenance_fluid')) {
+            return 'washer_fluid';
+        }
+        if (str_contains($key, 'wiper') || str_contains($key, 'ruitenwisser')) {
+            return 'wiper_blades';
+        }
+        if (str_contains($key, 'brake') || str_contains($key, 'rem')) {
+            return 'brakes';
+        }
+        if (str_contains($key, 'tire') || str_contains($key, 'tyre') || str_contains($key, 'band')) {
+            return 'tires';
+        }
+        if (str_contains($key, 'oil') || str_contains($key, 'olie')) {
+            return 'engine_oil';
+        }
+        if (str_contains($key, 'spark_plug') || str_contains($key, 'bougie')) {
+            return 'spark_plugs';
+        }
+        if (str_contains($key, 'timing_belt') || str_contains($key, 'distributieriem')) {
+            return 'timing_belt';
+        }
+        if (str_contains($key, 'v_belt') || str_contains($key, 'auxiliary_belt') || str_contains($key, 'multiriem')) {
+            return 'auxiliary_belt';
+        }
+        if (str_contains($key, 'light') || str_contains($key, 'lamp') || str_contains($key, 'verlichting')) {
+            return 'lights';
+        }
+        if (str_contains($key, 'airco') || str_contains($key, 'air_condition')) {
+            return 'air_conditioning';
+        }
+        if (str_contains($key, 'suspension') || str_contains($key, 'voortrein') || str_contains($key, 'ophanging')) {
+            return 'suspension';
+        }
+        if (str_contains($key, 'additive') || str_contains($key, 'injector')) {
+            return 'fuel_additive';
+        }
+        if (str_contains($key, 'consumption') || str_contains($key, 'verbruik')) {
+            return 'fuel_consumption';
+        }
+        if (str_contains($key, 'insurance') || str_contains($key, 'verzekering')) {
+            return 'insurance';
+        }
+        if (str_contains($key, 'tax') || str_contains($key, 'belasting')) {
+            return 'road_tax';
+        }
+        if (str_contains($key, 'vignette') || str_contains($key, 'milieuzone') || str_contains($key, 'sticker')) {
+            return 'vignette';
+        }
+        if (str_contains($key, 'mot') || str_contains($key, 'apk')) {
+            return 'mot';
+        }
+        if (str_contains($key, 'act_') || str_contains($key, 'garage_visit') || str_contains($key, 'wheel_well')) {
+            return 'open_finding';
+        }
+
+        return 'other';
     }
 
     /**

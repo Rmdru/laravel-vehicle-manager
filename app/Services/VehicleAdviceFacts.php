@@ -98,7 +98,7 @@ class VehicleAdviceFacts
                 ->all(),
             'insurance' => $this->insurance($vehicle),
             'road_tax_paid_until' => $vehicle->taxes->where('start_date', '<=', today())->sortByDesc('start_date')->first()?->end_date?->toDateString(),
-            'open_findings' => app(FindingService::class)->facts($vehicle),
+            'open_findings' => $this->openFindings($vehicle),
             'top_ups' => app(TopUps::class)->facts($vehicle),
             'accidents' => $this->accidents($vehicle),
             'valid_vignettes_and_stickers' => $this->vignettes($vehicle),
@@ -110,6 +110,7 @@ class VehicleAdviceFacts
                 ->get()
                 ->map(fn (VehicleTip $tip) => [
                     'key' => $tip->key,
+                    'subject' => $tip->subject,
                     'status' => $tip->status,
                     'title' => $tip->title,
                     'since' => $tip->updated_at->toDateString(),
@@ -123,12 +124,24 @@ class VehicleAdviceFacts
      * What tells whether the facts changed, apart from the day they are of
      * and the advice itself. Of the weather only whether frost, snow or heat
      * is coming: the forecast changes by the hour, that by the season.
+     * Daily drifting metrics (rolling averages, costs) and handled tips are
+     * excluded to prevent advice from refreshing every day.
      *
      * @param  array<string, mixed>  $facts
      */
     public function fingerprint(array $facts): string
     {
-        unset($facts['today'], $facts['month'], $facts['previous_suggestions']);
+        unset(
+            $facts['today'],
+            $facts['month'],
+            $facts['previous_suggestions'],
+            $facts['handled_suggestions'],
+            $facts['average_monthly_costs_past_year_eur'],
+        );
+
+        if (isset($facts['usage']['average_km_per_month_past_year'])) {
+            $facts['usage']['average_km_per_month_past_year'] = (int) (round($facts['usage']['average_km_per_month_past_year'] / 500) * 500);
+        }
 
         if (isset($facts['weather_forecast'])) {
             $facts['weather_forecast'] = array_map(
@@ -531,5 +544,81 @@ class VehicleAdviceFacts
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * The open findings for the advice: findings that are already on the
+     * garage list and have already been advised/handled are suppressed to avoid
+     * repetitive suggestions about an already-planned repair.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function openFindings(Vehicle $vehicle): array
+    {
+        $findings = app(FindingService::class)->facts($vehicle);
+        $handledTips = VehicleTip::query()->where('vehicle_id', $vehicle->id)->get();
+
+        if ($handledTips->isEmpty()) {
+            return $findings;
+        }
+
+        return collect($findings)
+            ->reject(function (array $finding) use ($handledTips) {
+                if (empty($finding['on_the_list_for_the_garage'])) {
+                    return false;
+                }
+
+                return $this->isFindingAlreadyAdvised($finding, $handledTips);
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $finding
+     * @param  \Illuminate\Support\Collection<int, VehicleTip>  $handledTips
+     */
+    private function isFindingAlreadyAdvised(array $finding, $handledTips): bool
+    {
+        $title = strtolower($finding['title'] ?? '');
+        $components = (array) ($finding['components'] ?? []);
+
+        $stopWords = ['voor', 'naar', 'door', 'over', 'tijdens', 'lichte', 'soort', 'graag', 'deze', 'meer', 'open', 'geen'];
+        preg_match_all('/[a-z0-9]{4,}/', $title, $matches);
+        $keywords = array_diff($matches[0] ?? [], $stopWords);
+
+        $translations = [
+            'wielkuip' => 'wheel_well',
+            'voortrein' => 'front_suspension',
+            'ophanging' => 'suspension',
+            'rammel' => 'rattle',
+            'geluid' => 'sound',
+            'uitlaat' => 'exhaust',
+            'lekkage' => 'leak',
+            'rem' => 'brake',
+            'band' => 'tire',
+        ];
+
+        foreach ($handledTips as $tip) {
+            foreach ($components as $component) {
+                if ($tip->subject === $component || str_contains(strtolower($tip->key), strtolower($component))) {
+                    return true;
+                }
+            }
+
+            $tipText = strtolower($tip->key.' '.$tip->title.' '.$tip->body);
+            foreach ($keywords as $keyword) {
+                if (str_contains($tipText, $keyword)) {
+                    return true;
+                }
+
+                $translation = $translations[$keyword] ?? null;
+                if ($translation !== null && str_contains($tipText, $translation)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

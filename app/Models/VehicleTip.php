@@ -26,6 +26,7 @@ class VehicleTip extends Model
     protected $fillable = [
         'vehicle_id',
         'key',
+        'subject',
         'status',
         'locale',
         'category',
@@ -41,6 +42,11 @@ class VehicleTip extends Model
     protected $casts = [
         'due_date' => 'date',
     ];
+
+    public function getSubjectAttribute(): string
+    {
+        return $this->attributes['subject'] ?? VehicleAdvice::inferSubject((string) $this->key, $this->category);
+    }
 
     /**
      * @return BelongsTo<Vehicle, $this>
