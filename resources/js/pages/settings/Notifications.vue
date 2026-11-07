@@ -59,6 +59,7 @@ const KINDS: Record<string, string> = {
     warning: 'Warnings',
     info: 'Information',
     tips: 'New tips',
+    fuel: 'Tank nearly empty',
     summary: 'Summary of the month',
 };
 

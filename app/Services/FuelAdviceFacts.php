@@ -8,6 +8,7 @@ use App\Models\FuelDetourAggregate;
 use App\Models\FuelPrice;
 use App\Models\Refueling;
 use App\Models\Vehicle;
+use App\Services\TripPlanner\NearbyStations;
 use App\Support\StatusNotification;
 use App\Traits\VehicleStats;
 use Carbon\Carbon;
@@ -364,7 +365,49 @@ class FuelAdviceFacts
             $facts = [...$facts, ...$this->detour($vehicle, $country, $savings, $location, $oldFuel)];
         }
 
+        $facts['cheapest_gas_stations'] = $this->cheapestStations($country, (string) $latest->fuel_type, $location, $homePrice === null) ?: null;
+
         return array_filter($facts, fn ($value) => $value !== null);
+    }
+
+    /**
+     * The cheapest gas stations of a country today, by their own prices: of
+     * the home country near where the driver lives, of another one near the
+     * crossing of the border nearest to the driver.
+     *
+     * @param  array{lat: float, lon: float}|null  $location
+     * @return list<array<string, mixed>>
+     */
+    private function cheapestStations(string $country, string $fuelType, ?array $location, bool $home): array
+    {
+        $iso = config("countries.{$country}.iso_code");
+
+        if ($location === null || ! is_string($iso)) {
+            return [];
+        }
+
+        $point = $home
+            ? [$location['lat'], $location['lon']]
+            : collect((array) config('fuel_advice.border_points.'.$country, []))->sortBy(fn (array $point) => $this->kilometers($location, $point))->first();
+
+        if ($point === null) {
+            return [];
+        }
+
+        return array_map(fn (array $station) => array_filter([
+            'name' => $station['name'],
+            'address' => trim(implode(', ', array_filter([$station['street'], $station['city']]))) ?: null,
+            'price' => $station['price'],
+            'price_served' => $station['served_price'],
+            'distance_km' => $station['distance_km'],
+            'distance_from' => $home ? 'home' : 'the nearest crossing of the border',
+        ], fn ($value) => $value !== null), app(NearbyStations::class)->cheapest(
+            (float) $point[0],
+            (float) $point[1],
+            $fuelType,
+            limit: (int) config('fuel_advice.nearby_stations'),
+            country: $iso,
+        ));
     }
 
     /**

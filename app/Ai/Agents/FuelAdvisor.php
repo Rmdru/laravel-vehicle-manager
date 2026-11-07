@@ -133,6 +133,13 @@ class FuelAdvisor implements Agent, HasStructuredOutput, HasTools
             driver paid there on average than the average price of the country that day. When one is clearly cheaper
             than average, recommend it by name for the advised refueling (in the advised country).
 
+            cheapest_gas_stations of a country are the gas stations with the lowest price today, by their own prices,
+            near the home of the driver (for the home country) or near the crossing of the border nearest to the
+            driver (for another country), with their distance from there. When the advice is to refuel in a country
+            that has them, name the cheapest one or two with their price and distance; a gas station you name is
+            always one of this list or of own_gas_stations, never another one. A price_served is the price with
+            service by an attendant, the price itself that of self service.
+
             {$web}
 
             The action is one of:

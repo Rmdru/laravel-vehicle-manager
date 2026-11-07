@@ -271,6 +271,63 @@ class StationMap
     }
 
     /**
+     * The price of a fuel type at each of some gas stations, by place: of a
+     * source that publishes all prices at once, or else of one that is asked
+     * per area (such as the ANWB for the Netherlands). Null without one.
+     *
+     * @param  Collection<int, Poi>  $pois
+     * @return array<int, array{price: float, served_price: float|null, fuel_type: string, updated_at: ?string}|null>
+     */
+    public function pricesOf(Collection $pois, string $fuelType): array
+    {
+        $fuel = FuelPrices::fuel($fuelType) ?? (self::FUELS[$fuelType] ?? null);
+
+        if ($fuel === null || $pois->isEmpty()) {
+            return [];
+        }
+
+        $stored = $this->storedPrices([
+            (float) $pois->min('latitude'), (float) $pois->min('longitude'),
+            (float) $pois->max('latitude'), (float) $pois->max('longitude'),
+        ]);
+        $fuelTypes = array_keys(self::FUELS, $fuel, true);
+        $result = [];
+
+        foreach ($pois as $poi) {
+            $price = collect($this->nearestPrices($stored, $poi))->first(fn (array $price) => in_array($price['fuel_type'], $fuelTypes, true));
+            $country = $price === null ? $this->countryOf($poi) : null;
+            $live = $country !== null && $this->prices->hasSource($country)
+                ? $this->prices->atStation($country, (float) $poi->latitude, (float) $poi->longitude, $fuel)
+                : null;
+
+            $result[$poi->id] = match (true) {
+                $price !== null => ['price' => $price['price'], 'served_price' => $price['served_price'], 'fuel_type' => $price['fuel_type'], 'updated_at' => $price['updated_at']],
+                $live !== null => ['price' => $live['price'], 'served_price' => $live['served_price'] ?? null, 'fuel_type' => $live['fuel_type'] ?? $fuelType, 'updated_at' => $live['updated_at']],
+                default => null,
+            };
+        }
+
+        return $result;
+    }
+
+    /**
+     * Whether a gas station is the one a name tells, such as a gas station as
+     * the owner wrote it down: every word of its name, or its brand and a word
+     * of its name, in the name.
+     */
+    public static function isNamed(Poi $poi, string $name): bool
+    {
+        $words = self::words($name);
+        $own = self::words((string) $poi->name);
+        $brand = self::words((string) $poi->brand);
+
+        return $words !== [] && (
+            (count($own) >= 2 && array_diff($own, $words) === [])
+            || ($brand !== [] && array_diff($brand, $words) === [] && array_intersect(array_diff($own, $brand), $words) !== [])
+        );
+    }
+
+    /**
      * @param  array{kinds: list<string>, fuels: list<string>, connectors: list<string>, priced: bool}  $filters
      */
     private function matches(Poi $poi, array $filters): bool
@@ -405,7 +462,7 @@ class StationMap
      * The last price the owner paid at each gas station of their refuelings,
      * by the name of the gas station as they wrote it down.
      *
-     * @return Collection<int, array{words: non-empty-list<string>, price: float, fuel_type: string, date: string}>
+     * @return Collection<int, array{poi_id: non-negative-int|null, words: list<string>, price: float, fuel_type: string, date: string}>
      */
     private function ownPrices(?User $user): Collection
     {
@@ -419,24 +476,25 @@ class StationMap
             ->where('unit_price', '>', 0)
             ->orderByDesc('date')
             ->limit(500)
-            ->get(['gas_station', 'unit_price', 'fuel_type', 'date'])
-            ->unique(fn (Refueling $refueling) => mb_strtolower(trim((string) $refueling->gas_station)))
+            ->get(['gas_station', 'poi_id', 'unit_price', 'fuel_type', 'date'])
+            ->unique(fn (Refueling $refueling) => $refueling->poi_id !== null ? 'poi:'.$refueling->poi_id : mb_strtolower(trim((string) $refueling->gas_station)))
             ->map(fn (Refueling $refueling) => [
+                'poi_id' => $refueling->poi_id !== null ? (int) $refueling->poi_id : null,
                 'words' => self::words((string) $refueling->gas_station),
                 'price' => (float) $refueling->unit_price,
                 'fuel_type' => (string) $refueling->fuel_type,
                 'date' => $refueling->date->toDateString(),
             ])
-            ->filter(fn (array $own) => $own['words'] !== [])
+            ->filter(fn (array $own) => $own['poi_id'] !== null || $own['words'] !== [])
             ->values();
     }
 
     /**
-     * The last price the owner paid at a gas station: of a refueling whose
-     * gas station names every word of its name, or of its brand and a word of
-     * its name. Refuelings have no location, so only by the name.
+     * The last price the owner paid at a gas station: of a refueling it was
+     * chosen for, or else whose gas station names every word of its name, or
+     * of its brand and a word of its name.
      *
-     * @param  Collection<int, array{words: non-empty-list<string>, price: float, fuel_type: string, date: string}>  $own
+     * @param  Collection<int, array{poi_id: non-negative-int|null, words: list<string>, price: float, fuel_type: string, date: string}>  $own
      * @return array{price: float, fuel_type: string, date: string}|null
      */
     private function ownPriceAt(Collection $own, Poi $poi): ?array
@@ -444,12 +502,11 @@ class StationMap
         $name = self::words((string) $poi->name);
         $brand = self::words((string) $poi->brand);
 
-        if ($name === []) {
-            return null;
-        }
-
-        $match = $own->first(fn (array $refueling) => (count($name) >= 2 && array_diff($name, $refueling['words']) === [])
-            || ($brand !== [] && array_diff($brand, $refueling['words']) === [] && array_intersect(array_diff($name, $brand), $refueling['words']) !== []));
+        $match = $own->first(fn (array $refueling) => $refueling['poi_id'] === $poi->id)
+            ?? ($name === [] ? null : $own->first(fn (array $refueling) => $refueling['poi_id'] === null && (
+                (count($name) >= 2 && array_diff($name, $refueling['words']) === [])
+                || ($brand !== [] && array_diff($brand, $refueling['words']) === [] && array_intersect(array_diff($name, $brand), $refueling['words']) !== [])
+            )));
 
         return $match === null ? null : ['price' => $match['price'], 'fuel_type' => $match['fuel_type'], 'date' => $match['date']];
     }

@@ -36,6 +36,20 @@ return [
     // The part of the tank left when a refueling is due.
     'reserve' => 0.15,
 
+    // Kilometers around home (or a crossing of the border) the cheapest gas
+    // stations are looked for in: for the advice, the dashboard and the push.
+    'nearby_km' => 10,
+
+    // Gas stations the advice and the dashboard name, at most, per country.
+    'nearby_stations' => 3,
+
+    // The estimated tank percentage at or below which the owner hears where the
+    // cheapest gas station near home is, once per tank.
+    'low_tank_percentage' => 20,
+
+    // Hours between two snapshots of the prices near the homes of the owners.
+    'history_every_hours' => 3,
+
     // Kilometers one way that do not count as detour costs while the E10 in the
     // tank is getting old: the vehicle is hardly driven, and a drive does it good.
     'old_fuel_free_km' => 50,

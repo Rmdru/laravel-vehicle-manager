@@ -30,6 +30,8 @@ import FuelSavings from '@/components/FuelSavings.vue';
 import type { FuelSavingsData } from '@/components/FuelSavings.vue';
 import LicensePlate from '@/components/LicensePlate.vue';
 import MonthlySummary from '@/components/MonthlySummary.vue';
+import NearbyStations from '@/components/NearbyStations.vue';
+import type { NearbyStationsData } from '@/components/NearbyStations.vue';
 import type { MonthlySummaryData } from '@/components/MonthlySummary.vue';
 import PeriodFilter from '@/components/PeriodFilter.vue';
 import PowertrainComparison from '@/components/PowertrainComparison.vue';
@@ -185,6 +187,7 @@ const props = defineProps<{
         series: { key: number; label: string; data: number[] }[];
     };
     powertrainComparison?: PowertrainComparisonData;
+    nearbyStations?: NearbyStationsData | null;
     latestCosts?: {
         key: string;
         type: string;
@@ -1292,6 +1295,16 @@ const label = (key: string) => {
                         </p>
                     </Deferred>
                 </SectionCard>
+
+                <Deferred data="nearbyStations">
+                    <template #fallback
+                        ><Skeleton class="h-40 w-full"
+                    /></template>
+                    <NearbyStations
+                        v-if="nearbyStations"
+                        :data="nearbyStations"
+                    />
+                </Deferred>
 
                 <!-- Left out altogether when no fuel prices are known for the period. -->
                 <SectionCard

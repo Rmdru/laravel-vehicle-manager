@@ -32,7 +32,7 @@ class VehicleForm extends VehicleRecordForm
     public const PUSH_PREFIX = 'push__';
 
     /** What can be sent as a push notification, each to be turned off. */
-    public const PUSH_KINDS = ['critical', 'warning', 'info', 'tips', 'summary'];
+    public const PUSH_KINDS = ['critical', 'warning', 'info', 'tips', 'fuel', 'summary'];
 
     public const PUSH_TIMES = ['moment', 'quiet_from', 'quiet_until'];
 
@@ -203,6 +203,7 @@ class VehicleForm extends VehicleRecordForm
             'warning' => __('Warnings'),
             'info' => __('Information'),
             'tips' => __('New tips'),
+            'fuel' => __('Tank nearly empty, with the cheapest gas station nearby'),
             'summary' => __('Summary of the month'),
         ];
         $defaults = config('push.defaults');

@@ -18,6 +18,7 @@ import type { ShieldStyles } from '@/lib/map-theme';
 import type {
     Station,
     StationAverages,
+    StationComparison,
     StationCluster,
     StationFilters,
     StationKind,
@@ -34,6 +35,8 @@ const props = defineProps<{
     shields: ShieldStyles;
     stationsFrom: number;
     livePricesFrom: number;
+    // Where to open, rather than where the map was left.
+    focus?: { latitude: number; longitude: number } | null;
 }>();
 
 export type StationMapState = {
@@ -78,6 +81,7 @@ const livePrices = new Map<number, Station['prices']>();
 let livePricesFor = '';
 const clusters = shallowRef<StationCluster[]>([]);
 const averages = shallowRef<StationAverages>({});
+const comparison = shallowRef<StationComparison>(null);
 const loadingPrices = ref(false);
 
 const popupElement = shallowRef<HTMLElement | null>(null);
@@ -527,6 +531,7 @@ async function load() {
                   stations: Station[];
                   truncated: boolean;
                   averages: StationAverages | [];
+                  comparison?: StationComparison;
                   loading: boolean;
               }
         >(`${props.dataUrl}?${params}`, request);
@@ -542,6 +547,7 @@ async function load() {
                     : station,
             );
             averages.value = Array.isArray(data.averages) ? {} : data.averages;
+            comparison.value = data.comparison ?? null;
         }
 
         updateSources();
@@ -635,7 +641,9 @@ function emitState(change: Partial<StationMapState>) {
 }
 
 onMounted(() => {
-    const view = savedView();
+    const view = props.focus
+        ? { lat: props.focus.latitude, lng: props.focus.longitude, zoom: 13 }
+        : savedView();
 
     map = new maplibregl.Map({
         container: container.value!,
@@ -684,6 +692,7 @@ onBeforeUnmount(() => {
         <StationCard
             :station="popupStation"
             :averages="averages"
+            :comparison="comparison"
             :fuel-labels="fuelLabels"
             :logo-url="logoUrl"
             :loading-prices="loadingPrices"

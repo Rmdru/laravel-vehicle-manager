@@ -14,6 +14,7 @@ use App\Models\Refueling;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
 use TranquilTools\FormBuilder\Fields\Checkbox;
+use TranquilTools\FormBuilder\Fields\Hidden;
 use TranquilTools\FormBuilder\Fields\Number;
 use TranquilTools\FormBuilder\Fields\Select;
 use TranquilTools\FormBuilder\Fields\Submit;
@@ -47,6 +48,10 @@ class RefuelingForm extends VehicleRecordForm
                 ->required()
                 ->maxLength(100)
                 ->help(__('The first word is used for the brand logo (if available)')),
+            // Filled in when the gas station is chosen from the ones nearby; else empty.
+            Hidden::make('poi_id')->rules(['nullable', 'integer']),
+            Hidden::make('latitude')->rules(['nullable', 'numeric', 'between:-90,90']),
+            Hidden::make('longitude')->rules(['nullable', 'numeric', 'between:-180,180']),
 
             Heading::make(__('Fuel')),
             Select::make('fuel_type')

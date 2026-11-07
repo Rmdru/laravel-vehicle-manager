@@ -4,7 +4,11 @@ import { computed, ref, watch } from 'vue';
 import AppIcon from '@/components/AppIcon.vue';
 import { useT } from '@/composables/useT';
 import { SERVICES } from '@/lib/trips';
-import type { Station, StationAverages } from '@/types/stations';
+import type {
+    Station,
+    StationAverages,
+    StationComparison,
+} from '@/types/stations';
 
 // What is known of a gas station or charging station, in its popup on the map.
 const props = defineProps<{
@@ -16,6 +20,8 @@ const props = defineProps<{
     logoUrl: string;
     // Its prices are being asked.
     loadingPrices: boolean;
+    // The usual gas station of the vehicle, to compare with.
+    comparison?: StationComparison;
 }>();
 
 const { t } = useT();
@@ -61,6 +67,30 @@ const logo = computed(() => {
 });
 const logoFailed = ref(false);
 watch(logo, () => (logoFailed.value = false));
+
+// How much less than the usual gas station, and up to how far a detour pays off for a full tank.
+const cheaper = computed(() => {
+    const comparison = props.comparison;
+    const price = comparison
+        ? props.station.prices.find(
+              (item) => item.fuel_type === comparison.fuel_type,
+          )
+        : undefined;
+
+    if (!comparison || !price || price.price >= comparison.price - 0.0005) {
+        return null;
+    }
+
+    const less = comparison.price - price.price;
+
+    return {
+        cents: Math.round(less * 100),
+        km: Math.floor(
+            (less * comparison.tank) / (2 * comparison.costs_per_km),
+        ),
+        usual: comparison.usual,
+    };
+});
 
 const average = computed(() =>
     props.station.country ? (props.averages[props.station.country] ?? []) : [],
@@ -180,6 +210,26 @@ const details = computed(() => props.station.details ?? {});
                     ~ {{ euros(price.price) }}
                 </span>
             </div>
+        </div>
+
+        <div
+            v-if="cheaper"
+            class="flex items-start gap-2 rounded-lg bg-success-muted px-3 py-2 text-xs text-success"
+        >
+            <AppIcon name="mdi:trending-down" class="size-4 shrink-0" />
+            <span>
+                {{
+                    t(':cents ct less than :station', {
+                        cents: cheaper.cents,
+                        station: cheaper.usual,
+                    })
+                }}<template v-if="cheaper.km > 0"
+                    >;
+                    {{
+                        t('a detour pays off up to :km km', { km: cheaper.km })
+                    }}</template
+                >
+            </span>
         </div>
 
         <div

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\Poi;
+use App\Services\FuelComparison;
 use App\Services\TripPlanner\StationMap;
 use App\Support\CurrentVehicle;
 use Illuminate\Http\JsonResponse;
@@ -18,7 +19,7 @@ use Inertia\Response;
  */
 class StationMapController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
         $vehicle = CurrentVehicle::get();
         $fuelTypes = trans('fuel_types');
@@ -36,6 +37,10 @@ class StationMapController extends Controller
             // The fuels of the vehicle, as the filter starts with; an electric vehicle starts at the chargers.
             'vehicleFuelTypes' => array_values(array_intersect((array) $vehicle?->fuel_types, array_keys(StationMap::FUELS))),
             'electric' => $vehicle?->powertrain === 'electricity',
+            // Where to open the map, such as at home from the dashboard; else where it was left.
+            'focus' => is_numeric($request->query('latitude')) && is_numeric($request->query('longitude'))
+                ? ['latitude' => (float) $request->query('latitude'), 'longitude' => (float) $request->query('longitude')]
+                : null,
             'stationsFrom' => StationMap::STATIONS_FROM,
             'livePricesFrom' => StationMap::LIVE_PRICES_FROM,
         ]);
@@ -44,7 +49,7 @@ class StationMapController extends Controller
     /**
      * The clusters or the stations within the bounds of the map.
      */
-    public function data(Request $request, StationMap $map): JsonResponse
+    public function data(Request $request, StationMap $map, FuelComparison $comparison): JsonResponse
     {
         $validated = $this->validated($request);
         $bounds = $validated['bounds'];
@@ -63,9 +68,13 @@ class StationMapController extends Controller
         $result = $map->stations($bounds, $validated, $request->user());
         $countries = collect($result['stations'])->where('kind', 'fuel')->pluck('country')->filter()->unique()->values()->all();
 
+        $vehicle = CurrentVehicle::get();
+
         return response()->json([
             'mode' => 'stations',
             ...$result,
+            // To tell of a gas station how much less it is than the usual one, and whether a detour pays off.
+            'comparison' => $vehicle !== null ? $comparison->forMap($vehicle) : null,
             'averages' => $map->averages($countries, $validated['fuels']),
             'loading' => $loading,
         ]);

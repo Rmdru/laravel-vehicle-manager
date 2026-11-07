@@ -18,6 +18,8 @@ return [
         'warning' => true,
         'info' => true,
         'tips' => true,
+        // The tank nearly empty, with the cheapest gas station near home.
+        'fuel' => true,
         'summary' => true,
         // Empty: the moment the owner usually uses the app.
         'moment' => null,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Settings;
 
+use App\Forms\VehicleForm;
 use App\Http\Controllers\Controller;
 use App\Models\PushSubscription;
 use App\Models\Vehicle;
@@ -41,7 +42,7 @@ class PushController extends Controller
                 return [
                     'id' => $vehicle->id,
                     'name' => trim($vehicle->full_name.' ('.$vehicle->license_plate.')'),
-                    'kinds' => collect(['critical', 'warning', 'info', 'tips', 'summary'])->filter(fn (string $kind) => $preferences[$kind])->values()->all(),
+                    'kinds' => collect(VehicleForm::PUSH_KINDS)->filter(fn (string $kind) => $preferences[$kind])->values()->all(),
                     'moment' => $timing->moment($vehicle),
                     'momentIsUsual' => $preferences['moment'] === null,
                     'quietFrom' => $preferences['quiet_from'],

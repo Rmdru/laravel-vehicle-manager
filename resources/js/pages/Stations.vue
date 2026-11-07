@@ -22,6 +22,8 @@ const props = defineProps<{
     electric: boolean;
     stationsFrom: number;
     livePricesFrom: number;
+    // Where to open the map, such as at home from the dashboard.
+    focus: { latitude: number; longitude: number } | null;
 }>();
 
 const { t } = useT();
@@ -298,6 +300,7 @@ const status = computed(() => {
                 :shields="shields"
                 :stations-from="stationsFrom"
                 :live-prices-from="livePricesFrom"
+                :focus="focus"
                 @state="(value) => (state = value)"
             />
             <div

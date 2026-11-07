@@ -54,7 +54,7 @@ class Navigation
                 $item(__('Transport trains & ferry services'), 'ferries.index', 'mdi:train-car-flatbed-car'),
             ]],
             ['label' => __('Travel'), 'items' => [
-                $item(__('Fuel stations'), 'stations', 'mdi:gas-station-outline', quickAdd: false),
+                $item(__('Fuel stations'), 'stations', 'ic:round-local-gas-station', quickAdd: false),
                 $item(__('Plan a trip'), 'trips.create', 'mdi:map-marker-path'),
                 // Added with "Plan a trip".
                 $item(__('My trips'), 'trips.index', 'mdi:map-search-outline', quickAdd: false),
@@ -174,6 +174,8 @@ class Navigation
             'No tips right now: nothing stands out for this vehicle.', 'Indicative: check a tip before acting on it.',
             // The categories of the tips.
             'Maintenance', 'Season', 'Known issue', 'Costs and savings', 'Resale value', 'Rules and obligations', 'Use',
+            // The gas stations near home: the dashboard, choosing one for a refueling, the station map.
+            'Tank nearly empty', 'Cheapest near you', 'Choose a gas station nearby', 'Near your home address.', 'Near where you are now.', 'Looking for gas stations nearby…', 'Your location is not known: allow it in the browser, or fill in your home address in your profile.', 'No gas stations are known nearby.', 'The gas stations could not be loaded.', 'Fill in your address in your profile to see the cheapest gas stations near you.', 'No prices of gas stations within :km km are known.', 'A detour pays off up to :km km', 'Less than at :station', ':cents ct less', 'Your usual gas station :station: :price', ':cents ct less than :station', 'a detour pays off up to :km km',
             // The station map.
             'No prices of these gas stations are known: in some countries, such as the Netherlands and Belgium, no free source of prices per gas station exists.',
             'Primary fuel', 'Its price is beside every gas station, and gives it its color: compared with the other gas stations in view.',

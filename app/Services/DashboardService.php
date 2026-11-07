@@ -44,6 +44,8 @@ class DashboardService
         private readonly TopUps $topUps,
         private readonly Standstill $standstill,
         private readonly TollSections $tollSections,
+        private readonly LowTank $lowTank,
+        private readonly FuelComparison $fuelComparison,
     ) {
         //
     }
@@ -71,6 +73,7 @@ class DashboardService
             ...$this->topUps->notifications($vehicle),
             ...$this->standstill->notifications($vehicle),
             ...$this->tollSections->notifications($vehicle),
+            ...$this->lowTank->notifications($vehicle),
             ...$this->vehicleAdvice->notifications($vehicle),
         ]));
 
@@ -230,6 +233,57 @@ class DashboardService
             $deviation($this->calculateAverageFuelConsumption(true)),
             suffix: '%',
         );
+    }
+
+    /** The fuel the cheapest gas stations near home are shown for, until another is chosen. */
+    public const NEARBY_FUEL = 'Unleaded 95 (E10)';
+
+    /** The fuels to choose from: those the gas stations have a price of. */
+    public const NEARBY_FUELS = ['Unleaded 95 (E10)', 'Unleaded 95 (E5)', 'Super Plus (E5)', 'Diesel', 'LPG'];
+
+    /**
+     * The cheapest gas stations near home for the fuel of the vehicle, with
+     * how much less they are than the usual one and up to how far a detour
+     * for them pays off. Without a home on the map: what to fill in.
+     *
+     * @return array<string, mixed>
+     */
+    public function nearbyStations(Vehicle $vehicle, ?string $fuelType = null): array
+    {
+        $user = $vehicle->user;
+        $fuelType ??= self::NEARBY_FUEL;
+        $labels = trans('fuel_types');
+        $options = collect(self::NEARBY_FUELS)->map(fn (string $type) => ['value' => $type, 'label' => is_array($labels) ? ($labels[$type] ?? $type) : $type])->all();
+
+        if ($user?->latitude === null || $user->longitude === null) {
+            return ['missingHome' => true, 'profileUrl' => route('profile.edit'), 'stations' => []];
+        }
+
+        $near = $this->fuelComparison->nearHome($vehicle, $fuelType);
+        $fuelTypes = trans('fuel_types');
+
+        return [
+            'missingHome' => false,
+            'fuelType' => is_array($fuelTypes) ? ($fuelTypes[$fuelType] ?? $fuelType) : $fuelType,
+            // The fuel shown, and the ones to choose from; another one is asked at this address.
+            'selected' => $fuelType,
+            'fuelOptions' => $options,
+            'url' => route('dashboard.nearby-stations'),
+            'usual' => $near['usual'] ?? null,
+            'radiusKm' => (int) config('fuel_advice.nearby_km'),
+            'mapUrl' => route('stations', ['latitude' => $user->latitude, 'longitude' => $user->longitude]),
+            'stations' => array_map(fn (array $station) => [
+                'id' => $station['id'],
+                'name' => $station['name'] ?? __('Gas station'),
+                'address' => trim(implode(', ', array_filter([$station['street'], $station['city']]))) ?: null,
+                'distanceKm' => $station['distance_km'],
+                'price' => $station['price'],
+                'servedPrice' => $station['served_price'],
+                'difference' => $station['difference'],
+                'detourKm' => $station['detour_km'],
+                'logo' => $station['brand'] ? route('trips.logo', ['brand' => $station['brand'], 'known' => 1]) : null,
+            ], $near['stations'] ?? []),
+        ];
     }
 
     /**

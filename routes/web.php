@@ -58,6 +58,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('tips', [VehicleAdviceController::class, 'index'])->name('tips');
         Route::get('cost-forecast', CostForecastController::class)->name('cost-forecast');
         Route::post('fuel-prices/refresh', [DashboardController::class, 'refreshFuelPrices'])->name('fuel-prices.refresh');
+        Route::get('dashboard/nearby-stations', [DashboardController::class, 'nearbyStations'])->name('dashboard.nearby-stations');
         Route::post('fuel-advice', [FuelAdviceController::class, 'store'])->name('fuel-advice.store');
         Route::post('vehicle-advice', [VehicleAdviceController::class, 'store'])->name('vehicle-advice.store');
         Route::post('vehicle-advice/status', [VehicleAdviceController::class, 'status'])->name('vehicle-advice.status');
@@ -97,6 +98,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('findings/{record}/garage', [FindingController::class, 'garage'])->name('findings.garage');
         Route::post('findings/{record}/resolve', [FindingController::class, 'resolve'])->name('findings.resolve');
         Route::post('findings/{record}/diagnose', [FindingController::class, 'diagnose'])->name('findings.diagnose');
+        // The gas stations nearby, to choose the one of a refueling from.
+        Route::get('refuelings/nearby-stations', [RefuelingController::class, 'nearbyStations'])->name('refuelings.nearby-stations');
 
         $records = [
             'maintenances' => MaintenanceController::class,

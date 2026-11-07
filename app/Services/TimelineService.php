@@ -14,6 +14,7 @@ use App\Enums\ReconditioningType;
 use App\Enums\ServiceType;
 use App\Models\Accident;
 use App\Models\EnvironmentalSticker;
+use App\Models\FuelPrice;
 use App\Models\Insurance;
 use App\Models\Maintenance;
 use App\Models\Product;
@@ -259,6 +260,7 @@ class TimelineService
             ...$this->findingsForTheGarage($vehicle, $nextMaintenanceDate),
             ...$this->plannedTrips($vehicle, $until),
             ...$this->insuranceEnds($vehicle, $until),
+            ...$this->expectedRefueling($vehicle),
         );
 
         $items = $items->filter(fn (array $item) => $item['sort'] <= $until->timestamp)->values();
@@ -406,6 +408,50 @@ class TimelineService
                 ];
             })
             ->all();
+    }
+
+    /**
+     * The next refueling, when the fuel advice expects it, with what it will
+     * cost: the liters of a usual refueling at the cheapest gas station near
+     * home, or else at the average price of the country.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function expectedRefueling(Vehicle $vehicle): array
+    {
+        $comparison = app(FuelComparison::class);
+        $fuelType = $comparison->fuelType($vehicle);
+        $date = app(FuelAdviceFacts::class)->nextRefueling($vehicle)['expected_date'] ?? null;
+        $last = $vehicle->refuelings()->newest()->first();
+
+        if ($fuelType === null || $date === null || $last === null) {
+            return [];
+        }
+
+        // What the latest refuelings took, on average.
+        $amounts = array_map('floatval', $vehicle->refuelings()->newest()->limit(5)->pluck('amount')->all());
+        $liters = $amounts !== [] ? array_sum($amounts) / count($amounts) : 0.0;
+        $cheapest = $comparison->nearHome($vehicle)['stations'][0] ?? null;
+        $price = $cheapest['price'] ?? FuelPrice::query()
+            ->where('country', $vehicle->country_registration)
+            ->where('fuel_type', $fuelType)
+            ->latest('date')
+            ->value('price');
+
+        return [[
+            ...$this->item($last, __('Refueling'), 'ic:round-local-gas-station', null, $date, [
+                'price' => $liters > 0 && $price !== null ? round($liters * (float) $price, 2) : null,
+                'location' => $cheapest['name'] ?? null,
+                'badges' => [
+                    $this->badge(__('Estimate'), icon: 'mdi:calculator-variant-outline'),
+                    $liters > 0 ? $this->badge(number_format($liters, 0, ',', '.').' l', icon: 'mdi:fuel') : null,
+                    $cheapest !== null ? $this->badge(__('Cheapest near you'), 'success', 'mdi:trending-down') : null,
+                ],
+            ]),
+            'key' => 'refueling-'.$date,
+            'group' => 'road',
+            'url' => route('stations'),
+        ]];
     }
 
     /**

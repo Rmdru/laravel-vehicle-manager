@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import Form from '@form-builder/components/Form.vue';
 import { ArrowLeft, Trash2 } from '@lucide/vue';
+import StationPicker from '@/components/StationPicker.vue';
+import type { NearbyStation } from '@/components/StationPicker.vue';
 import ToggleButtons from '@/components/ToggleButtons.vue';
 import { Button } from '@/components/ui/button';
 import { useT } from '@/composables/useT';
@@ -20,7 +22,54 @@ const props = defineProps<{
     rdwLookupUrl?: string;
     // What the RDW knows about the vehicle that needs attention.
     warning?: string | null;
+    // A refueling: where the gas stations nearby are asked, and where home is.
+    nearbyStationsUrl?: string;
+    home?: { latitude: number; longitude: number } | null;
 }>();
+
+// The state of the form, to fill in the gas station chosen from the ones nearby.
+const formRef = ref<{ form: FormState } | null>(null);
+// The name the chosen gas station was filled in with: typed over, it is not that one.
+let chosenName: string | null = null;
+
+// A refueling chosen from the ones nearby before: its name is the chosen one.
+onMounted(() => {
+    const form = formRef.value?.form;
+
+    if (form?.poi_id) {
+        chosenName = String(form.gas_station ?? '');
+    }
+});
+
+function today(): string {
+    const now = new Date();
+
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function chooseStation(station: NearbyStation) {
+    const form = formRef.value?.form;
+
+    if (!form) {
+        return;
+    }
+
+    form.gas_station = station.label;
+    chosenName = station.label;
+    form.poi_id = station.id;
+    form.latitude = station.latitude;
+    form.longitude = station.longitude;
+
+    if (station.country) {
+        form.country = station.country;
+    }
+
+    // The price of today only for a refueling of today, and never over one filled in.
+    if (station.price && !Number(form.unit_price) && form.date === today()) {
+        form.unit_price = station.price;
+        calculateRefueling('unit_price', form);
+    }
+}
 
 const { t } = useT();
 
@@ -97,6 +146,18 @@ function lookupLicensePlate(licensePlate: string, form: FormState) {
 function onFieldChange(field: string, value: unknown, form: FormState) {
     if (props.variant === 'refueling') {
         calculateRefueling(field, form);
+
+        // Another name typed in: the gas station chosen before is not the one.
+        if (
+            field === 'gas_station' &&
+            chosenName !== null &&
+            value !== chosenName
+        ) {
+            form.poi_id = null;
+            form.latitude = null;
+            form.longitude = null;
+            chosenName = null;
+        }
     }
 
     if (props.variant === 'vehicle' && field === 'license_plate') {
@@ -148,7 +209,23 @@ function onFieldChange(field: string, value: unknown, form: FormState) {
         <div
             class="rounded-xl border bg-card p-4 md:p-6 [&_button.w-full]:min-w-0 [&_button.w-full]:shrink"
         >
-            <Form :schema="form" :columns="2" :on-field-change="onFieldChange">
+            <div
+                v-if="variant === 'refueling' && nearbyStationsUrl"
+                class="mb-2 flex justify-end"
+            >
+                <StationPicker
+                    :url="nearbyStationsUrl"
+                    :home="home ?? null"
+                    :fuel-type="formRef?.form.fuel_type ?? null"
+                    @choose="chooseStation"
+                />
+            </div>
+            <Form
+                ref="formRef"
+                :schema="form"
+                :columns="2"
+                :on-field-change="onFieldChange"
+            >
                 <template #heading="{ field }">
                     <h2 class="mt-4 border-b pb-2 text-lg font-semibold">
                         {{ field.label }}

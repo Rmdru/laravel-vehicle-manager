@@ -36,7 +36,10 @@ class PushOutbox
     {
         $vehicle = $notification->vehicle;
 
-        if ($vehicle === null || ! in_array($notification->type, PushMessage::URGENCIES, true) || ! $this->wants($vehicle, $notification->type)) {
+        // A notification can have a choice of its own, such as of a nearly empty tank; else that of its urgency.
+        $kind = (string) ($notification->payload['push'] ?? $notification->type);
+
+        if ($vehicle === null || ! in_array($notification->type, PushMessage::URGENCIES, true) || ! $this->wants($vehicle, $kind)) {
             return null;
         }
 

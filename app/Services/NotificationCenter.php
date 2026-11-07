@@ -57,7 +57,8 @@ class NotificationCenter
         }
 
         return $current->map(function (array $notification, string $key) use ($open, $vehicle, $now, $push) {
-            $fingerprint = VehicleNotification::fingerprint($notification['type'], $notification['text']);
+            // A notification whose text changes by the day (such as a price) can tell what makes it another one.
+            $fingerprint = VehicleNotification::fingerprint($notification['type'], (string) ($notification['fingerprint'] ?? $notification['text']));
             $stored = $open->get($key) ?? new VehicleNotification(['vehicle_id' => $vehicle->id, 'key' => $key, 'first_seen_at' => $now, 'notified_at' => $now]);
             $new = ! $stored->exists;
             $changed = $stored->exists && $stored->fingerprint !== $fingerprint;

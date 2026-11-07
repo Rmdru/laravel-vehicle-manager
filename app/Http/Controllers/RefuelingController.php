@@ -12,12 +12,16 @@ use App\Enums\RefuelingTires;
 use App\Forms\RefuelingForm;
 use App\Models\Refueling;
 use App\Services\FuelAdviceService;
+use App\Services\FuelComparison;
+use App\Services\TripPlanner\NearbyStations;
 use App\Support\GasStationLogo;
 use App\Support\Html;
 use App\Tables\RefuelingsTable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -180,7 +184,76 @@ class RefuelingController extends VehicleRecordController
 
     protected function formProps(): array
     {
-        return ['variant' => 'refueling'];
+        $user = request()->user();
+
+        return [
+            'variant' => 'refueling',
+            'nearbyStationsUrl' => route('refuelings.nearby-stations'),
+            // Where to look without the location of the device: at home.
+            'home' => $user?->latitude !== null && $user->longitude !== null
+                ? ['latitude' => $user->latitude, 'longitude' => $user->longitude]
+                : null,
+        ];
+    }
+
+    /**
+     * The name of a gas station as the form takes it: the brand first (for
+     * its logo), then its name and its place, each only when it does not say
+     * that already, such as a name that holds the brand.
+     */
+    public static function stationLabel(?string $brand, ?string $name, ?string $city): string
+    {
+        $label = '';
+
+        foreach ([$brand, $name, $city] as $part) {
+            $part = trim((string) $part);
+
+            if ($part === '' || str_contains(mb_strtolower($label), mb_strtolower($part))) {
+                continue;
+            }
+
+            // A name that begins with the brand says it all: "TotalEnergies Express Hellevoetsluis".
+            $label = $label !== '' && str_starts_with(mb_strtolower($part), mb_strtolower($label)) ? $part : trim($label.' '.$part);
+        }
+
+        return $label !== '' ? $label : __('Gas station');
+    }
+
+    /**
+     * The gas stations nearest to a point, with what the fuel type costs
+     * there today where that is known: to choose the one of a refueling. As
+     * the form has them: the country by its key, the name with the brand
+     * first (for its logo).
+     */
+    public function nearbyStations(Request $request, NearbyStations $nearby, FuelComparison $comparison): JsonResponse
+    {
+        $validated = $request->validate([
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+            'fuel_type' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $countries = collect(config('countries'))->mapWithKeys(fn (array $country, string $key) => [$country['iso_code'] => $key]);
+
+        // No fuel type chosen yet in the form: the one the vehicle is refueled with.
+        $fuelType = $validated['fuel_type'] ?? $comparison->fuelType($this->vehicle());
+
+        $stations = collect($nearby->nearest((float) $validated['latitude'], (float) $validated['longitude'], $fuelType))
+            ->map(fn (array $station) => [
+                'id' => $station['id'],
+                'label' => self::stationLabel($station['brand'], $station['name'], $station['city']),
+                'street' => $station['street'],
+                'country' => $countries[$station['country']] ?? null,
+                'latitude' => $station['latitude'],
+                'longitude' => $station['longitude'],
+                'distance_km' => $station['distance_km'],
+                'price' => $station['price'],
+                'fuel_type' => $station['fuel_type'],
+                'logo' => $station['brand'] ? route('trips.logo', ['brand' => $station['brand'], 'known' => 1]) : null,
+            ])
+            ->values();
+
+        return response()->json(['stations' => $stations]);
     }
 
     protected function summary(Builder $query): array

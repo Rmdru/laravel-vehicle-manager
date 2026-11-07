@@ -27,6 +27,10 @@ class Refueling extends Model
         'date',
         'country',
         'gas_station',
+        // The gas station chosen from the ones nearby, and where it is.
+        'poi_id',
+        'latitude',
+        'longitude',
         'fuel_type',
         'amount',
         'unit_price',

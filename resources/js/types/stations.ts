@@ -47,6 +47,15 @@ export type StationFilters = {
     primary: string | null;
 };
 
+// The usual gas station of the vehicle, to compare a gas station with.
+export type StationComparison = {
+    fuel_type: string;
+    usual: string;
+    price: number;
+    tank: number;
+    costs_per_km: number;
+} | null;
+
 export type StationAverages = Record<
     string,
     { fuel_type: string; price: number }[]

@@ -15,6 +15,7 @@ use App\Services\VehicleAdviceService;
 use App\Services\WashingCosts;
 use App\Support\Cost;
 use App\Support\CurrentVehicle;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -60,6 +61,7 @@ class DashboardController extends Controller
             'stats' => Inertia::defer(fn () => $dashboard->stats($vehicle, $start, $end), 'statistics'),
             'fuelPricesAbroad' => Inertia::defer(fn () => $dashboard->fuelPricesAbroad($vehicle), 'fuel'),
             'fuelAdvice' => Inertia::defer(fn () => $usesFuel ? $fuelAdvice->forDashboard($vehicle) : null, 'fuel'),
+            'nearbyStations' => Inertia::defer(fn () => $usesFuel ? $dashboard->nearbyStations($vehicle) : null, 'fuel'),
             'fuelPricesChart' => Inertia::defer(fn () => $dashboard->fuelPricesChart($vehicle, $start, $end), 'fuel'),
             'fuelUsageByType' => Inertia::defer(fn () => $dashboard->fuelUsageByType($vehicle, $start, $end), 'fuel'),
             'topGasStations' => Inertia::defer(fn () => $dashboard->topGasStations($vehicle, $start, $end), 'fuel'),
@@ -75,6 +77,16 @@ class DashboardController extends Controller
             // Of the past year and today's prices, whatever the period filter says.
             'powertrainComparison' => Inertia::defer(fn () => $powertrainComparison->forDashboard($vehicle), 'comparison'),
         ]);
+    }
+
+    /**
+     * The cheapest gas stations near home for another fuel, as chosen in the widget.
+     */
+    public function nearbyStations(Request $request, DashboardService $dashboard): JsonResponse
+    {
+        $validated = $request->validate(['fuel_type' => ['required', Rule::in(DashboardService::NEARBY_FUELS)]]);
+
+        return response()->json($dashboard->nearbyStations(CurrentVehicle::get(), $validated['fuel_type']));
     }
 
     public function refreshFuelPrices(): RedirectResponse
