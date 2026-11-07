@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
+import { ref } from 'vue';
 import AppIcon from '@/components/AppIcon.vue';
 import ColorBadge from '@/components/ColorBadge.vue';
+import TipDoneDialog from '@/components/TipDoneDialog.vue';
+import type { TipComponent, TipRecord } from '@/components/TipDoneDialog.vue';
 import { useT } from '@/composables/useT';
 
 export type VehicleTipData = {
@@ -24,6 +27,8 @@ export type VehicleTipData = {
     // Where to do what the tip asks for.
     url: string | null;
     urlLabel: string | null;
+    // The components of the maintenance plan it is about: what was done is asked when it is done.
+    components: TipComponent[];
     // When it was kept or done; only for those.
     handledAt?: string;
 };
@@ -36,11 +41,29 @@ const props = defineProps<{
     state: 'current' | VehicleTipStatus;
     busy?: boolean;
     highlighted?: boolean;
+    // The defaults of what was done.
+    today: string;
+    mileage: number | null;
 }>();
 
-const emit = defineEmits<{ status: [status: VehicleTipStatus] }>();
+const emit = defineEmits<{
+    status: [status: VehicleTipStatus, record?: TipRecord | null];
+}>();
 
 const { t } = useT();
+
+const asking = ref(false);
+
+// Done about a component of the plan: first what was done.
+function act(status: VehicleTipStatus) {
+    if (status === 'done' && props.tip.components.length) {
+        asking.value = true;
+
+        return;
+    }
+
+    emit('status', status);
+}
 
 const categories: Record<VehicleTipData['category'], string> = {
     maintenance: 'Maintenance',
@@ -140,12 +163,21 @@ const actions = (
                     type="button"
                     class="inline-flex min-h-9 cursor-pointer items-center gap-1 text-muted-foreground hover:text-foreground disabled:cursor-default"
                     :disabled="busy"
-                    @click="emit('status', action.status)"
+                    @click="act(action.status)"
                 >
                     <AppIcon :name="action.icon" class="size-4" />
                     {{ t(action.label) }}
                 </button>
             </div>
         </div>
+        <TipDoneDialog
+            v-if="tip.components.length"
+            v-model:open="asking"
+            :title="tip.title"
+            :components="tip.components"
+            :today="today"
+            :mileage="mileage"
+            @done="(record) => emit('status', 'done', record)"
+        />
     </li>
 </template>

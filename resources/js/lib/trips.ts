@@ -44,7 +44,7 @@ export const POI_GROUPS: Record<
     toilets: {
         kinds: ['toilets'],
         color: '#7c3aed',
-        icon: 'mdi:toilet',
+        icon: 'mdi:human-male-female',
         label: 'Toilets',
     },
     toll_booths: {
@@ -91,7 +91,7 @@ export const FEATURE_ICONS: Record<string, string> = {
     charge: 'mdi:ev-station',
     coffee: 'mdi:coffee',
     meal: 'mdi:silverware-variant',
-    toilet: 'mdi:toilet',
+    toilet: 'mdi:human-male-female',
     parking: 'mdi:parking',
 };
 
@@ -113,7 +113,7 @@ export const NEED_ICONS: Record<string, string> = {
     hotel: 'mdi:bed',
     break: 'mdi:coffee',
     meal: 'mdi:silverware-variant',
-    toilet: 'mdi:toilet',
+    toilet: 'mdi:human-male-female',
     fuel: 'ic:round-local-gas-station',
 };
 

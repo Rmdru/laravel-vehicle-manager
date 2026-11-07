@@ -578,6 +578,8 @@ class DashboardService
                         'date' => $date->isoFormat('ll'),
                         'sort' => $date->timestamp,
                         'icon' => $config['icon'],
+                        // Colored as on the timeline.
+                        'group' => TimelineService::GROUPS[$record::class] ?? 'road',
                         'url' => $url,
                     ]);
                 }

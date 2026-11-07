@@ -73,6 +73,10 @@ return [
     'tile_size' => 0.25,
     'tile_ttl_days' => 30,
 
+    // The version of what a tile is fetched with: a tile of an older version is
+    // fetched again. 2: all charging stations, for the station map.
+    'tile_version' => 2,
+
     // How far from the route a place may be, in meters: a service area lies
     // next to the motorway, a gas station along another road may be a little
     // further away.
@@ -150,6 +154,14 @@ return [
         'france_url' => 'https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records',
         'austria_url' => 'https://api.e-control.at/sprit/1.0/search/gas-stations/by-address',
         'spain_url' => 'https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/EstacionesTerrestres/',
+        // Italy: the ministry publishes every morning the prices of all gas
+        // stations, self service and served apart, and their locations. Not
+        // always reachable from abroad: then Italy has no prices of its own.
+        'italy' => [
+            'enabled' => (bool) env('TRIP_PLANNER_ITALY_PRICES', true),
+            'prices_url' => 'https://www.mimit.gov.it/images/exportCSV/prezzo_alle_8.csv',
+            'stations_url' => 'https://www.mimit.gov.it/images/exportCSV/anagrafica_impianti_attivi.csv',
+        ],
         // The United Kingdom: the open data the retailers publish at the
         // request of the CMA; prices in pence, turned into euros at the rate
         // of the European Central Bank.

@@ -10,6 +10,7 @@ use App\Models\Trip;
 use App\Models\TripWaypoint;
 use App\Models\Vehicle;
 use App\Models\VehicleTip;
+use App\Services\TripPlanner\TripNotices;
 use BackedEnum;
 use Carbon\Carbon;
 use Illuminate\Support\Arr;
@@ -43,6 +44,21 @@ class VehicleAdviceFacts
     /** Characters of a description the model gets to see, at most. */
     private const DESCRIPTION = 200;
 
+    /**
+     * The most recent maintenances whose description the model gets to see
+     * at more length: what the garage concluded tends to be at the end.
+     */
+    private const RECENT_MAINTENANCES = 3;
+
+    /** Characters of the description of a recent maintenance, at most. */
+    private const RECENT_DESCRIPTION = 800;
+
+    /** The kilometers a mileage is rounded to in the fingerprint: driving on should not change it by the refueling. */
+    private const FINGERPRINT_KM = 5000;
+
+    /** Months ahead a component of the plan is due within to be given with its dates. */
+    private const PLAN_DATES_WITHIN = 12;
+
     /** Days ahead the planned trips are of. */
     private const TRIPS_WITHIN = 60;
 
@@ -58,9 +74,12 @@ class VehicleAdviceFacts
     /** The kilometers an estimated mileage is rounded to: it should not change the facts by the day. */
     private const MILEAGE_ROUNDED_TO = 500;
 
-    /** The RDW data that says something about the vehicle, by the name the model gets to see. */
+    /**
+     * The RDW data that says something about the vehicle, by the name the
+     * model gets to see. Not its "inrichting": the RDW calls many a hatchback
+     * a stationwagen, the body_type of the vehicle tells it better.
+     */
     private const RDW = [
-        'body' => 'inrichting',
         'cylinders' => 'aantal_cilinders',
         'engine_capacity_cc' => 'cilinderinhoud',
         'curb_weight_kg' => 'massa_rijklaar',
@@ -105,17 +124,20 @@ class VehicleAdviceFacts
             'valid_vignettes_and_stickers' => $this->vignettes($vehicle),
             'average_monthly_costs_past_year_eur' => $this->costs($vehicle),
             'already_shown_notifications' => $this->notifications($vehicle),
+            // Only the recent ones: the list would only grow, and a tip done long ago can be relevant again.
             'handled_suggestions' => VehicleTip::query()
                 ->where('vehicle_id', $vehicle->id)
+                ->recentlyHandled()
                 ->orderBy('updated_at')
                 ->get()
-                ->map(fn (VehicleTip $tip) => [
+                ->map(fn (VehicleTip $tip) => array_filter([
                     'key' => $tip->key,
                     'subject' => $tip->subject,
+                    'finding_id' => $tip->finding_id,
                     'status' => $tip->status,
                     'title' => $tip->title,
                     'since' => $tip->updated_at->toDateString(),
-                ])
+                ], fn ($value) => $value !== null))
                 ->all(),
             'previous_suggestions' => $this->previous($vehicle),
         ];
@@ -144,6 +166,39 @@ class VehicleAdviceFacts
             $facts['usage']['average_km_per_month_past_year'] = (int) (round($facts['usage']['average_km_per_month_past_year'] / 500) * 500);
         }
 
+        // Every refueling: a new date, a new mileage and a slightly different
+        // consumption. Only a real change of these counts.
+        unset($facts['usage']['latest_refueling_date'], $facts['mileage']['latest_recorded_on']);
+
+        foreach (['fuel_consumption_recent', 'fuel_consumption_before'] as $consumption) {
+            if (isset($facts['usage'][$consumption])) {
+                $facts['usage'][$consumption] = round($facts['usage'][$consumption] * 2) / 2;
+            }
+        }
+
+        if (isset($facts['vehicle']['mileage_km'])) {
+            $facts['vehicle']['mileage_km'] = (int) (round($facts['vehicle']['mileage_km'] / self::FINGERPRINT_KM) * self::FINGERPRINT_KM);
+        }
+
+        if (isset($facts['mileage']['estimated_today_km'])) {
+            $facts['mileage']['estimated_today_km'] = (int) (round($facts['mileage']['estimated_today_km'] / self::FINGERPRINT_KM) * self::FINGERPRINT_KM);
+        }
+
+        // Of the plan its state, by component: a date due by distance moves
+        // with the pace the vehicle is driven, and the plan is in order of it.
+        if (isset($facts['maintenance_plan'])) {
+            $facts['maintenance_plan'] = collect($facts['maintenance_plan'])
+                ->map(fn (array $item) => Arr::except($item, ['next_due']))
+                ->sortBy('component')
+                ->values()
+                ->all();
+        }
+
+        // Of the notifications what they are about: their text can tell a number of days.
+        if (isset($facts['already_shown_notifications'])) {
+            $facts['already_shown_notifications'] = array_map(fn (array $notification) => Arr::only($notification, ['key', 'type']), $facts['already_shown_notifications']);
+        }
+
         if (isset($facts['weather_forecast'])) {
             $facts['weather_forecast'] = array_map(
                 fn ($date) => $date !== null,
@@ -162,7 +217,7 @@ class VehicleAdviceFacts
      */
     private function previous(Vehicle $vehicle): array
     {
-        $handled = VehicleTip::query()->where('vehicle_id', $vehicle->id)->pluck('key')->all();
+        $handled = VehicleTip::query()->where('vehicle_id', $vehicle->id)->recentlyHandled()->pluck('key')->all();
 
         return collect($vehicle->vehicleAdvices()->latest()->first()->suggestions ?? [])
             ->reject(fn (array $suggestion) => in_array($suggestion['key'] ?? null, $handled, true))
@@ -228,10 +283,31 @@ class VehicleAdviceFacts
                     'distance_km' => isset($route['distance']) ? (int) round($route['distance'] / 1000) : null,
                     'countries' => array_map($country, $route['countries'] ?? []),
                     'vignette_countries' => array_map($country, $route['vignettes'] ?? []),
+                    // What the trip planner tells the driver already, by its own rules: vignettes, stickers, winter tires, papers.
+                    'notices_of_the_trip_planner' => $this->tripNotices($route['notices'] ?? []),
                 ], fn ($value) => $value !== null && $value !== []);
             })
             ->values()
             ->all();
+    }
+
+    /**
+     * The notices of a route in English: what the model reads should not
+     * depend on the language of the user.
+     *
+     * @param  list<array{level: string, key: string, params: array<string, string|int>}>  $notices
+     * @return list<string>
+     */
+    private function tripNotices(array $notices): array
+    {
+        $locale = App::getLocale();
+        App::setLocale('en');
+
+        try {
+            return array_column(TripNotices::translate($notices), 'message');
+        } finally {
+            App::setLocale($locale);
+        }
     }
 
     /**
@@ -274,7 +350,8 @@ class VehicleAdviceFacts
     private function vehicle(Vehicle $vehicle): array
     {
         return array_filter([
-            'brand' => $vehicle->brand,
+            // The brand is kept as its index in the list of brands.
+            'brand' => config('vehicles.brands')[$vehicle->brand] ?? $vehicle->brand,
             'model' => $vehicle->model,
             'version' => $vehicle->version,
             'engine' => $vehicle->engine,
@@ -360,6 +437,26 @@ class VehicleAdviceFacts
     }
 
     /**
+     * A text of at most so many characters, as plain text: of a longer one the
+     * beginning and the end, as the end tends to say how it turned out (what
+     * the garage concluded).
+     */
+    private static function excerpt(string $text, int $limit): string
+    {
+        // A tag between words, such as of a new paragraph, as a space.
+        $text = trim((string) preg_replace('/\s+/u', ' ', strip_tags((string) preg_replace('/<[^>]+>/', ' $0', $text))));
+
+        if (mb_strlen($text) <= $limit) {
+            return $text;
+        }
+
+        $head = (int) floor($limit * 0.4);
+        $tail = $limit - $head - 3;
+
+        return rtrim(mb_substr($text, 0, $head)).' … '.ltrim(mb_substr($text, -$tail));
+    }
+
+    /**
      * The value of an enum, or the value itself: not every column is cast.
      */
     private static function scalar(mixed $value): mixed
@@ -398,25 +495,40 @@ class VehicleAdviceFacts
     }
 
     /**
-     * The components the maintenance plan of the app tracks. Without how
-     * urgent they are today: that changes by the day, the plan does not.
+     * The components the maintenance plan of the app tracks, with their state
+     * as the plan shows it (overdue, due, soon, ok, check, unknown or
+     * no_interval): it changes only when a component crosses a threshold.
+     * One never recorded has no due date: counted from new it says nothing
+     * but "check"; one due beyond a year only its interval.
      *
      * @return list<array<string, mixed>>
      */
     private function maintenancePlan(Vehicle $vehicle): array
     {
+        $later = today()->addMonths(self::PLAN_DATES_WITHIN)->toDateString();
+
         return collect(app(MaintenancePlanService::class)->plan($vehicle))
-            ->map(fn (array $item) => array_filter([
-                'component' => $item['key'],
-                'interval_km' => $item['interval_km'],
-                'interval_months' => $item['interval_months'],
-                'last_done' => $item['done']['date'] ?? null,
-                'last_done_km' => $item['done']['km'] ?? null,
-                // Never recorded: the next one counted from new, an assumption.
-                'last_done_not_known' => $item['assumed_since'] !== null ? true : null,
-                'next_due' => $item['due_date'],
-                'next_due_km' => $item['due_km'],
-            ], fn ($value) => $value !== null))
+            ->map(function (array $item) use ($later) {
+                $notKnown = $item['assumed_since'] !== null;
+                $farOff = $item['state'] === MaintenancePlanService::OK && $item['due_date'] !== null && $item['due_date'] > $later;
+
+                return array_filter([
+                    'component' => $item['key'],
+                    'state' => $item['state'],
+                    'interval_km' => $item['interval_km'],
+                    'interval_months' => $item['interval_months'],
+                    'last_done' => $item['done']['date'] ?? null,
+                    'last_done_km' => $item['done']['km'] ?? null,
+                    'last_done_km_estimated' => ($item['done']['km_estimated'] ?? false) ?: null,
+                    'last_done_not_known' => $notKnown ?: null,
+                    // Checked by the owner and found in order, without being replaced.
+                    'last_checked' => $item['checked']['date'] ?? null,
+                    'last_checked_km' => $item['checked']['km'] ?? null,
+                    'next_due' => $notKnown || $farOff ? null : $item['due_date'],
+                    // Of one never recorded: the mileage it is due at counted from new.
+                    'next_due_km' => $farOff ? null : $item['due_km'],
+                ], fn ($value) => $value !== null);
+            })
             ->values()
             ->all();
     }
@@ -429,14 +541,17 @@ class VehicleAdviceFacts
         return $vehicle->maintenances
             ->sortByDesc('date')
             ->take(self::MAINTENANCES)
-            ->map(fn (Maintenance $maintenance) => array_filter([
+            ->values()
+            ->map(fn (Maintenance $maintenance, int $index) => array_filter([
                 'date' => $maintenance->date->toDateString(),
                 'mileage_km' => $maintenance->mileage ?: null,
                 'types' => $maintenance->type_maintenance ?: null,
                 'mot' => $maintenance->apk ?: null,
                 'airco_check' => $maintenance->airco_check ?: null,
                 'garage' => $maintenance->garage ?: null,
-                'description' => filled($maintenance->description) ? Str::limit(strip_tags((string) $maintenance->description), self::DESCRIPTION) : null,
+                'description' => filled($maintenance->description)
+                    ? self::excerpt((string) $maintenance->description, $index < self::RECENT_MAINTENANCES ? self::RECENT_DESCRIPTION : self::DESCRIPTION)
+                    : null,
                 'tasks' => collect($maintenance->tasks ?? [])->pluck('task')->filter()->values()->all() ?: null,
                 'total_price_eur' => $maintenance->total_price ?: null,
             ], fn ($value) => $value !== null && $value !== ''))
@@ -558,19 +673,13 @@ class VehicleAdviceFacts
     {
         $findings = app(FindingService::class)->facts($vehicle);
         $handledTips = VehicleTip::query()->where('vehicle_id', $vehicle->id)->get();
-
-        if ($handledTips->isEmpty()) {
-            return $findings;
-        }
+        $withTip = $handledTips->pluck('finding_id')->filter()->all();
+        // A tip from before tips named their finding: going by its words.
+        $untied = $handledTips->whereNull('finding_id');
 
         return collect($findings)
-            ->reject(function (array $finding) use ($handledTips) {
-                if (empty($finding['on_the_list_for_the_garage'])) {
-                    return false;
-                }
-
-                return $this->isFindingAlreadyAdvised($finding, $handledTips);
-            })
+            ->reject(fn (array $finding) => ! empty($finding['on_the_list_for_the_garage'])
+                && (in_array($finding['id'], $withTip, true) || ($untied->isNotEmpty() && $this->isFindingAlreadyAdvised($finding, $untied))))
             ->values()
             ->all();
     }

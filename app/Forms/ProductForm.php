@@ -48,7 +48,7 @@ class ProductForm extends VehicleRecordForm
                 ->if("category === '".ProductCategory::Part->value."'"),
             $this->money('price', __('Price'))
                 ->help(__('Empty when you topped up from a bottle you bought before.')),
-            $this->date('date', __('Date'), required: true, notInFuture: true)
+            $this->date('date', __('Date'), required: true)
                 ->default(today()->format('Y-m-d')),
 
             Submit::make()->label(__('Save')),

@@ -6,6 +6,7 @@ use App\Console\Commands\GenerateFuelAdvices;
 use App\Console\Commands\GeneratePowertrainComparisons;
 use App\Console\Commands\GenerateVehicleAdvices;
 use App\Console\Commands\ImportFuelPrices;
+use App\Console\Commands\ImportStationPrices;
 use App\Console\Commands\ImportVehicleData;
 use App\Console\Commands\QueueMonthlySummaryPushes;
 use App\Console\Commands\SendPushNotifications;
@@ -23,9 +24,12 @@ Schedule::command(ImportFuelPrices::class)->daily()->at('01:00');
 // After the fuel prices, which the advice is based on.
 Schedule::command(GenerateFuelAdvices::class)->daily()->at('02:00')->withoutOverlapping();
 // After the vehicle data of the RDW, which the tips are partly based on.
-Schedule::command(GenerateVehicleAdvices::class)->daily()->at('02:30')->withoutOverlapping();
+// On one server: production ran it twice a night, each time in the same second.
+Schedule::command(GenerateVehicleAdvices::class)->daily()->at('02:30')->withoutOverlapping()->onOneServer();
 // Only for vehicles that changed or whose alternatives are a year old: the costs are calculated every day anyway.
 Schedule::command(GeneratePowertrainComparisons::class)->daily()->at('02:45')->withoutOverlapping();
+// The prices of all gas stations of the countries that publish them at once, for the station map and the trip planner.
+Schedule::command(ImportStationPrices::class)->hourlyAt(20)->withoutOverlapping()->onOneServer()->runInBackground();
 // The places along the roads for the trip planner, a part every night.
 Schedule::command(WarmTripPlannerCache::class)->daily()->at('03:00')->withoutOverlapping()->runInBackground();
 // After the advices and the tips, which can be notifications themselves.

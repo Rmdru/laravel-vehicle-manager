@@ -19,6 +19,7 @@ use App\Models\Maintenance;
 use App\Models\Product;
 use App\Models\Reconditioning;
 use App\Models\Tax;
+use App\Models\Trip;
 use App\Models\Vehicle;
 use App\Models\Vignette;
 use App\Support\GasStationLogo;
@@ -33,8 +34,11 @@ use Illuminate\Support\Collection;
  */
 class TimelineService
 {
-    /** The navigation group a record belongs to, which the timeline colors it by. */
-    private const GROUPS = [
+    /** Months ahead the predictions look. */
+    private const PREDICTION_MONTHS = 12;
+
+    /** The navigation group a record belongs to, which the timeline (and the latest costs) colors it by. */
+    public const GROUPS = [
         Maintenance::class => 'maintenance',
         Reconditioning::class => 'maintenance',
         Accident::class => 'maintenance',
@@ -207,6 +211,8 @@ class TimelineService
         $vehicle->load('maintenances');
 
         $nextMaintenance = $vehicle->nextMaintenance();
+        // When the next maintenance is expected: what is on the list for the garage goes along then.
+        $nextMaintenanceDate = null;
 
         if ($nextMaintenance) {
             $lastMaintenance = $nextMaintenance['maintenance'];
@@ -217,6 +223,7 @@ class TimelineService
                 : $nextMaintenance['date']->min(now()->addDays($nextMaintenance['daysTillDistance']));
 
             if ($date->isFuture()) {
+                $nextMaintenanceDate = Carbon::parse($date);
                 $items->push($this->item($lastMaintenance, $nextMaintenance['label'], 'mdi:car-wrench', null, $date, [
                     'location' => $lastMaintenance->garage,
                     'badges' => array_map(fn (string $type) => $this->badge(MaintenanceTypeMaintenance::from($type)->getLabel(), icon: 'mdi:car-wrench'), $lastMaintenance->type_maintenance),
@@ -243,30 +250,197 @@ class TimelineService
             }
         }
 
-        $vehicle->insurances
-            ->filter(fn (Insurance $insurance) => $insurance->getNextInvoiceDate($insurance->start_date, $insurance->end_date, $insurance->invoice_day))
-            ->groupBy(fn (Insurance $insurance) => $insurance->getNextInvoiceDate($insurance->start_date, $insurance->end_date, $insurance->invoice_day)->format('Y-m'))
-            ->each(function (Collection $insurances, string $month) use ($items, $insuranceTypes) {
-                $insurance = Insurance::getActiveMonthlyRecordForMonth($insurances, Carbon::createFromFormat('Y-m-d', $month.'-01'));
-                $date = $insurance?->getNextInvoiceDate($insurance->start_date, $insurance->end_date, $insurance->invoice_day);
+        $until = today()->addMonths(self::PREDICTION_MONTHS)->endOfMonth();
+        [$fixed, $fixedByMonth] = $this->fixedCosts($vehicle, $until, $insuranceTypes);
 
-                if ($date) {
-                    $items->push($this->item($insurance, __('Insurance'), 'mdi:shield-car', null, $date, [
-                        'price' => $insurance->price,
-                        'badges' => [$this->badge($insuranceTypes[$insurance->type]['name'] ?? null, icon: $insuranceTypes[$insurance->type]['icon'] ?? null)],
-                    ]));
-                }
-            });
+        $items->push(
+            ...$fixed,
+            ...$this->componentsDue($vehicle, $until),
+            ...$this->findingsForTheGarage($vehicle, $nextMaintenanceDate),
+            ...$this->plannedTrips($vehicle, $until),
+            ...$this->insuranceEnds($vehicle, $until),
+        );
 
-        foreach ($vehicle->taxes as $tax) {
-            $date = $tax->getNextInvoiceDate($tax->start_date, $tax->end_date, $tax->invoice_day);
+        $items = $items->filter(fn (array $item) => $item['sort'] <= $until->timestamp)->values();
 
-            if ($date) {
-                $items->push($this->item($tax, __('Road tax'), 'mdi:highway', null, $date, ['price' => $tax->price]));
+        // Per month what to expect: the fixed costs of that month, and of the
+        // rest what it came to a month on average in the past year.
+        $variable = $this->averageVariableCosts($vehicle);
+
+        return array_map(function (array $month) use ($fixedByMonth, $variable) {
+            $expected = ($fixedByMonth[$month['month']] ?? 0) + $variable;
+
+            return [...$month, 'expected' => $expected > 0 ? '€ '.number_format(round($expected), 0, ',', '.') : null];
+        }, $this->groupByMonth($items));
+    }
+
+    /**
+     * The insurance and the road tax as one row per month in which they are
+     * invoiced: one item for each would fill the predictions with the same.
+     *
+     * @param  array<string, array<string, mixed>>  $insuranceTypes
+     * @return array{0: list<array<string, mixed>>, 1: array<string, float>} The items, and what they come to by month.
+     */
+    private function fixedCosts(Vehicle $vehicle, Carbon $until, array $insuranceTypes): array
+    {
+        $rows = [];
+        $byMonth = [];
+
+        for ($month = today()->startOfMonth(); $month->lte($until); $month = $month->copy()->addMonth()) {
+            $invoices = collect([
+                ['record' => Insurance::getActiveMonthlyRecordForMonth($vehicle->insurances, $month), 'label' => __('Insurance')],
+                ['record' => Tax::getActiveMonthlyRecordForMonth($vehicle->taxes, $month), 'label' => __('Road tax')],
+            ])
+                ->filter(fn (array $invoice) => $invoice['record'] !== null && (float) $invoice['record']->price > 0)
+                ->map(fn (array $invoice) => [...$invoice, 'date' => $this->invoiceDate($month->format('Y-m'), $invoice['record']->invoice_day)])
+                // Invoiced already this month.
+                ->filter(fn (array $invoice) => $invoice['date']->gte(today()));
+
+            if ($invoices->isEmpty()) {
+                continue;
             }
+
+            $first = $invoices->sortBy('date')->first();
+            $amount = (float) $invoices->sum(fn (array $invoice) => (float) $invoice['record']->price);
+
+            $item = $this->item($first['record'], __('Fixed costs'), 'mdi:cash-multiple', null, $first['date'], [
+                'price' => $amount,
+                'badges' => $invoices->map(fn (array $invoice) => $this->badge(
+                    $invoice['record'] instanceof Insurance ? ($insuranceTypes[$invoice['record']->type]['name'] ?? $invoice['label']) : $invoice['label'],
+                    icon: $invoice['record'] instanceof Insurance ? ($insuranceTypes[$invoice['record']->type]['icon'] ?? 'mdi:shield-car') : 'mdi:highway',
+                ))->values()->all(),
+            ]);
+
+            $rows[] = [...$item, 'key' => 'fixed-'.$month->format('Ym')];
+            $byMonth[$item['month']] = $amount;
         }
 
-        return $this->groupByMonth($items);
+        return [$rows, $byMonth];
+    }
+
+    /**
+     * The components of the maintenance plan that fall due within the
+     * horizon, those due on the same day together. Not the ones overdue or to
+     * be checked: those need attention now, and are shown there.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function componentsDue(Vehicle $vehicle, Carbon $until): array
+    {
+        $components = config('maintenance_plan.components');
+
+        return collect(app(MaintenancePlanService::class)->plan($vehicle))
+            ->filter(fn (array $item) => in_array($item['state'], [MaintenancePlanService::DUE, MaintenancePlanService::SOON, MaintenancePlanService::OK], true)
+                && $item['due_date'] !== null
+                && $item['due_date'] >= today()->toDateString()
+                && $item['due_date'] <= $until->toDateString())
+            ->groupBy('due_date')
+            ->map(function (Collection $due, string $date) use ($vehicle, $components) {
+                $labels = $due->map(fn (array $item) => __($components[$item['key']]['label']))->all();
+                $item = $this->item($vehicle, implode(', ', $labels), $due->count() === 1 ? $components[$due->first()['key']]['icon'] : 'mdi:clipboard-list-outline', null, $date, [
+                    'badges' => [
+                        $this->badge(__('Maintenance plan'), icon: 'mdi:clipboard-list-outline'),
+                        $due->contains('estimated', true) ? $this->badge(__('Estimated by mileage'), icon: 'mdi:speedometer') : null,
+                    ],
+                ]);
+
+                return [...$item, 'key' => 'plan-'.$date, 'group' => 'maintenance', 'url' => route('maintenance-plan')];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * What is on the list for the garage, at the next maintenance: then it is
+     * taken along. Without a next maintenance it needs attention instead.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function findingsForTheGarage(Vehicle $vehicle, ?Carbon $nextMaintenance): array
+    {
+        if ($nextMaintenance === null) {
+            return [];
+        }
+
+        return app(FindingService::class)->open($vehicle)
+            ->filter(fn ($finding) => $finding->for_garage)
+            ->map(fn ($finding) => [
+                ...$this->item($finding, $finding->title, 'mdi:garage-alert', null, $nextMaintenance, [
+                    'badges' => [$this->badge(__('On the list for the garage'), 'warning', 'mdi:clipboard-check-outline')],
+                ]),
+                'group' => 'maintenance',
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The trips planned with the vehicle, with what the route is expected to cost.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function plannedTrips(Vehicle $vehicle, Carbon $until): array
+    {
+        return Trip::query()
+            ->where('vehicle_id', $vehicle->id)
+            ->whereIn('status', [Trip::STATUS_ROUTED, Trip::STATUS_PLANNED])
+            ->whereBetween('time_at', [today(), $until])
+            ->with('waypoints')
+            ->get()
+            ->map(function (Trip $trip) {
+                $route = $trip->plan['routes'][$trip->selected_route] ?? $trip->plan['routes'][0] ?? [];
+                $destination = $trip->name ?: trim(explode(',', (string) $trip->waypoints->sortBy('position')->last()?->label)[0]);
+                $distance = isset($route['distance']) ? (int) round($route['distance'] / 1000) : null;
+
+                return [
+                    ...$this->item($trip, $destination ?: __('Trip'), 'mdi:map-marker-path', null, $route['departure_at'] ?? $trip->time_at, [
+                        'price' => $route['costs']['total'] ?? null,
+                        'badges' => [
+                            $this->badge(__('Trip'), icon: 'mdi:map-marker-path'),
+                            $distance !== null ? $this->badge($distance.' km', icon: 'ic:baseline-route') : null,
+                            isset($route['costs']['total']) ? $this->badge(__('Estimate'), icon: 'mdi:calculator-variant-outline') : null,
+                        ],
+                    ]),
+                    'group' => 'road',
+                    'url' => route('trips.show', $trip),
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * The end of an insurance: a moment to compare before it is renewed.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function insuranceEnds(Vehicle $vehicle, Carbon $until): array
+    {
+        return $vehicle->insurances
+            ->filter(fn (Insurance $insurance) => $insurance->end_date !== null && $insurance->end_date->isFuture() && $insurance->end_date->lte($until))
+            ->map(fn (Insurance $insurance) => [
+                ...$this->item($insurance, __('Insurance ends'), 'mdi:shield-car', null, $insurance->end_date, [
+                    'location' => $insurance->insurance_company,
+                    'badges' => [$this->badge(__('Compare before it is renewed'), 'info', 'mdi:scale-balance')],
+                ]),
+                'key' => $insurance->getKey().'-end',
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * What the costs other than the fixed ones came to a month on average in
+     * the past year: fuel, maintenance, parking and so on.
+     */
+    private function averageVariableCosts(Vehicle $vehicle): float
+    {
+        return (float) rescue(
+            fn () => collect($vehicle->calculateAverageMonthlyCostsByType(today()->subYear()->toDateString(), today()->toDateString()))
+                ->except(['Insurance', 'Road tax'])
+                ->sum(),
+            0,
+            false,
+        );
     }
 
     /**

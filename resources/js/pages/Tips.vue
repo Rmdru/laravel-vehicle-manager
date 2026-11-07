@@ -4,6 +4,7 @@ import { ref } from 'vue';
 import SectionCard from '@/components/SectionCard.vue';
 import VehicleAdvice from '@/components/VehicleAdvice.vue';
 import type { VehicleAdviceData } from '@/components/VehicleAdvice.vue';
+import type { TipRecord } from '@/components/TipDoneDialog.vue';
 import VehicleTip from '@/components/VehicleTip.vue';
 import type {
     VehicleTipData,
@@ -23,10 +24,14 @@ const { t } = useT();
 
 const handling = ref<string | null>(null);
 
-function setStatus(key: string, status: VehicleTipStatus) {
+function setStatus(
+    key: string,
+    status: VehicleTipStatus,
+    record?: TipRecord | null,
+) {
     router.post(
         props.tips.statusUrl,
-        { key, status },
+        { key, status, record: record ?? null },
         {
             preserveScroll: true,
             only: ['tips'],
@@ -67,7 +72,11 @@ function setStatus(key: string, status: VehicleTipStatus) {
                     :tip="tip"
                     :state="section.state"
                     :busy="handling === tip.key"
-                    @status="(status) => setStatus(tip.key, status)"
+                    :today="tips.today"
+                    :mileage="tips.mileage"
+                    @status="
+                        (status, record) => setStatus(tip.key, status, record)
+                    "
                 />
             </ul>
             <p v-else class="p-4 text-sm text-muted-foreground">

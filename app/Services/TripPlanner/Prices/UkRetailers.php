@@ -15,7 +15,7 @@ use Throwable;
  * stations as open data, at the request of the Competition and Markets
  * Authority. The prices are in pence, and turned into euros.
  */
-class UkRetailers implements StationPrices
+class UkRetailers implements BulkStationPrices, StationPrices
 {
     /** The fields of a fuel in the feeds. */
     private const FUELS = ['e10' => 'E10', 'e5' => 'E5', 'super_plus' => 'E5', 'diesel' => 'B7'];
@@ -53,14 +53,55 @@ class UkRetailers implements StationPrices
         )));
     }
 
+    /** The fuels of the app, by field, for the import of all stations. */
+    private const ALL = ['E10' => 'e10', 'E5' => 'super_plus', 'B7' => 'diesel'];
+
+    /**
+     * All gas stations of the retailers, in euros.
+     */
+    public function all(): iterable
+    {
+        $rate = $this->poundsPerEuro();
+
+        if ($rate === null) {
+            return;
+        }
+
+        foreach ($this->stations() as $station) {
+            $prices = [];
+
+            foreach (self::ALL as $field => $fuel) {
+                if (isset($station['prices'][$field])) {
+                    $prices[] = [
+                        'fuel' => $fuel,
+                        'fuel_type' => self::FUEL_TYPES[$field],
+                        'price' => round($station['prices'][$field] / 100 / $rate, 3),
+                        'service' => null,
+                        'updated_at' => null,
+                    ];
+                }
+            }
+
+            if ($prices) {
+                yield [
+                    'id' => $station['id'],
+                    'name' => $station['name'],
+                    'latitude' => $station['latitude'],
+                    'longitude' => $station['longitude'],
+                    'prices' => $prices,
+                ];
+            }
+        }
+    }
+
     /**
      * The gas stations of all retailers, read once an hour.
      *
-     * @return list<array{latitude: float, longitude: float, prices: array<string, float>}>
+     * @return list<array{id: string, name: ?string, latitude: float, longitude: float, prices: array<string, float>}>
      */
     private function stations(): array
     {
-        return Cache::remember('trip-planner:prices:gb', now()->addHour(), function () {
+        return Cache::remember('trip-planner:prices:gb:v2', now()->addHour(), function () {
             $stations = [];
 
             foreach (config('trip_planner.prices.uk_feeds') as $feed) {
@@ -78,7 +119,13 @@ class UkRetailers implements StationPrices
                     $prices = array_filter((array) ($station['prices'] ?? []), fn ($price) => is_numeric($price) && $price > 0);
 
                     if (is_numeric($lat) && is_numeric($lon) && $prices) {
-                        $stations[] = ['latitude' => (float) $lat, 'longitude' => (float) $lon, 'prices' => array_map('floatval', $prices)];
+                        $stations[] = [
+                            'id' => (string) ($station['site_id'] ?? "{$lat},{$lon}"),
+                            'name' => isset($station['brand']) ? trim($station['brand'].' '.($station['postcode'] ?? '')) : null,
+                            'latitude' => (float) $lat,
+                            'longitude' => (float) $lon,
+                            'prices' => array_map('floatval', $prices),
+                        ];
                     }
                 }
             }

@@ -43,7 +43,7 @@ enum ServiceType: string implements HasIcon, HasLabel
             self::Coffee => 'mdi:coffee',
             self::Restaurant => 'ic:round-restaurant-menu',
             self::Shop => 'ic:baseline-store',
-            self::Toilet => 'fa7-solid:restroom',
+            self::Toilet => 'mdi:human-male-female',
             self::Hotel => 'ic:round-local-hotel',
             self::Other => '',
         };

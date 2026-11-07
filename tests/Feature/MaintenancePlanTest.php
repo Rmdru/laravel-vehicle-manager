@@ -133,6 +133,26 @@ class MaintenancePlanTest extends TestCase
         $this->assertSame(MaintenancePlanService::OVERDUE, $fluid['state']);
     }
 
+    public function test_done_at_0_km_long_after_it_was_new_is_estimated_from_the_odometer()
+    {
+        $vehicle = $this->vehicle();
+        // Filled in with the date, but 0 km: not done when it was new.
+        VehicleComponent::create(['vehicle_id' => $vehicle->id, 'key' => 'front_brake_pads', 'interval_km' => 40000, 'done_date' => '2026-04-23', 'done_km' => 0]);
+        VehicleComponent::create(['vehicle_id' => $vehicle->id, 'key' => 'rear_brake_pads', 'interval_km' => 60000, 'done_date' => '2016-06-01', 'done_km' => 0]);
+
+        $front = $this->item($vehicle->fresh(), 'front_brake_pads');
+        $rear = $this->item($vehicle->fresh(), 'rear_brake_pads');
+
+        // Between 13.000 km in January and 22.000 km in October, by the day: about 16.000 km in April.
+        $this->assertSame(15967, $front['done']['km']);
+        $this->assertTrue($front['done']['km_estimated']);
+        $this->assertSame(55967, $front['due_km']);
+        $this->assertSame(MaintenancePlanService::OK, $front['state']);
+        // A month after it was built, 0 km is what it was.
+        $this->assertSame(0, $rear['done']['km']);
+        $this->assertSame(60000, $rear['due_km']);
+    }
+
     public function test_a_part_replaced_by_the_owner_counts_as_done()
     {
         $vehicle = $this->vehicle();

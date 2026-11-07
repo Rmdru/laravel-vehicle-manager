@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\Finding;
 use App\Models\Refueling;
 use App\Models\Toll;
+use App\Models\Trip;
 use App\Models\Vehicle;
 use App\Services\TimelineService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -44,6 +46,8 @@ class TimelineTest extends TestCase
 
     public function test_the_timeline_predicts_the_next_maintenance_and_invoices()
     {
+        // After the invoice day: this month's invoices are done.
+        $this->travelTo('2026-10-20 12:00:00');
         $vehicle = $this->signInWithVehicle(['maintenance_intervals' => [['types' => ['maintenance'], 'km' => null, 'months' => 12]]]);
 
         $vehicle->maintenances()->create([
@@ -59,15 +63,63 @@ class TimelineTest extends TestCase
             'invoice_day' => 15,
         ]);
 
-        $this->get(route('timeline'))
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('predictions', fn ($predictions) => collect($predictions)
-                    ->flatMap(fn ($month) => $month['items'])
-                    ->pluck('heading')
-                    ->sort()
-                    ->values()
-                    ->all() === ['Maintenance', 'Road tax'])
-                ->etc());
+        $vehicle->insurances()->create([
+            'insurance_company' => 'FBTO',
+            'type' => 'allrisk',
+            'start_date' => now()->subMonths(6)->toDateString(),
+            'end_date' => now()->addMonths(6)->toDateString(),
+            'price' => 100,
+            'invoice_day' => 15,
+        ]);
+
+        $predictions = collect(app(TimelineService::class)->predictions($vehicle->fresh()));
+        $items = $predictions->flatMap(fn ($month) => $month['items']);
+
+        $this->assertContains('Maintenance', $items->pluck('heading'));
+        // Insurance and road tax: one row a month, within the year ahead.
+        $fixed = $items->where('heading', 'Fixed costs')->sortBy('sort')->values();
+        $this->assertCount(12, $fixed);
+        $this->assertSame('€ 140,00', $fixed->first()['price']);
+        // After the insurance ends: the road tax only.
+        $this->assertSame('€ 40,00', $fixed->last()['price']);
+        $this->assertContains('Insurance ends', $items->pluck('heading'));
+        // Per month what to expect: the fixed costs, and the maintenance of the past year on average.
+        $this->assertNotNull($predictions->first(fn ($month) => collect($month['items'])->contains('key', $fixed->first()['key']))['expected']);
+    }
+
+    public function test_the_timeline_predicts_the_components_of_the_plan_trips_and_the_garage_list()
+    {
+        $this->travelTo('2026-10-23 12:00:00');
+        $vehicle = $this->signInWithVehicle([
+            'construction_date' => '2026-01-01',
+            'mileage_start' => 10,
+            'maintenance_intervals' => [['types' => ['maintenance'], 'km' => null, 'months' => 12]],
+        ]);
+        $vehicle->maintenances()->create(['type_maintenance' => 'maintenance', 'date' => '2026-06-01', 'mileage' => 5000, 'total_price' => 300]);
+        Finding::factory()->for($vehicle)->create(['title' => 'Rattle front left', 'for_garage' => true]);
+        $trip = Trip::create([
+            'user_id' => $vehicle->user_id,
+            'vehicle_id' => $vehicle->id,
+            'name' => 'Pairi Daiza',
+            'time_at' => '2026-12-25 08:00:00',
+            'status' => Trip::STATUS_PLANNED,
+            'plan' => ['routes' => [['distance' => 218000, 'costs' => ['total' => 45.5]]]],
+        ]);
+
+        $items = collect(app(TimelineService::class)->predictions($vehicle->fresh()))->flatMap(fn ($month) => $month['items']);
+
+        // The garage list goes along with the next maintenance.
+        $this->assertSame($items->firstWhere('heading', 'Maintenance')['date'], $items->firstWhere('heading', 'Rattle front left')['date']);
+        // The trip, with what it is expected to cost.
+        $planned = $items->firstWhere('heading', 'Pairi Daiza');
+        $this->assertSame('€ 45,50', $planned['price']);
+        $this->assertSame(route('trips.show', $trip), $planned['url']);
+        // Of the plan: the wiper blades a year after it was built; the brake fluid after two years, beyond the year ahead.
+        $plan = $items->filter(fn ($item) => str_starts_with($item['key'], 'plan-'));
+        $wipers = $plan->first(fn ($item) => str_contains($item['heading'], 'Wiper blades'));
+        $this->assertSame('2027-01-01', date('Y-m-d', $wipers['sort']));
+        $this->assertSame(route('maintenance-plan'), $wipers['url']);
+        $this->assertFalse($plan->contains(fn ($item) => str_contains($item['heading'], 'Brake fluid')));
     }
 
     public function test_the_timeline_predicts_the_mot_and_expiring_vignettes()
@@ -82,7 +134,10 @@ class TimelineTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->where('predictions', fn ($predictions) => collect($predictions)
                     ->flatMap(fn ($month) => $month['items'])
+                    // Not the components of the plan of the random vehicle.
+                    ->reject(fn ($item) => str_starts_with($item['key'], 'plan-'))
                     ->pluck('heading')
+                    ->values()
                     ->all() === ['MOT', 'Vignette'])
                 ->etc());
     }
@@ -126,7 +181,10 @@ class TimelineTest extends TestCase
     {
         return collect(app(TimelineService::class)->predictions($vehicle->fresh()))
             ->flatMap(fn ($month) => $month['items'])
+            // The maintenance, not the components of the plan of the random vehicle.
+            ->reject(fn ($item) => str_starts_with($item['key'], 'plan-'))
             ->pluck('date')
+            ->values()
             ->all();
     }
 
@@ -134,8 +192,14 @@ class TimelineTest extends TestCase
     {
         $this->signInWithVehicle();
 
+        // Without records: of the predictions only what the plan tells from the construction date.
         $this->get(route('timeline'))
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->has('history', 0)->has('predictions', 0)->etc());
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('history', 0)
+                ->where('predictions', fn ($predictions) => collect($predictions)
+                    ->flatMap(fn ($month) => $month['items'])
+                    ->every(fn ($item) => str_starts_with($item['key'], 'plan-')))
+                ->etc());
     }
 }

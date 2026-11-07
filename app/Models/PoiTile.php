@@ -22,9 +22,11 @@ class PoiTile extends Model
     protected $fillable = [
         'tile',
         'fetched_at',
+        'version',
     ];
 
     protected $casts = [
         'fetched_at' => 'datetime',
+        'version' => 'integer',
     ];
 }

@@ -61,7 +61,8 @@ class FindingTest extends TestCase
     public function test_a_finding_marked_resolved_gets_a_date_and_leaves_the_list_for_the_garage()
     {
         $vehicle = $this->signInWithVehicle();
-        $finding = Finding::factory()->for($vehicle)->create(['for_garage' => true]);
+        // A date before the day of the test: the factory goes by the real today.
+        $finding = Finding::factory()->for($vehicle)->create(['for_garage' => true, 'date' => '2026-10-01']);
 
         $this->patch(route('findings.update', $finding->id), [
             'source' => 'garage_advice',

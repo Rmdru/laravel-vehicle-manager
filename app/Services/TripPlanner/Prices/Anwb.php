@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\TripPlanner\Prices;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -30,11 +31,14 @@ class Anwb implements StationPrices
             return [];
         }
 
-        $stations = Http::timeout(15)->withUserAgent('Mozilla/5.0')->get(config('trip_planner.prices.anwb.url'), [
-            'type-filter' => 'FUEL_STATION',
-            // About the 25 km around the point the other sources look in.
-            'bounding-box-filter' => implode(',', [round($latitude - 0.23, 4), round($longitude - 0.35, 4), round($latitude + 0.23, 4), round($longitude + 0.35, 4)]),
-        ])->throw()->json('value') ?? [];
+        // About the 25 km around the point the other sources look in.
+        $box = implode(',', [round($latitude - 0.23, 4), round($longitude - 0.35, 4), round($latitude + 0.23, 4), round($longitude + 0.35, 4)]);
+        // All fuels of an area come in one answer: asked once for all of them.
+        $stations = Cache::remember('trip-planner:prices:anwb:'.$box, now()->addMinutes((int) config('trip_planner.prices.cache_minutes')), fn () => Http::timeout(15)
+            ->withUserAgent('Mozilla/5.0')
+            ->get(config('trip_planner.prices.anwb.url'), ['type-filter' => 'FUEL_STATION', 'bounding-box-filter' => $box])
+            ->throw()
+            ->json('value') ?? []);
 
         $found = [];
 

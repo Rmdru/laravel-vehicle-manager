@@ -386,6 +386,34 @@ export function themedStyle(
             return [];
         }
 
+        // The railways in the background: the white dashes over them stood
+        // out more than the roads did.
+        if (
+            layer.type === 'line' &&
+            sourceLayer === 'transportation' &&
+            /rail|transit/.test(id)
+        ) {
+            if (id.includes('hatching')) {
+                return [];
+            }
+
+            paint(layer, {
+                'line-color': theme.boundary,
+                'line-opacity': 0.6,
+                'line-width': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    8,
+                    0.5,
+                    16,
+                    1.5,
+                ],
+            });
+
+            return [layer];
+        }
+
         if (layer.type === 'background') {
             paint(layer, { 'background-color': theme.background });
         } else if (layer.type === 'fill' && sourceLayer === 'water') {

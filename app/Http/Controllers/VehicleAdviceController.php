@@ -33,11 +33,18 @@ class VehicleAdviceController extends Controller
         }
 
         try {
-            $advices->generate($vehicle, $locale);
+            $advice = $advices->generate($vehicle, $locale);
         } catch (Throwable $exception) {
             report($exception);
 
             Inertia::flash('toast', ['type' => 'error', 'message' => __('The tips could not be generated. Please try again later.')]);
+
+            return back();
+        }
+
+        // Being generated already, by the daily run or another tab.
+        if ($advice === null) {
+            Inertia::flash('toast', ['type' => 'info', 'message' => __('The tips have just been generated.')]);
 
             return back();
         }
@@ -65,9 +72,18 @@ class VehicleAdviceController extends Controller
         $validated = $request->validate([
             'key' => ['required', 'string', 'max:60'],
             'status' => ['required', Rule::in(VehicleTip::STATUSES)],
+            // Done: what was done, for the maintenance plan.
+            'record' => ['nullable', 'array'],
+            'record.kind' => ['required_with:record', Rule::in(['checked', 'replaced'])],
+            'record.components' => ['required_with:record', 'array', 'min:1'],
+            'record.components.*' => ['string', 'max:60'],
+            'record.date' => ['required_with:record', 'date', 'before_or_equal:today'],
+            'record.km' => ['nullable', 'integer', 'min:0'],
         ]);
 
-        if (! $advices->handle(CurrentVehicle::get(), $validated['key'], $validated['status'])) {
+        $record = isset($validated['record']) ? [...$validated['record'], 'km' => $validated['record']['km'] ?? null] : null;
+
+        if (! $advices->handle(CurrentVehicle::get(), $validated['key'], $validated['status'], $record)) {
             throw ValidationException::withMessages(['key' => __('This tip no longer exists.')]);
         }
 

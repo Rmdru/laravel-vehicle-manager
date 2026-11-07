@@ -48,6 +48,9 @@ class MaintenancePlanService
     /** The states, the most urgent first. */
     public const STATES = [self::OVERDUE, self::DUE, self::CHECK, self::UNKNOWN, self::SOON, self::OK, self::NO_INTERVAL];
 
+    /** Months after the construction date a component done at 0 km can still have been done at 0 km. */
+    private const NEW_FOR_MONTHS = 3;
+
     /** Components to be checked that are put together in a single notification, at least. */
     private const CHECKS_TOGETHER = 2;
 
@@ -230,7 +233,7 @@ class MaintenancePlanService
     }
 
     /**
-     * @param  array{date: CarbonImmutable, km: int|null, price: float|null, garage: string|null, maintenance_id: string|null, product_id: string|null}|null  $done
+     * @param  array{date: CarbonImmutable, km: int|null, km_estimated?: bool, price: float|null, garage: string|null, maintenance_id: string|null, product_id: string|null}|null  $done
      * @param  CarbonImmutable|null  $new  The construction date: what is never recorded is counted from it.
      * @return array<string, mixed>
      */
@@ -246,6 +249,14 @@ class MaintenancePlanService
                 'maintenance_id' => null,
                 'product_id' => null,
             ];
+        }
+
+        // Done at 0 km well after it was new: the mileage was not filled in, it
+        // is not counted from 0 (which would make it overdue for years), but
+        // estimated from the odometer on that day.
+        if ($done !== null && $done['km'] === 0 && $done['date']->gt(($new ?? $done['date'])->addMonths(self::NEW_FOR_MONTHS))) {
+            [$km] = $odometer->at($done['date']);
+            $done = [...$done, 'km' => $km === null ? null : (int) round($km), 'km_estimated' => $km !== null];
         }
 
         // Never recorded: the original one is assumed to be in it still, from new at 0 km.
@@ -274,6 +285,8 @@ class MaintenancePlanService
             'own_done_date' => $component->done_date?->toDateString(),
             'own_done_km' => $component->done_km,
             'done' => $done === null ? null : [...$done, 'date' => $done['date']->toDateString()],
+            // Checked by the owner and found in order: it does not restart the interval.
+            'checked' => $component->checked_date === null ? null : ['date' => $component->checked_date->toDateString(), 'km' => $component->checked_km],
             // Counted from the construction date, as it was never recorded.
             'assumed_since' => $assumed ? $new->toDateString() : null,
             'due_date' => $dueDate?->toDateString(),
@@ -310,6 +323,30 @@ class MaintenancePlanService
             'mileage' => $mileage ?? 0,
             'tasks' => [['task' => __($component['label']), 'price' => null, 'components' => [$key]]],
         ]);
+    }
+
+    /**
+     * Records on the component itself, without a maintenance (the one it was
+     * done at is usually recorded already, or not to be recorded): replaced,
+     * which restarts its interval, or checked and found in order, which does
+     * not. A check of its own type, such as the tire pressure, is done when it
+     * is checked. Unknown or inactive components are left alone.
+     *
+     * @param  'checked'|'replaced'  $kind
+     */
+    public function record(Vehicle $vehicle, string $key, string $kind, CarbonImmutable $date, ?int $km): void
+    {
+        $component = $this->components($vehicle)->get($key);
+
+        if ($component === null || ! $component->active) {
+            return;
+        }
+
+        $isCheck = isset(config('maintenance_plan.components')[$key]['check']);
+
+        $component->fill($kind === 'replaced' || $isCheck
+            ? ['done_date' => $date->toDateString(), 'done_km' => $km]
+            : ['checked_date' => $date->toDateString(), 'checked_km' => $km])->save();
     }
 
     /**

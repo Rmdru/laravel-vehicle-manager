@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Http;
 /**
  * France: the prices every gas station reports to the government.
  */
-class PrixCarburants implements StationPrices
+class PrixCarburants implements BulkStationPrices, StationPrices
 {
     /**
      * The fields of a fuel, in order of preference: along the motorway most
@@ -38,6 +38,59 @@ class PrixCarburants implements StationPrices
     public function country(): string
     {
         return 'FR';
+    }
+
+    /** The fuels of the app, by field, for the import of all stations. */
+    private const ALL = [
+        'e10' => 'e10',
+        'sp95' => 'e5',
+        'sp98' => 'super_plus',
+        'gazole' => 'diesel',
+        'gplc' => 'lpg',
+    ];
+
+    /**
+     * All gas stations at once, by the export of the dataset rather than its
+     * pages of a hundred.
+     */
+    public function all(): iterable
+    {
+        $fields = array_keys(self::ALL);
+        $select = implode(',', array_merge(['id', 'geom', 'ville'], ...array_map(fn (string $field) => ["{$field}_prix", "{$field}_maj"], $fields)));
+        $url = str_replace('/records', '/exports/json', (string) config('trip_planner.prices.france_url'));
+
+        foreach (Http::timeout(120)->get($url, ['select' => $select])->throw()->json() ?? [] as $record) {
+            $lat = $record['geom']['lat'] ?? null;
+            $lon = $record['geom']['lon'] ?? null;
+
+            if (! is_numeric($lat) || ! is_numeric($lon)) {
+                continue;
+            }
+
+            $prices = [];
+
+            foreach (self::ALL as $field => $fuel) {
+                if (is_numeric($record["{$field}_prix"] ?? null) && (float) $record["{$field}_prix"] > 0) {
+                    $prices[] = [
+                        'fuel' => $fuel,
+                        'fuel_type' => self::FUEL_TYPES[$field],
+                        'price' => (float) $record["{$field}_prix"],
+                        'service' => null,
+                        'updated_at' => $record["{$field}_maj"] ?? null,
+                    ];
+                }
+            }
+
+            if ($prices) {
+                yield [
+                    'id' => (string) ($record['id'] ?? "{$lat},{$lon}"),
+                    'name' => isset($record['ville']) ? (string) $record['ville'] : null,
+                    'latitude' => (float) $lat,
+                    'longitude' => (float) $lon,
+                    'prices' => $prices,
+                ];
+            }
+        }
     }
 
     public function near(float $latitude, float $longitude, string $fuel): array

@@ -300,7 +300,7 @@ class TripPlanner
                 ->values()
                 ->all(),
             'pois' => $nearby
-                ->reject(fn (array $located) => in_array($located['poi']->kind, [Poi::JUNCTION, Poi::FACILITY], true))
+                ->reject(fn (array $located) => in_array($located['poi']->kind, [Poi::JUNCTION, Poi::FACILITY, Poi::SLOW_CHARGER], true))
                 ->map(fn (array $located) => $located['poi']->id)
                 ->values()
                 ->all(),

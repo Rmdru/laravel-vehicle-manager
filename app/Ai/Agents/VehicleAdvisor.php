@@ -45,11 +45,13 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
 
     /**
      * @param  string|null  $key  The API key to use, one of those configured; null for the configured one.
+     * @param  string|null  $model  The model to ask; null for the configured one.
      */
     public function __construct(
         private readonly string $language,
         private readonly int $suggestions,
         private readonly ?string $key = null,
+        private readonly ?string $model = null,
     ) {
         //
     }
@@ -65,7 +67,7 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
 
     public function model(): string
     {
-        return config('vehicle_advice.model');
+        return $this->model ?? config('vehicle_advice.model');
     }
 
     public function timeout(): int
@@ -93,9 +95,13 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
 
             already_shown_notifications are shown to the owner already: do not repeat them. You may build on one,
             when you add something it does not say (such as what an MOT of a vehicle this old usually takes).
-            maintenance_plan are the components the app tracks, with their intervals, when they were done last and
-            when they are due again; the app shows the owner when one is due already, so a tip that only says that
-            adds nothing. A tip about a component of the plan is welcome when it adds something: a known weak spot of
+            maintenance_plan are the components the app tracks, with their intervals, when they were done last,
+            when they are due again and their state: overdue, due, soon or ok; check when it was never recorded
+            (the app asks the owner to check it, as it may well have been done); no_interval when it is only done
+            when needed. One that is ok without next_due is due beyond a year. A last_done_km_estimated is the
+            app's estimate. last_checked is when the owner checked it and found it in order, without replacing it:
+            do not advise checking it again soon after. The app shows the owner what is overdue, due, soon or to check, so a tip that only says
+            that adds nothing. A tip about a component of the plan is welcome when it adds something: a known weak spot of
             it on this model, combining it with another job or the MOT, what to ask the garage, or how to save on
             it. Bring up as well, from what you know about this make, model and engine, what the plan does not cover
             or where it falls short: a part outside it, or an interval of the manufacturer that differs from the
@@ -109,16 +115,19 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
             owner's schedule: plan service jobs, checks and repairs in with the next service rather than advising a
             separate visit, and point out where an interval is longer than this make, model or engine needs for a
             long life, or where it differs from what the manufacturer gives.
-            handled_suggestions are tips the owner already did something with: done, kept (the owner knows, and
+            handled_suggestions are tips the owner did something with in the past months: done, kept (the owner knows, and
             looks the tip up when needed) or not_relevant. Do not make them again, under any key or subject, and avoid
             re-suggesting the same component, theme or subject under different phrasing, unless the facts show that the
             situation has clearly changed since (such as a new season for a seasonal tip that was done last year).
             open_findings are what needs attention according to the garage, the owner or the MOT, until it is
-            resolved; the app shows the urgent ones already. When on_the_list_for_the_garage is true, the owner already
+            resolved; the app shows the urgent ones already. A suggestion about one of them gives its id as finding_id,
+            otherwise finding_id is an empty string. When on_the_list_for_the_garage is true, the owner already
             planned to have the garage look at it: never tell them to go to the garage for it, to put it on their list,
             or to combine it with another visit or trip. A tip about it is only welcome once, when it helps prepare for that
             visit (what specific question to ask the mechanic to save diagnostic time). If a tip about a finding was
-            already given or handled, do not suggest anything further about it.
+            already given or handled, do not suggest anything further about it. Never give a suggestion that is only
+            about planning, combining or preparing visits to the garage in general: the app has the garage list for
+            that, and drops such suggestions (subject garage_visit).
             When a finding is not on the list yet, advise putting it on the list if it can be combined with upcoming
             maintenance or MOT, or what happens when it is left; do not only repeat it. Defects of the MOT are for
             information: the garage may have repaired them at once.
@@ -135,10 +144,12 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
             usage shows how the vehicle is driven: connect the driving pattern to vehicle health (such as risks of frequent
             short trips causing oil dilution, carbon buildup, battery drain or DPF clogging, and what to do about it).
             planned_trips are the trips planned with this vehicle in the coming weeks. Advise on what the vehicle
-            needs before such a trip: maintenance that falls due before or during it, tires and fluids before a
-            long drive, a vignette or environmental sticker for a country on the way that
-            valid_vignettes_and_stickers does not cover, or the winter equipment a country asks for in that season.
-            The trip planner gives the travel tips themselves (the route, stops, traffic): leave those out.
+            itself needs before such a trip: maintenance that falls due before or during it, tires and fluids before
+            a long drive. What the law of a country on the way asks (vignettes, environmental stickers or zones,
+            winter tires or equipment) is the trip planner's: it checks that by its own rules and tells the driver,
+            see notices_of_the_trip_planner. Never give a suggestion about it, and never claim a requirement of a
+            country yourself. The trip planner gives the travel tips as well (the route, stops, traffic): leave
+            those out too.
             weather_forecast is the forecast of the coming days where the driver lives. Only base a seasonal tip on it
             when it shows an impending, concrete event (such as the first frost, snow or a hot spell) with a specific
             date; do not give generic seasonal reminders based merely on the month.
@@ -184,6 +195,7 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
             'suggestions' => $schema->array()->items($schema->object([
                 'key' => $schema->string()->required(),
                 'subject' => $schema->string()->enum(VehicleAdvice::SUBJECTS)->required(),
+                'finding_id' => $schema->string()->description('The id of the open finding it is about, or empty.')->required(),
                 'category' => $schema->string()->enum(VehicleAdvice::CATEGORIES)->required(),
                 'icon' => $schema->string()->enum(array_keys(VehicleAdvice::ICONS))->required(),
                 'priority' => $schema->string()->enum(VehicleAdvice::PRIORITIES)->required(),
@@ -197,11 +209,13 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
     }
 
     /**
+     * The facts as compact JSON: indented, a third of them would be spaces.
+     *
      * @param  array<string, mixed>  $facts
      */
     public function question(array $facts): string
     {
-        return "Facts:\n".json_encode($facts, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return "Facts:\n".json_encode($facts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
     /**

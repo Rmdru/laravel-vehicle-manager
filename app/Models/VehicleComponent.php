@@ -32,6 +32,9 @@ class VehicleComponent extends Model
         'note',
         'done_date',
         'done_km',
+        // Checked and found in order: it does not restart the interval.
+        'checked_date',
+        'checked_km',
     ];
 
     protected $casts = [
@@ -40,6 +43,8 @@ class VehicleComponent extends Model
         'interval_months' => 'integer',
         'done_date' => 'date:Y-m-d',
         'done_km' => 'integer',
+        'checked_date' => 'date:Y-m-d',
+        'checked_km' => 'integer',
     ];
 
     /**

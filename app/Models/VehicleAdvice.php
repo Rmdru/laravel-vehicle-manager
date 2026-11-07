@@ -35,6 +35,7 @@ class VehicleAdvice extends Model
         'spark_plugs',
         'timing_belt',
         'auxiliary_belt',
+        'gearbox_oil',
         'air_filter',
         'cabin_filter',
         'air_conditioning',
@@ -49,7 +50,36 @@ class VehicleAdvice extends Model
         'vignette',
         'mot',
         'open_finding',
+        // Only planning, combining or preparing a visit to the garage: the garage list is for that, never a tip.
+        'garage_visit',
         'other',
+    ];
+
+    /** Subjects that are never shown as a tip. */
+    public const DROPPED_SUBJECTS = ['garage_visit'];
+
+    /**
+     * The components of the maintenance plan a subject is about: a tip done
+     * about one of them is recorded with the component, checked or replaced.
+     */
+    public const SUBJECT_COMPONENTS = [
+        'coolant' => ['coolant'],
+        'battery' => ['battery_12v'],
+        'washer_fluid' => ['washer_fluid'],
+        'brake_fluid' => ['brake_fluid'],
+        'brakes' => ['front_brake_pads', 'rear_brake_pads', 'front_brake_discs', 'rear_brake_discs'],
+        'tires' => ['front_tires', 'rear_tires', 'tire_pressure'],
+        'engine_oil' => ['engine_oil', 'oil_filter'],
+        'spark_plugs' => ['spark_plugs'],
+        'timing_belt' => ['timing_belt'],
+        'auxiliary_belt' => ['auxiliary_belt'],
+        'gearbox_oil' => ['gearbox_oil'],
+        'air_filter' => ['air_filter'],
+        'cabin_filter' => ['cabin_filter'],
+        'air_conditioning' => ['airco_service'],
+        'wiper_blades' => ['wiper_blades'],
+        'wheel_alignment' => ['wheel_alignment'],
+        'fuel_additive' => ['injector_cleaner'],
     ];
 
     public const PRIORITIES = ['high', 'medium', 'low'];
@@ -258,7 +288,7 @@ class VehicleAdvice extends Model
         if (str_contains($key, 'battery') || str_contains($key, 'accu')) {
             return 'battery';
         }
-        if (str_contains($key, 'washer') || str_contains($key, 'sproeier') || str_contains($key, 'winter_prep') || str_contains($key, 'winter_check_fluid') || str_contains($key, 'winter_maintenance_fluid')) {
+        if (str_contains($key, 'washer') || str_contains($key, 'sproeier')) {
             return 'washer_fluid';
         }
         if (str_contains($key, 'wiper') || str_contains($key, 'ruitenwisser')) {
@@ -269,6 +299,9 @@ class VehicleAdvice extends Model
         }
         if (str_contains($key, 'tire') || str_contains($key, 'tyre') || str_contains($key, 'band')) {
             return 'tires';
+        }
+        if (str_contains($key, 'gearbox') || str_contains($key, 'transmission') || str_contains($key, 'versnellingsbak')) {
+            return 'gearbox_oil';
         }
         if (str_contains($key, 'oil') || str_contains($key, 'olie')) {
             return 'engine_oil';
@@ -309,8 +342,8 @@ class VehicleAdvice extends Model
         if (str_contains($key, 'mot') || str_contains($key, 'apk')) {
             return 'mot';
         }
-        if (str_contains($key, 'act_') || str_contains($key, 'garage_visit') || str_contains($key, 'wheel_well')) {
-            return 'open_finding';
+        if (str_contains($key, 'garage_visit') || str_contains($key, 'garage_appointment')) {
+            return 'garage_visit';
         }
 
         return 'other';

@@ -232,3 +232,37 @@
         @apply bg-background text-foreground;
     }
 }
+
+/* The popups of the maps: the trip planner and the station map. */
+.trip-popup .maplibregl-popup-content {
+    padding: 0;
+    font-family: var(--font-sans);
+    border-radius: 0.75rem;
+    background: var(--card);
+    color: var(--card-foreground);
+    box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.25);
+    overflow: hidden;
+}
+
+.trip-popup .maplibregl-popup-close-button {
+    top: 6px;
+    right: 6px;
+    color: var(--muted-foreground);
+    font-size: 1.25rem;
+}
+
+.trip-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+    border-top-color: var(--card);
+}
+
+.trip-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip {
+    border-bottom-color: var(--card);
+}
+
+.trip-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+    border-right-color: var(--card);
+}
+
+.trip-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+    border-left-color: var(--card);
+}

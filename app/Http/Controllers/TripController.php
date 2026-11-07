@@ -379,12 +379,7 @@ class TripController extends Controller
             'vehicle' => $vehicle?->full_name,
             'vehicleId' => $vehicle?->id,
             // The road numbers on the map, as the road signs of each country show them.
-            'shields' => [
-                'countries' => MapShields::styles(),
-                'european' => ['image' => MapShields::image(MapShields::EUROPEAN), 'text' => MapShields::hex(MapShields::EUROPEAN['color'])],
-                'plain' => ['image' => MapShields::image(MapShields::PLAIN), 'text' => MapShields::hex(MapShields::PLAIN['color'])],
-                'sprite' => asset('map/shields'),
-            ],
+            'shields' => self::shields(),
             'storeUrl' => route('trips.store'),
             'indexUrl' => route('trips.index'),
             'geocodeUrl' => route('trips.geocode'),
@@ -392,6 +387,22 @@ class TripController extends Controller
             'logoUrl' => route('trips.logo'),
             'timezone' => config('trip_planner.timezone'),
         ]);
+    }
+
+    /**
+     * The road numbers on a map, as the road signs of each country show them:
+     * for the trip planner and the station map.
+     *
+     * @return array<string, mixed>
+     */
+    public static function shields(): array
+    {
+        return [
+            'countries' => MapShields::styles(),
+            'european' => ['image' => MapShields::image(MapShields::EUROPEAN), 'text' => MapShields::hex(MapShields::EUROPEAN['color'])],
+            'plain' => ['image' => MapShields::image(MapShields::PLAIN), 'text' => MapShields::hex(MapShields::PLAIN['color'])],
+            'sprite' => asset('map/shields'),
+        ];
     }
 
     /**

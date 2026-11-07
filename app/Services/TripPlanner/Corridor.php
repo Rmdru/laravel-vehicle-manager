@@ -99,7 +99,7 @@ class Corridor
                 continue;
             }
 
-            if (! in_array($poi->kind, [Poi::GAS_STATION, Poi::CHARGER, Poi::RESTAURANT, Poi::FAST_FOOD, Poi::CAFE, Poi::TOILETS, Poi::FACILITY], true)
+            if (! in_array($poi->kind, [Poi::GAS_STATION, Poi::CHARGER, Poi::SLOW_CHARGER, Poi::RESTAURANT, Poi::FAST_FOOD, Poi::CAFE, Poi::TOILETS, Poi::FACILITY], true)
                 || $located['offset'] > (float) config('trip_planner.corridor.map')) {
                 continue;
             }

@@ -26,6 +26,8 @@ export type FuelPrice = {
     updated_at: string | null;
     // The name of the fuel, in the language of the user.
     fuel_type: string | null;
+    // Served, where it costs differently from self service (the price), as in Italy.
+    served_price?: number | null;
 };
 
 export type TripStop = {

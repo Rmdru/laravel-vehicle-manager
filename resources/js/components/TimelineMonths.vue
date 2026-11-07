@@ -4,6 +4,8 @@ import { ChevronRight } from '@lucide/vue';
 import AppIcon from '@/components/AppIcon.vue';
 import ColorBadge from '@/components/ColorBadge.vue';
 import CountryFlag from '@/components/CountryFlag.vue';
+import { useT } from '@/composables/useT';
+import { timelineTint } from '@/lib/timeline';
 
 export type TimelineItem = {
     key: string;
@@ -22,16 +24,16 @@ export type TimelineItem = {
     url: string | null;
 };
 
-export type TimelineMonth = { month: string; items: TimelineItem[] };
+export type TimelineMonth = {
+    month: string;
+    items: TimelineItem[];
+    // Of the predictions: the costs to expect that month.
+    expected?: string | null;
+};
 
 defineProps<{ months: TimelineMonth[] }>();
 
-// One tint per navigation group, so the kind of event reads at a glance.
-const tints: Record<string, string> = {
-    maintenance: 'bg-warning-muted text-warning',
-    road: 'bg-info-muted text-info',
-    fixed: 'bg-success-muted text-success',
-};
+const { t } = useT();
 
 const meta = (item: TimelineItem) =>
     [item.date, item.location, item.mileage].filter(Boolean).join(' · ');
@@ -39,7 +41,22 @@ const meta = (item: TimelineItem) =>
 
 <template>
     <section v-for="group in months" :key="group.month" class="flex flex-col">
-        <h2 class="pb-3 text-lg font-bold">{{ group.month }}</h2>
+        <h2
+            class="flex flex-wrap items-baseline justify-between gap-x-3 pb-3 text-lg font-bold"
+        >
+            {{ group.month }}
+            <span
+                v-if="group.expected"
+                class="text-sm font-medium text-muted-foreground tabular-nums"
+                :title="
+                    t(
+                        'The fixed costs of this month, and of the other costs the average of the past year.',
+                    )
+                "
+            >
+                {{ t('Expected :amount', { amount: group.expected }) }}
+            </span>
+        </h2>
         <div v-for="item in group.items" :key="item.key" class="flex gap-3">
             <div
                 class="flex w-10 shrink-0 flex-col items-center"
@@ -48,7 +65,7 @@ const meta = (item: TimelineItem) =>
                 <span
                     :class="[
                         'flex size-10 shrink-0 items-center justify-center rounded-full',
-                        tints[item.group] ?? tints.road,
+                        timelineTint(item.group),
                     ]"
                 >
                     <AppIcon :name="item.icon" class="size-5" />

@@ -4,6 +4,7 @@ import { ChevronRight, RefreshCw } from '@lucide/vue';
 import { nextTick, ref } from 'vue';
 import SectionCard from '@/components/SectionCard.vue';
 import { Button } from '@/components/ui/button';
+import type { TipRecord } from '@/components/TipDoneDialog.vue';
 import VehicleTip from '@/components/VehicleTip.vue';
 import type {
     VehicleTipData,
@@ -20,6 +21,9 @@ export type VehicleAdviceData = {
         generatedAt: string;
     } | null;
     canGenerate: boolean;
+    // The defaults of what was done when a tip is done.
+    today: string;
+    mileage: number | null;
     generateUrl: string;
     statusUrl: string;
     overviewUrl: string;
@@ -62,10 +66,14 @@ function generate() {
     );
 }
 
-function setStatus(key: string, status: VehicleTipStatus) {
+function setStatus(
+    key: string,
+    status: VehicleTipStatus,
+    record?: TipRecord | null,
+) {
     router.post(
         props.data.statusUrl,
-        { key, status },
+        { key, status, record: record ?? null },
         {
             preserveScroll: true,
             only: props.reload,
@@ -147,7 +155,12 @@ defineExpose({
                         state="current"
                         :busy="handling === suggestion.key"
                         :highlighted="highlighted === suggestion.key"
-                        @status="(status) => setStatus(suggestion.key, status)"
+                        :today="data.today"
+                        :mileage="data.mileage"
+                        @status="
+                            (status, record) =>
+                                setStatus(suggestion.key, status, record)
+                        "
                     />
                 </ul>
                 <p v-else class="p-4 text-sm text-muted-foreground">

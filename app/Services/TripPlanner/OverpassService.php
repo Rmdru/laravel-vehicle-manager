@@ -162,7 +162,8 @@ class OverpassService
             .'nwr["amenity"="fuel"];'
             .'node["barrier"="toll_booth"];'
             .'node["highway"="motorway_junction"];'
-            .'nwr["amenity"="charging_station"]["socket:type2_combo"];'
+            // All of them: the fast ones to stop at on the way, all for the station map.
+            .'nwr["amenity"="charging_station"];'
             .'nwr["tourism"="hotel"];'
             .'nwr["tourism"="motel"];');
     }

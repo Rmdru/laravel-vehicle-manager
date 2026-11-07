@@ -159,8 +159,22 @@ function euros(value: number): string {
                     {{ price.fuel_type }}
                 </span>
             </span>
-            <span class="text-base font-semibold tabular-nums">
-                {{ euros(price.price) }}
+            <span class="flex flex-col items-end">
+                <span class="text-base font-semibold tabular-nums">
+                    {{ euros(price.price) }}
+                </span>
+                <!-- Where served costs more than self service, as in Italy. -->
+                <span
+                    v-if="price.served_price"
+                    class="text-xs text-muted-foreground tabular-nums"
+                >
+                    {{ t('Self service') }} ·
+                    {{
+                        t('Served: :price', {
+                            price: euros(price.served_price),
+                        })
+                    }}
+                </span>
             </span>
         </div>
 

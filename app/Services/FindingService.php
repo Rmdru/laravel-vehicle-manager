@@ -214,6 +214,8 @@ class FindingService
     {
         return $this->open($vehicle)
             ->map(fn (Finding $finding) => array_filter([
+                // For a tip to say which finding it is about.
+                'id' => $finding->id,
                 'title' => $finding->title,
                 'source' => $finding->source->value,
                 'severity' => $finding->severity->value,

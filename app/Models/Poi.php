@@ -33,6 +33,9 @@ class Poi extends Model
     /** A fast charger for electric cars. */
     public const CHARGER = 'charging_station';
 
+    /** A charging station without a fast charger: on the station map, not to stop at on the way. */
+    public const SLOW_CHARGER = 'slow_charger';
+
     /** Another facility at a service area, such as a shop or a car wash: not shown on its own. */
     public const FACILITY = 'facility';
 
@@ -80,6 +83,8 @@ class Poi extends Model
             ($tags['barrier'] ?? null) === 'toll_booth' => self::TOLL_BOOTH,
             in_array($tags['tourism'] ?? null, ['hotel', 'motel'], true) => self::HOTEL,
             ($tags['amenity'] ?? null) === 'charging_station' && (isset($tags['socket:type2_combo']) || isset($tags['socket:chademo'])) => self::CHARGER,
+            // Without a fast charger: for the station map only.
+            ($tags['amenity'] ?? null) === 'charging_station' => self::SLOW_CHARGER,
             ($tags['highway'] ?? null) === 'motorway_junction' => self::JUNCTION,
             in_array($tags['amenity'] ?? null, ['charging_station', 'car_wash', 'atm', 'shower', 'drinking_water', 'compressed_air'], true),
             isset($tags['shop']) && $tags['shop'] !== 'no',
@@ -220,6 +225,48 @@ class Poi extends Model
             // Such as "150 kW" or "150".
             if (isset($tags[$key]) && preg_match('/([\d.]+)/', (string) $tags[$key], $match)) {
                 $power = max($power ?? 0, (float) $match[1]);
+            }
+        }
+
+        return $power;
+    }
+
+    /** The connectors of a charging station, by the tags they are tagged with. */
+    public const CONNECTORS = [
+        'ccs' => ['socket:type2_combo'],
+        'chademo' => ['socket:chademo'],
+        'type2' => ['socket:type2', 'socket:type2_cable'],
+    ];
+
+    /**
+     * The connectors a charging station has, as far as it is tagged: a
+     * number of them, or yes.
+     *
+     * @return list<string>
+     */
+    public function connectors(): array
+    {
+        $tags = $this->tags ?? [];
+
+        return array_keys(array_filter(
+            self::CONNECTORS,
+            fn (array $keys) => array_filter($keys, fn (string $key) => isset($tags[$key]) && ! in_array($tags[$key], ['no', '0'], true)) !== [],
+        ));
+    }
+
+    /**
+     * The highest power of any connector of a charging station in kW, as far
+     * as it is tagged: also of a slow one.
+     */
+    public function maxPower(): ?float
+    {
+        $power = null;
+
+        foreach ($this->tags ?? [] as $key => $value) {
+            if ((str_ends_with((string) $key, ':output') || $key === 'charging_station:output') && preg_match('/([\d.]+)\s*(kw|w)?/i', (string) $value, $match)) {
+                // Now and then in watts.
+                $kw = strtolower($match[2] ?? '') === 'w' ? (float) $match[1] / 1000 : (float) $match[1];
+                $power = max($power ?? 0, $kw);
             }
         }
 

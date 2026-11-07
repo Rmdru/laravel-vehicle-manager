@@ -32,7 +32,62 @@ class PoiRepository
 
         $this->fetchGroups($this->groups(array_values(array_diff($tiles, $this->fresh($tiles, (int) config('trip_planner.tile_ttl_days'))))), $progress, $deadline);
 
-        return Poi::whereIn('tile', $tiles)->get();
+        // Not the slow chargers: those are for the station map, not to stop at
+        // on the way. Only the ones at a service area, as one of its facilities.
+        $pois = Poi::whereIn('tile', $tiles)->where('kind', '!=', Poi::SLOW_CHARGER)->get();
+
+        return $pois->concat($this->slowChargersAt($pois->where('kind', Poi::SERVICE_AREA), $tiles))->values();
+    }
+
+    /**
+     * The slow chargers near service areas: their coordinates first, as a
+     * tile in a city can have thousands of them.
+     *
+     * @param  Collection<int, Poi>  $areas
+     * @param  list<string>  $tiles
+     * @return Collection<int, Poi>
+     */
+    private function slowChargersAt(Collection $areas, array $tiles): Collection
+    {
+        if ($areas->isEmpty()) {
+            return new Collection;
+        }
+
+        $radius = (float) config('trip_planner.service_area_radius') / 111320;
+        $byCell = $areas->groupBy(fn (Poi $area) => round($area->latitude, 1).':'.round($area->longitude, 1));
+        $near = Poi::query()
+            ->whereIn('tile', $tiles)
+            ->where('kind', Poi::SLOW_CHARGER)
+            ->toBase()
+            ->get(['id', 'latitude', 'longitude'])
+            ->filter(function ($charger) use ($byCell, $radius) {
+                foreach ([-0.1, 0, 0.1] as $dLat) {
+                    foreach ([-0.1, 0, 0.1] as $dLon) {
+                        foreach ($byCell->get(round($charger->latitude + $dLat, 1).':'.round($charger->longitude + $dLon, 1), []) as $area) {
+                            if (abs($area->latitude - $charger->latitude) <= $radius && abs($area->longitude - $charger->longitude) <= $radius * 2) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+
+                return false;
+            })
+            ->pluck('id');
+
+        return $near->isEmpty() ? new Collection : Poi::whereIn('id', $near->all())->get();
+    }
+
+    /**
+     * The tiles of a list that are not there yet, out of date, or of an older
+     * version.
+     *
+     * @param  list<string>  $tiles
+     * @return list<string>
+     */
+    public function missing(array $tiles): array
+    {
+        return array_values(array_diff($tiles, $this->fresh($tiles, (int) config('trip_planner.tile_ttl_days'))));
     }
 
     /**
@@ -74,6 +129,8 @@ class PoiRepository
             ->chunk(1000)
             ->flatMap(fn ($chunk) => PoiTile::whereIn('tile', $chunk->all())
                 ->where('fetched_at', '>', now()->subDays($days))
+                // Fetched with what is fetched now.
+                ->where('version', '>=', (int) config('trip_planner.tile_version'))
                 ->pluck('tile'))
             ->all();
     }
@@ -156,9 +213,9 @@ class PoiRepository
             }
 
             PoiTile::upsert(
-                array_map(fn (string $tile) => ['tile' => $tile, 'fetched_at' => $now], $tiles),
+                array_map(fn (string $tile) => ['tile' => $tile, 'fetched_at' => $now, 'version' => (int) config('trip_planner.tile_version')], $tiles),
                 ['tile'],
-                ['fetched_at'],
+                ['fetched_at', 'version'],
             );
         });
     }

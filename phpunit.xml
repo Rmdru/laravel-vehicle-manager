@@ -32,5 +32,7 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!-- Whatever .env says: the tests turn the ANWB prices on themselves. -->
+        <env name="TRIP_PLANNER_ANWB_PRICES" value="false"/>
     </php>
 </phpunit>

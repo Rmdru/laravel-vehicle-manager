@@ -22,6 +22,7 @@ use App\Http\Controllers\PushMessageController;
 use App\Http\Controllers\ReconditioningController;
 use App\Http\Controllers\RefuelingController;
 use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\StationMapController;
 use App\Http\Controllers\TaxController;
 use App\Http\Controllers\TimelineController;
 use App\Http\Controllers\TollController;
@@ -71,6 +72,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('trips/{trip}/tips', [TripController::class, 'tips'])->name('trips.tips');
         Route::post('trips/{trip}/refresh', [TripController::class, 'refresh'])->name('trips.refresh');
         Route::resource('trips', TripController::class)->except('edit');
+        // The map of gas stations and charging stations, beside the trip planner.
+        Route::get('stations', [StationMapController::class, 'index'])->name('stations');
+        Route::get('stations/data', [StationMapController::class, 'data'])->name('stations.data');
+        Route::get('stations/prices', [StationMapController::class, 'prices'])->name('stations.prices');
 
         Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
         Route::post('notifications/seen', [NotificationController::class, 'seen'])->name('notifications.seen');

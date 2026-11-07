@@ -53,7 +53,8 @@ class Navigation
                 $item(__('Services'), 'services.index', 'mdi:tow-truck'),
                 $item(__('Transport trains & ferry services'), 'ferries.index', 'mdi:train-car-flatbed-car'),
             ]],
-            ['label' => __('Trip planner'), 'items' => [
+            ['label' => __('Travel'), 'items' => [
+                $item(__('Fuel stations'), 'stations', 'mdi:gas-station-outline', quickAdd: false),
                 $item(__('Plan a trip'), 'trips.create', 'mdi:map-marker-path'),
                 // Added with "Plan a trip".
                 $item(__('My trips'), 'trips.index', 'mdi:map-search-outline', quickAdd: false),
@@ -84,7 +85,8 @@ class Navigation
             'Mileage', 'Most expensive', 'Month', 'Month ago', 'Monthly costs', 'More information', 'Most recent costs',
             'My garage', 'Needs attention', 'No costs this month', 'No details available', 'No fuel price data available.',
             'No refuelings found', 'No statuses available to show.', 'Nothing to show', 'Notifications',
-            'Number of refuelings', 'Period', 'Predictions', 'Price', 'Purchased with:', 'Refresh fuel prices', 'Reset',
+            'Number of refuelings', 'Period', 'Predictions', 'Expected :amount',
+            'The fixed costs of this month, and of the other costs the average of the past year.', 'Price', 'Purchased with:', 'Refresh fuel prices', 'Reset',
             'Save', 'Select', 'Settings', 'Show', 'Statistics', 'Status', 'Timeline', 'Top gas stations', 'Total refueled', 'Type',
             'Vehicles', 'Visit count', 'Year', 'Year ago', 'years old', 'Are you sure you want to delete this?',
             'Break-even fuel: :km km', 'Break-even full: :km km', 'Current vehicle', 'Costs',
@@ -172,8 +174,14 @@ class Navigation
             'No tips right now: nothing stands out for this vehicle.', 'Indicative: check a tip before acting on it.',
             // The categories of the tips.
             'Maintenance', 'Season', 'Known issue', 'Costs and savings', 'Resale value', 'Rules and obligations', 'Use',
+            // The station map.
+            'No prices of these gas stations are known: in some countries, such as the Netherlands and Belgium, no free source of prices per gas station exists.',
+            'Primary fuel', 'Its price is beside every gas station, and gives it its color: compared with the other gas stations in view.',
+            'Cheap', 'In between', 'Expensive', 'No price', 'Fuel stations', 'Fast chargers', 'Slow chargers', 'Fuel types', 'Gas stations that do not tell what they sell are shown too.', 'Connectors', 'Only gas stations with a price', 'The stations could not be loaded.', 'Loading the stations of this area for the first time…', 'Zoom in to see the stations one by one.', 'Not all stations are shown: zoom in further.', '1 station', ':count stations', 'Self service', 'Served: :price', 'Served', 'Loading the prices…', 'No price of this gas station is known: the average of the country.', 'You paid here on :date', 'Navigate',
             // The overview of the tips, and what can be done with a tip.
             'All tips', 'Current tips', 'Kept', 'Keep', 'Remove', 'Kept on :date', 'Done on :date',
+            'What did you do?', 'Checked, in order', 'Replaced or refreshed', 'The interval does not start again.',
+            'The interval starts again from this date.', 'Which?', 'Skip',
             'Keep a tip to look it up here later, without it showing on the dashboard.',
             'The tips you marked as done are listed here.',
             // The trip planner.

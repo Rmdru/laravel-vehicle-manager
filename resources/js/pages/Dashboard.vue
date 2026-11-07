@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { Deferred, Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowDown, ArrowUp, Check, Plus, RefreshCw, X } from '@lucide/vue';
+import {
+    ArrowDown,
+    ArrowUp,
+    Check,
+    ChevronRight,
+    Plus,
+    RefreshCw,
+    X,
+} from '@lucide/vue';
 import { computed, ref, useTemplateRef } from 'vue';
 import AppIcon from '@/components/AppIcon.vue';
 import BrandLogo from '@/components/BrandLogo.vue';
@@ -44,6 +52,7 @@ import type { WashingCostsData } from '@/components/WashingCosts.vue';
 import { useT } from '@/composables/useT';
 import { periodLabel as formatPeriod } from '@/lib/period';
 import type { DateRange } from '@/lib/period';
+import { timelineTint } from '@/lib/timeline';
 
 type Notification = {
     key: string;
@@ -183,6 +192,8 @@ const props = defineProps<{
         price: string;
         date: string;
         icon: string;
+        // The navigation group it belongs to: colored as on the timeline.
+        group: string;
         url: string;
     }[];
 }>();
@@ -771,23 +782,40 @@ const label = (key: string) => {
                                 <Skeleton class="h-24 w-full" />
                             </div>
                         </template>
-                        <ul
+                        <!-- As on the timeline: a line along the events, colored by their group. -->
+                        <ol
                             v-if="latestCosts?.length"
-                            class="max-h-112 divide-y overflow-y-auto"
+                            class="max-h-112 overflow-y-auto px-4 pt-4 pb-1"
                         >
-                            <li v-for="cost in latestCosts" :key="cost.key">
-                                <Link
-                                    :href="cost.url"
-                                    class="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-muted/60"
+                            <li
+                                v-for="(cost, index) in latestCosts"
+                                :key="cost.key"
+                                class="flex gap-3"
+                            >
+                                <div
+                                    class="flex w-9 shrink-0 flex-col items-center"
+                                    aria-hidden="true"
                                 >
                                     <span
-                                        class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted"
+                                        :class="[
+                                            'flex size-9 shrink-0 items-center justify-center rounded-full',
+                                            timelineTint(cost.group),
+                                        ]"
                                     >
                                         <AppIcon
                                             :name="cost.icon"
                                             class="size-5"
                                         />
                                     </span>
+                                    <span
+                                        v-if="index < latestCosts.length - 1"
+                                        class="w-0.5 flex-1 bg-input"
+                                    />
+                                </div>
+                                <Link
+                                    :href="cost.url"
+                                    class="mb-3 flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-xl border bg-card px-3 py-2 hover:border-ring/50"
+                                >
                                     <span class="flex min-w-0 flex-1 flex-col">
                                         <span class="truncate font-semibold">
                                             {{ cost.item || cost.type }}
@@ -795,7 +823,7 @@ const label = (key: string) => {
                                         <span
                                             class="text-xs text-muted-foreground max-sm:text-sm"
                                         >
-                                            {{ cost.type }} · {{ cost.date }}
+                                            {{ cost.date }} · {{ cost.type }}
                                         </span>
                                     </span>
                                     <span
@@ -803,9 +831,12 @@ const label = (key: string) => {
                                     >
                                         {{ cost.price }}
                                     </span>
+                                    <ChevronRight
+                                        class="size-4 shrink-0 text-muted-foreground"
+                                    />
                                 </Link>
                             </li>
-                        </ul>
+                        </ol>
                         <p v-else class="p-4 text-sm text-muted-foreground">
                             {{
                                 filters.start && filters.end

@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Http;
 /**
  * Spain: the ministry publishes the prices of all gas stations in one file.
  */
-class Minetur implements StationPrices
+class Minetur implements BulkStationPrices, StationPrices
 {
     private const FUELS = [
         'e10' => 'Precio Gasolina 95 E10',
@@ -57,6 +57,58 @@ class Minetur implements StationPrices
     }
 
     /**
+     * All gas stations open to the public, with all their prices.
+     */
+    public function all(): iterable
+    {
+        $number = fn (mixed $value) => is_string($value) && $value !== '' ? (float) str_replace(',', '.', $value) : null;
+
+        foreach ($this->file() as $station) {
+            $lat = $number($station['Latitud'] ?? null);
+            $lon = $number($station['Longitud (WGS84)'] ?? null);
+
+            // R: only for its own customers, such as a cooperative.
+            if (! $lat || ! $lon || ($station['Tipo Venta'] ?? 'P') === 'R') {
+                continue;
+            }
+
+            $prices = [];
+
+            foreach (self::FUELS as $fuel => $column) {
+                $price = $number($station[$column] ?? null);
+
+                if ($price) {
+                    $prices[] = ['fuel' => $fuel, 'fuel_type' => self::FUEL_TYPES[$fuel], 'price' => $price, 'service' => null, 'updated_at' => null];
+                }
+            }
+
+            if ($prices) {
+                yield [
+                    'id' => (string) ($station['IDEESS'] ?? "{$lat},{$lon}"),
+                    'name' => trim(($station['Rótulo'] ?? '').' '.($station['Localidad'] ?? '')) ?: null,
+                    'latitude' => $lat,
+                    'longitude' => $lon,
+                    'prices' => $prices,
+                ];
+            }
+        }
+    }
+
+    /**
+     * The whole file of the ministry, read once every few hours.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function file(): array
+    {
+        return Cache::remember('trip-planner:prices:es:file', now()->addHours(4), fn () => Http::timeout(60)
+            ->accept('application/json')
+            ->get(config('trip_planner.prices.spain_url'))
+            ->throw()
+            ->json('ListaEESSPrecio') ?? []);
+    }
+
+    /**
      * All gas stations with a price of a fuel, read once every few hours.
      *
      * @return list<array{latitude: float, longitude: float, price: float, updated_at: ?string}>
@@ -67,12 +119,7 @@ class Minetur implements StationPrices
             $number = fn (mixed $value) => is_string($value) && $value !== '' ? (float) str_replace(',', '.', $value) : null;
             $stations = [];
 
-            $response = Http::timeout(60)
-                ->accept('application/json')
-                ->get(config('trip_planner.prices.spain_url'))
-                ->throw();
-
-            foreach ($response->json('ListaEESSPrecio') ?? [] as $station) {
+            foreach ($this->file() as $station) {
                 $price = $number($station[$column] ?? null);
                 $lat = $number($station['Latitud'] ?? null);
                 $lon = $number($station['Longitud (WGS84)'] ?? null);

@@ -11,6 +11,7 @@ use App\Services\TripPlanner\Prices\EControl;
 use App\Services\TripPlanner\Prices\Minetur;
 use App\Services\TripPlanner\Prices\PrixCarburants;
 use App\Services\TripPlanner\Prices\StationPrices;
+use App\Services\TripPlanner\Prices\StoredPrices;
 use App\Services\TripPlanner\Prices\Tankerkoenig;
 use App\Services\TripPlanner\Prices\UkRetailers;
 use Illuminate\Support\Facades\Cache;
@@ -39,7 +40,7 @@ class FuelPrices
     /** @var array<string, StationPrices> The sources that are tried when the first one has no price. */
     private array $fallbacks = [];
 
-    /** @var array<int, array{price: float, source: string, updated_at: ?string, fuel_type: ?string}|null> The prices found, by place. */
+    /** @var array<int, array{price: float, source: string, updated_at: ?string, fuel_type: ?string, served_price?: float|null}|null> The prices found, by place. */
     private array $known = [];
 
     /** Whether the prices of the stations are read anew, rather than taken from what was kept. */
@@ -52,6 +53,11 @@ class FuelPrices
     {
         foreach ([new Tankerkoenig, new PrixCarburants, new EControl, new Minetur, new UkRetailers] as $source) {
             $this->sources[$source->country()] = $source;
+        }
+
+        // Italy as it was imported: its source can only be read in full, with self service and served apart.
+        if (config('trip_planner.prices.italy.enabled')) {
+            $this->sources['IT'] = new StoredPrices('IT');
         }
 
         // The prices the ANWB shows, where it is allowed to use them.
@@ -83,7 +89,7 @@ class FuelPrices
      * The price of the fuel of a vehicle at a place a stop can be made at.
      *
      * @param  array<string, mixed>  $candidate
-     * @return array{price: float, source: string, updated_at: ?string, fuel_type: ?string}|null
+     * @return array{price: float, source: string, updated_at: ?string, fuel_type: ?string, served_price?: float|null}|null
      */
     public function of(array $candidate, VehicleRange $range): ?array
     {
@@ -110,6 +116,8 @@ class FuelPrices
                 'source' => 'station',
                 'updated_at' => $station['updated_at'],
                 'fuel_type' => $station['fuel_type'] ?? $range->fuelType,
+                // Where self service and served cost differently, as in Italy: the price is self service.
+                ...(isset($station['served_price']) ? ['served_price' => $station['served_price']] : []),
             ];
         }
 
@@ -130,7 +138,7 @@ class FuelPrices
      * The prices that were found, of a list of places.
      *
      * @param  list<int>  $ids
-     * @return array<int, array{price: float, source: string, updated_at: ?string, fuel_type: ?string}>
+     * @return array<int, array{price: float, source: string, updated_at: ?string, fuel_type: ?string, served_price?: float|null}>
      */
     public function known(array $ids): array
     {
@@ -138,7 +146,28 @@ class FuelPrices
     }
 
     /**
-     * @return array{price: float, updated_at: ?string, fuel_type?: string}|null
+     * The price of a fuel at the gas station at a place, from the source of
+     * its country: for the station map. Null when the source has none.
+     *
+     * @param  string  $country  The ISO 2 code.
+     * @param  string  $fuel  One of e10, e5, super_plus, diesel or lpg.
+     * @return array{price: float, updated_at: ?string, fuel_type?: string, served_price?: float|null}|null
+     */
+    public function atStation(string $country, float $latitude, float $longitude, string $fuel): ?array
+    {
+        return $this->station($country, $latitude, $longitude, $fuel);
+    }
+
+    /**
+     * Whether a country has a source of prices per gas station.
+     */
+    public function hasSource(string $country): bool
+    {
+        return isset($this->sources[$country]) || isset($this->fallbacks[$country]);
+    }
+
+    /**
+     * @return array{price: float, updated_at: ?string, fuel_type?: string, served_price?: float|null}|null
      */
     private function station(string $country, float $latitude, float $longitude, string $fuel): ?array
     {
@@ -226,7 +255,7 @@ class FuelPrices
      * The average price of a fuel in a country: from the prices the app reads
      * every day, or else from the averages of the ANWB.
      */
-    private function average(string $country, string $fuelType, string $fuel): ?float
+    public function average(string $country, string $fuelType, string $fuel): ?float
     {
         return Cache::remember("trip-planner:average:{$country}:{$fuel}", now()->addHours(6), function () use ($country, $fuelType, $fuel) {
             $key = collect(config('countries'))->search(fn (array $config) => $config['iso_code'] === $country);
