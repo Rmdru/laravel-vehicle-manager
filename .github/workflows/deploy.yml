@@ -1,7 +1,5 @@
 name: Vehicle manager
 
-# Started by hand from the Actions tab. A workflow with only this trigger is
-# registered by GitHub once a push to the default branch changes this file.
 on:
   workflow_dispatch:
 
