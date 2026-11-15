@@ -58,7 +58,9 @@ class DashboardService
     public function notifications(Vehicle $vehicle): array
     {
         $notifications = collect($this->statusService->getNotifications($vehicle));
-        $fuelAdvice = $this->fuelAdvice->notification($vehicle);
+        // A nearly empty tank follows the fuel advice of today and takes the place of its notification: one about refueling, not two.
+        $lowTank = $this->lowTank->notifications($vehicle, $this->fuelAdvice->current($vehicle));
+        $fuelAdvice = $lowTank === [] ? $this->fuelAdvice->notification($vehicle) : null;
 
         // The fuel advice goes on top, and the components of the maintenance
         // plan, what the consumption and the top-ups tell, what a vehicle
@@ -73,7 +75,7 @@ class DashboardService
             ...$this->topUps->notifications($vehicle),
             ...$this->standstill->notifications($vehicle),
             ...$this->tollSections->notifications($vehicle),
-            ...$this->lowTank->notifications($vehicle),
+            ...$lowTank,
             ...$this->vehicleAdvice->notifications($vehicle),
         ]));
 

@@ -171,6 +171,79 @@ class NearbyStationsTest extends TestCase
         $this->assertStringContainsString('1,789', $stored->text);
     }
 
+    private function advice(Vehicle $vehicle, string $action, ?string $country = null, ?string $date = null): void
+    {
+        $vehicle->fuelAdvices()->create([
+            'locale' => 'en',
+            'action' => $action,
+            'country' => $country,
+            'recommended_date' => $date,
+            'confidence' => 'high',
+            'summary' => 'Refuel today in Belgium for a much lower price than in France.',
+            'body' => '',
+            'reasons' => [],
+            'sources' => [],
+            'facts' => ['countries' => [
+                ['country' => 'france', 'latest_price' => 1.869],
+                ['country' => 'belgium', 'latest_price' => 1.709, 'distance_from_driver_km' => 20, 'cheapest_gas_stations' => [['name' => 'Q8 Quiévrain', 'price' => 1.689, 'distance_km' => 3.4]]],
+            ]],
+            'model' => 'test',
+        ]);
+    }
+
+    public function test_a_nearly_empty_tank_follows_the_advice_to_refuel_abroad_in_one_notification()
+    {
+        // About 14% left: about 75 km, enough for the 23 km to the gas station in Belgium.
+        $this->travelTo('2026-10-23 12:00:00');
+        $vehicle = $this->parisian();
+        $this->stations();
+        $this->advice($vehicle, 'refuel_abroad', 'belgium', '2026-10-23');
+
+        $refueling = collect(app(DashboardService::class)->notifications($vehicle))
+            ->filter(fn (array $notification) => in_array($notification['key'], ['fuel_advice', 'low_tank:'.$vehicle->refuelings()->newest()->value('id')], true))
+            ->values();
+
+        $this->assertCount(1, $refueling);
+        $this->assertStringContainsString('Refuel in Belgium: Q8 Quiévrain € 1,689 (3 km past the border).', $refueling[0]['text']);
+        $this->assertStringContainsString('Not going that way? Near you: Esso Bastille € 1,799', $refueling[0]['text']);
+        $this->assertTrue($refueling[0]['opensFuelAdvice']);
+    }
+
+    public function test_a_low_tank_waits_for_the_day_the_advice_names_when_it_lasts_till_then()
+    {
+        // About 21% left: about 133 km, at 60 km a day.
+        config(['fuel_advice.low_tank_percentage' => 25]);
+        $this->travelTo('2026-10-22 12:00:00');
+        $vehicle = $this->parisian();
+        $this->stations();
+        $lowTank = app(LowTank::class);
+
+        // Two days: it lasts, so nothing to do yet.
+        $this->advice($vehicle, 'wait', 'france', '2026-10-24');
+        $this->assertSame([], $lowTank->notifications($vehicle, $vehicle->fuelAdvices()->latest('id')->first()));
+
+        // Four days: it does not, so refuel near home.
+        $this->advice($vehicle, 'wait', 'france', '2026-10-26');
+        $this->assertStringContainsString('Cheapest near you: Esso Bastille', $lowTank->notifications($vehicle, $vehicle->fuelAdvices()->latest('id')->first())[0]['text']);
+
+        // Tomorrow: it lasts, and says so.
+        $this->advice($vehicle, 'wait', 'france', '2026-10-23');
+        $this->assertStringContainsString('refuel tomorrow if you can', $lowTank->notifications($vehicle, $vehicle->fuelAdvices()->latest('id')->first())[0]['text']);
+    }
+
+    public function test_a_tank_that_does_not_reach_the_border_is_told_the_nearest()
+    {
+        // About 6% left: not enough for the 23 km to the gas station in Belgium.
+        $vehicle = $this->parisian();
+        $this->stations();
+        $this->advice($vehicle, 'refuel_abroad', 'belgium', '2026-10-24');
+
+        $text = app(LowTank::class)->notifications($vehicle, $vehicle->fuelAdvices()->first())[0]['text'];
+
+        $this->assertStringNotContainsString('Belgium', $text);
+        $this->assertStringContainsString('Cheapest near you: Esso Bastille € 1,799', $text);
+    }
+
     public function test_the_name_of_a_chosen_gas_station_says_its_brand_and_place_once()
     {
         $this->assertSame('TotalEnergies Express Hellevoetsluis', RefuelingController::stationLabel('TotalEnergies', 'TotalEnergies Express Hellevoetsluis', 'Hellevoetsluis'));

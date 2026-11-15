@@ -693,72 +693,63 @@ class Vehicle extends Model
         ];
     }
 
-    public function getCarwashStatusAttribute(): array
+    /**
+     * Which wash is due soon, at most one: after frost (road salt) the
+     * carwash; else by hand, with the exterior protection when that runs out
+     * within a month. Protection is not applied in the cold: wax and sealants
+     * do not cure below a few degrees, so after frost the carwash alone.
+     * Null when no wash is due soon, or when the weather is unknown.
+     *
+     * @return array{type: 'carwash'|'self_washing'|'self_washing_protection', status: array{time: int|float, timeDiffHumans: string}}|null
+     */
+    private function dueWash(): ?array
     {
         if ($this->reconditionings->isEmpty()) {
-            return [];
+            return null;
         }
 
         $washingStatus = $this->washing_status;
 
         if (empty($washingStatus) || $washingStatus['time'] >= 10) {
-            return [];
+            return null;
         }
 
         $historicalMinTemps = $this->getHistoricalMinTemps();
 
-        if (! $this->hasHistoricalMinTemps($historicalMinTemps) || min($historicalMinTemps['daily']['temperature_2m_min']) >= 4) {
-            return [];
+        if (! $this->hasHistoricalMinTemps($historicalMinTemps)) {
+            return null;
         }
 
-        return $washingStatus;
+        if (min($historicalMinTemps['daily']['temperature_2m_min']) < 4) {
+            return ['type' => 'carwash', 'status' => $washingStatus];
+        }
+
+        $exteriorProtectionStatus = $this->getExteriorProtectionStatus();
+        $protectionDue = $exteriorProtectionStatus !== null
+            && now()->diffInDays(Carbon::parse($exteriorProtectionStatus->date)->addMonths(3)) <= 31;
+
+        return ['type' => $protectionDue ? 'self_washing_protection' : 'self_washing', 'status' => $washingStatus];
+    }
+
+    public function getCarwashStatusAttribute(): array
+    {
+        $wash = $this->dueWash();
+
+        return $wash !== null && $wash['type'] === 'carwash' ? $wash['status'] : [];
     }
 
     public function getSelfWashingStatusAttribute(): array
     {
-        if ($this->reconditionings->isEmpty()) {
-            return [];
-        }
+        $wash = $this->dueWash();
 
-        $washingStatus = $this->washing_status;
-        $exteriorProtectionStatus = $this->getExteriorProtectionStatus();
-
-        if (empty($washingStatus) || $washingStatus['time'] >= 10) {
-            return [];
-        }
-
-        $historicalMinTemps = $this->getHistoricalMinTemps();
-        $exteriorProtectionDate = Carbon::parse($exteriorProtectionStatus->date ?? now())->addMonths(3);
-        $exteriorProtectionDiff = now()->diffInDays($exteriorProtectionDate);
-
-        if (! $this->hasHistoricalMinTemps($historicalMinTemps) || min($historicalMinTemps['daily']['temperature_2m_min']) < 4 || $exteriorProtectionDiff <= 31) {
-            return [];
-        }
-
-        return $washingStatus;
+        return $wash !== null && $wash['type'] === 'self_washing' ? $wash['status'] : [];
     }
 
     public function getSelfWashingProtectionStatusAttribute(): array
     {
-        if ($this->reconditionings->isEmpty()) {
-            return [];
-        }
+        $wash = $this->dueWash();
 
-        $washingStatus = $this->washing_status;
-        $exteriorProtectionStatus = $this->getExteriorProtectionStatus();
-
-        if (empty($washingStatus) || $washingStatus['time'] >= 10 || empty($exteriorProtectionStatus)) {
-            return [];
-        }
-
-        $exteriorProtectionDate = Carbon::parse($exteriorProtectionStatus->date ?? now())->addMonths(3);
-        $exteriorProtectionDiff = now()->diffInDays($exteriorProtectionDate);
-
-        if ($exteriorProtectionDiff > 31) {
-            return [];
-        }
-
-        return $washingStatus;
+        return $wash !== null && $wash['type'] === 'self_washing_protection' ? $wash['status'] : [];
     }
 
     public function getRecallStatusAttribute(): array

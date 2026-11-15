@@ -1318,7 +1318,6 @@
     "Expensive": "Caro",
     "No price": "Nessun prezzo",
     "No prices of these gas stations are known: in some countries, such as the Netherlands and Belgium, no free source of prices per gas station exists.": "Non sono noti prezzi per questi distributori: in alcuni paesi, come i Paesi Bassi e il Belgio, non esiste una fonte gratuita dei prezzi per distributore.",
-    "Your tank is about :percentage% full. Cheapest near you: :station :price": "Il serbatoio è ancora pieno al :percentage% circa. Il più economico vicino a te: :station :price",
     "(:cents ct below :usual)": "(:cents ct in meno di :usual)",
     "Tank nearly empty, with the cheapest gas station nearby": "Serbatoio quasi vuoto, con il distributore più economico vicino",
     "Tank nearly empty": "Serbatoio quasi vuoto",
@@ -1338,5 +1337,11 @@
     "Your usual gas station :station: :price": "Il tuo distributore abituale :station: :price",
     ":cents ct less than :station": ":cents ct in meno di :station",
     "a detour pays off up to :km km": "una deviazione conviene fino a :km km",
-    "Your tank is nearly empty. Cheapest near you: :station :price": "Il serbatoio è quasi vuoto. Il più economico vicino a te: :station :price"
+    "Your tank is nearly empty.": "Il serbatoio è quasi vuoto.",
+    "Your tank is about :percentage% full.": "Il serbatoio è ancora pieno al :percentage% circa.",
+    "Cheapest near you: :station :price": "Il più economico vicino a te: :station :price",
+    "Not going that way? Near you: :station :price": "Non vai da quella parte? Vicino a te: :station :price",
+    "Prices are expected to go down: refuel tomorrow if you can.": "I prezzi dovrebbero scendere: fai rifornimento domani, se puoi.",
+    "Refuel in :country: on average :price.": "Fai rifornimento in :country: in media :price.",
+    "Refuel in :country: :station :price (:distance km past the border).": "Fai rifornimento in :country: :station :price (:distance km oltre il confine)."
 }
