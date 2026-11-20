@@ -39,6 +39,14 @@ class ScheduledCommandsTest extends TestCase
         $this->assertSame('0 1 * * *', $fuelPrices?->expression);
     }
 
+    public function test_the_scheduled_commands_run_on_one_server_only()
+    {
+        // Production ran them twice, each time in the same second.
+        foreach (app(Schedule::class)->events() as $event) {
+            $this->assertTrue($event->onOneServer, "Not on one server: {$event->command}");
+        }
+    }
+
     public function test_importing_vehicle_data_stores_the_rdw_data_and_status()
     {
         $vehicle = Vehicle::factory()->create([

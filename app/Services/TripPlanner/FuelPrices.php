@@ -49,6 +49,9 @@ class FuelPrices
     /** @var array<string, true> The cells read anew so far. */
     private array $refreshed = [];
 
+    /** @var array<string, true> The areas whose source failed in this run: not asked again. */
+    private array $failed = [];
+
     public function __construct()
     {
         foreach ([new Tankerkoenig, new PrixCarburants, new EControl, new Minetur, new UkRetailers] as $source) {
@@ -198,19 +201,21 @@ class FuelPrices
             $this->refreshed[$key] = true;
         }
 
-        $stations = Cache::remember(
-            $key,
-            now()->addMinutes((int) config('trip_planner.prices.cache_minutes')),
-            function () use ($source, $cellLat, $cellLon, $fuel, $country) {
-                try {
-                    return $source->near($cellLat, $cellLon, $fuel);
-                } catch (Throwable $exception) {
-                    Log::warning('Fuel prices could not be read.', ['country' => $country, 'message' => $exception->getMessage()]);
+        $stations = isset($this->failed[$key]) ? [] : Cache::get($key);
 
-                    return [];
-                }
-            },
-        );
+        if ($stations === null) {
+            try {
+                $stations = $source->near($cellLat, $cellLon, $fuel);
+
+                Cache::put($key, $stations, now()->addMinutes((int) config('trip_planner.prices.cache_minutes')));
+            } catch (Throwable $exception) {
+                // Not cached: a source that falters once must not leave the area without prices until the cache expires.
+                Log::warning('Fuel prices could not be read.', ['country' => $country, 'message' => $exception->getMessage()]);
+
+                $this->failed[$key] = true;
+                $stations = [];
+            }
+        }
 
         $nearest = null;
         $nearestDistance = self::SAME_STATION;

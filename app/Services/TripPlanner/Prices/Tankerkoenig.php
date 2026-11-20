@@ -26,7 +26,8 @@ class Tankerkoenig implements StationPrices
             return [];
         }
 
-        $stations = Http::timeout(10)->get(config('tankerkoenig.list_url'), [
+        // Once more after a while: the API sometimes does not answer at night.
+        $stations = Http::timeout(10)->retry(2, 2000)->get(config('tankerkoenig.list_url'), [
             'lat' => round($latitude, 4),
             'lng' => round($longitude, 4),
             // The largest radius the API allows.

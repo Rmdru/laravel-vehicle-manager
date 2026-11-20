@@ -21,25 +21,25 @@ use App\Models\VehicleNotification;
 use App\Models\VehicleSummary;
 use Illuminate\Support\Facades\Schedule;
 
-Schedule::command(ImportVehicleData::class)->daily();
-Schedule::command(ImportFuelPrices::class)->daily()->at('01:00');
+// On one server: production ran the jobs without it twice, each time in the same second.
+Schedule::command(ImportVehicleData::class)->daily()->withoutOverlapping()->onOneServer();
+Schedule::command(ImportFuelPrices::class)->daily()->at('01:00')->withoutOverlapping()->onOneServer();
 // After the fuel prices, which the advice is based on.
-Schedule::command(GenerateFuelAdvices::class)->daily()->at('02:00')->withoutOverlapping();
+Schedule::command(GenerateFuelAdvices::class)->daily()->at('02:00')->withoutOverlapping()->onOneServer();
 // After the vehicle data of the RDW, which the tips are partly based on.
-// On one server: production ran it twice a night, each time in the same second.
 Schedule::command(GenerateVehicleAdvices::class)->daily()->at('02:30')->withoutOverlapping()->onOneServer();
 // Only for vehicles that changed or whose alternatives are a year old: the costs are calculated every day anyway.
-Schedule::command(GeneratePowertrainComparisons::class)->daily()->at('02:45')->withoutOverlapping();
+Schedule::command(GeneratePowertrainComparisons::class)->daily()->at('02:45')->withoutOverlapping()->onOneServer();
 // The prices of all gas stations of the countries that publish them at once, for the station map and the trip planner.
 Schedule::command(ImportStationPrices::class)->hourlyAt(20)->withoutOverlapping()->onOneServer()->runInBackground();
 // The prices near the homes of the owners, a few times a day: for the history of the prices.
 Schedule::command(RecordStationPrices::class)->cron('10 */'.config('fuel_advice.history_every_hours').' * * *')->withoutOverlapping()->onOneServer()->runInBackground();
 // The places along the roads for the trip planner, a part every night.
-Schedule::command(WarmTripPlannerCache::class)->daily()->at('03:00')->withoutOverlapping()->runInBackground();
+Schedule::command(WarmTripPlannerCache::class)->daily()->at('03:00')->withoutOverlapping()->onOneServer()->runInBackground();
 // After the advices and the tips, which can be notifications themselves.
-Schedule::command(SyncNotifications::class)->daily()->at('03:30');
+Schedule::command(SyncNotifications::class)->daily()->at('03:30')->withoutOverlapping()->onOneServer();
 // The summary of the month that ended is there to look back on.
-Schedule::command(QueueMonthlySummaryPushes::class)->monthlyOn(1, '04:00');
+Schedule::command(QueueMonthlySummaryPushes::class)->monthlyOn(1, '04:00')->onOneServer();
 // Each push notification at its own moment: something critical at once, the rest at the moment of the owner.
-Schedule::command(SendPushNotifications::class)->everyFiveMinutes()->withoutOverlapping();
-Schedule::command('model:prune', ['--model' => [FuelAdvice::class, VehicleAdvice::class, VehicleSummary::class, VehicleNotification::class, PushMessage::class, StationPriceHistory::class]])->daily();
+Schedule::command(SendPushNotifications::class)->everyFiveMinutes()->withoutOverlapping()->onOneServer();
+Schedule::command('model:prune', ['--model' => [FuelAdvice::class, VehicleAdvice::class, VehicleSummary::class, VehicleNotification::class, PushMessage::class, StationPriceHistory::class]])->daily()->onOneServer();

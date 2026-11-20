@@ -17,6 +17,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Sleep;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -221,6 +222,27 @@ class StationMapTest extends TestCase
 
         // Zoomed out not asked: too many areas at once.
         $this->assertSame([], $this->getJson(route('stations.prices', [...$bounds, 'zoom' => 10]))->json('prices'));
+    }
+
+    public function test_a_source_that_falters_is_asked_once_more_and_its_failure_is_not_kept()
+    {
+        Sleep::fake();
+        config(['tankerkoenig.api_key' => 'key']);
+        Http::fake(['creativecommons.tankerkoenig.de/*' => Http::sequence()
+            ->pushStatus(504)
+            ->pushStatus(504)
+            ->push(['stations' => [['lat' => 52.5101, 'lng' => 13.4001, 'e5' => 1.859, 'e10' => 1.799, 'diesel' => 1.699]]]),
+        ]);
+
+        // Twice in vain, and in the same run the area is not asked again.
+        $prices = new FuelPrices;
+        $prices->atStation('DE', 52.5101, 13.4001, 'diesel');
+        $prices->atStation('DE', 52.5101, 13.4001, 'diesel');
+        Http::assertSentCount(2);
+
+        // A next run asks again, as the failure was not kept.
+        $this->assertSame(1.699, (new FuelPrices)->atStation('DE', 52.5101, 13.4001, 'diesel')['price']);
+        Http::assertSentCount(3);
     }
 
     public function test_with_the_anwb_on_a_dutch_gas_station_has_its_prices_and_the_primary_fuel_always()
