@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { Bell } from '@lucide/vue';
+import { useMediaQuery } from '@vueuse/core';
 import { computed } from 'vue';
 import NotificationItem from '@/components/NotificationItem.vue';
 import type { StoredNotification } from '@/components/NotificationItem.vue';
@@ -28,6 +29,15 @@ const { t } = useT();
 
 const bell = computed(() => usePage().props.notificationBell as Bell | null);
 
+// On a phone the bell goes straight to the page: a popup has little room there.
+const isMobile = useMediaQuery('(max-width: 768px)');
+
+const label = computed(
+    () =>
+        t('Notifications') +
+        (bell.value?.count ? ` (${bell.value.count})` : ''),
+);
+
 // Opened: the notifications are seen, and the count goes away until a new one comes.
 function opened(open: boolean) {
     if (open && bell.value?.count) {
@@ -45,15 +55,31 @@ function opened(open: boolean) {
 </script>
 
 <template>
-    <DropdownMenu v-if="bell" @update:open="opened">
+    <Button
+        v-if="bell && isMobile"
+        variant="ghost"
+        size="icon"
+        class="relative"
+        :aria-label="label"
+        as-child
+    >
+        <Link :href="bell.url">
+            <Bell class="size-5" />
+            <span
+                v-if="bell.count"
+                class="absolute -top-0.5 -right-0.5 flex min-w-4.5 items-center justify-center rounded-full bg-danger px-1 text-[0.65rem] leading-4.5 font-bold text-white tabular-nums"
+            >
+                {{ bell.count > 9 ? '9+' : bell.count }}
+            </span>
+        </Link>
+    </Button>
+    <DropdownMenu v-else-if="bell" @update:open="opened">
         <DropdownMenuTrigger as-child>
             <Button
                 variant="ghost"
                 size="icon"
                 class="relative"
-                :aria-label="
-                    t('Notifications') + (bell.count ? ` (${bell.count})` : '')
-                "
+                :aria-label="label"
             >
                 <Bell class="size-5" />
                 <span

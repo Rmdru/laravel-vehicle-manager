@@ -76,6 +76,25 @@ class NotificationTest extends TestCase
         $this->assertNull($this->tirePressure($vehicle)->dismissed_at);
     }
 
+    public function test_a_notification_stored_twice_leaves_one_that_applies()
+    {
+        $vehicle = $this->vehicle();
+        $center = app(NotificationCenter::class);
+        $center->sync($vehicle);
+
+        // As two syncs at once could store it: the older copy keeps an outdated text.
+        $original = $this->tirePressure($vehicle);
+        $original->replicate()->save();
+        $original->update(['text' => 'Outdated']);
+
+        $center->sync($vehicle);
+
+        $open = VehicleNotification::query()->where('vehicle_id', $vehicle->id)->where('key', 'maintenance_plan:tire_pressure')->open()->get();
+        $this->assertCount(1, $open);
+        $this->assertNotSame('Outdated', $open->sole()->text);
+        $this->assertNotContains('Outdated', collect($center->bell($vehicle, null)['items'])->where('state', 'active')->pluck('text'));
+    }
+
     public function test_the_bell_and_the_page_show_the_notifications_of_the_current_vehicle()
     {
         $vehicle = $this->vehicle();

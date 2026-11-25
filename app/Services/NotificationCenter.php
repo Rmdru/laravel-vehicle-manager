@@ -12,6 +12,7 @@ use App\Services\Push\PushOutbox;
 use App\Support\StatusNotification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Keeps the notifications of a vehicle: what "Needs attention" shows, stored
@@ -46,13 +47,29 @@ class NotificationCenter
      */
     public function sync(Vehicle $vehicle, bool $push = false): Collection
     {
-        $current = collect($this->dashboard->notifications($vehicle))
+        $notifications = $this->dashboard->notifications($vehicle);
+
+        // One sync at a time per vehicle: two at once (such as after saving a record and the
+        // dashboard that follows) would both add the same new notification.
+        return Cache::lock('notifications-sync:'.$vehicle->id, 30)
+            ->block(10, fn () => $this->store($vehicle, $notifications, $push));
+    }
+
+    /**
+     * @param  array<array-key, array<string, mixed>>  $notifications
+     * @return Collection<string, VehicleNotification>
+     */
+    private function store(Vehicle $vehicle, array $notifications, bool $push): Collection
+    {
+        $current = collect($notifications)
             ->reject(fn (array $notification) => $notification['type'] === 'success')
             ->keyBy('key');
-        $open = VehicleNotification::query()->where('vehicle_id', $vehicle->id)->open()->get()->keyBy('key');
+        $all = VehicleNotification::query()->where('vehicle_id', $vehicle->id)->open()->oldest('id')->get();
+        // The latest per key; an older one with the same key is left over and no longer applies.
+        $open = $all->keyBy('key');
         $now = now();
 
-        foreach ($open->diffKeys($current) as $notification) {
+        foreach ($all->diff($open)->concat($open->diffKeys($current)) as $notification) {
             $notification->update(['resolved_at' => $now]);
         }
 
