@@ -9,11 +9,13 @@ use App\Ai\ApiKeys;
 use App\Models\Finding;
 use App\Models\Vehicle;
 use App\Models\VehicleAdvice;
+use App\Models\VehicleNews;
 use App\Models\VehicleTip;
 use App\Support\StatusNotification;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -148,7 +150,7 @@ class VehicleAdviceService
 
         foreach ($models as $model) {
             foreach (ApiKeys::shuffled(config('vehicle_advice.provider')) as $number => $key) {
-                $advisor = new VehicleAdvisor($language, config('vehicle_advice.suggestions'), $key, $model);
+                $advisor = new VehicleAdvisor($language, config('vehicle_advice.suggestions'), $key, $model, config('vehicle_news.tips'));
 
                 try {
                     $response = $advisor->prompt($advisor->question($facts));
@@ -176,8 +178,9 @@ class VehicleAdviceService
     /**
      * What the model made of the suggestions, as far as it makes sense: known
      * categories and actions, no date in the past, nothing the owner handled
-     * recently, every subject once, no tip that only plans a visit to the
-     * garage, and a finding that is on the garage list a tip only once.
+     * recently unless it comes back for a change since, every subject once,
+     * no tip that only plans a visit to the garage, a finding that is on the
+     * garage list a tip only once, and only so many tips about the news.
      *
      * @param  array<int, mixed>  $suggestions
      * @param  array<string, mixed>  $facts
@@ -186,9 +189,8 @@ class VehicleAdviceService
     private function suggestions(Vehicle $vehicle, array $suggestions, array $facts): array
     {
         $handled = collect($facts['handled_suggestions'] ?? []);
-        $handledKeys = $handled->pluck('key')->all();
-        // A finding or "other" says too little about what a tip is about: those go by key.
-        $handledSubjects = $handled->pluck('subject')->reject(fn ($subject) => in_array($subject, ['other', 'open_finding'], true))->all();
+        $news = collect($facts['news'] ?? [])->keyBy('id');
+        $newsTips = 0;
         // On the garage list, and a tip given already: left out of the facts, but the model may still name it.
         $listedWithTip = Finding::query()
             ->where('vehicle_id', $vehicle->id)
@@ -200,8 +202,10 @@ class VehicleAdviceService
 
         return collect($suggestions)
             ->filter(fn ($suggestion) => is_array($suggestion))
-            ->map(function (array $suggestion) use ($findings) {
+            ->map(function (array $suggestion) use ($findings, $news) {
                 $key = Str::limit(Str::snake(Str::ascii(trim((string) ($suggestion['key'] ?? '')))), 60, '');
+                // Only an article of the facts: the model may make one up.
+                $article = $news->get(trim((string) ($suggestion['news_id'] ?? '')));
                 $category = in_array($suggestion['category'] ?? null, VehicleAdvice::CATEGORIES, true) ? $suggestion['category'] : null;
                 $subject = in_array($suggestion['subject'] ?? null, VehicleAdvice::SUBJECTS, true)
                     ? $suggestion['subject']
@@ -221,24 +225,65 @@ class VehicleAdviceService
                     'due_date' => $this->date((string) ($suggestion['due_date'] ?? '')),
                     'title' => Str::limit(trim((string) ($suggestion['title'] ?? '')), 90),
                     'body' => trim((string) ($suggestion['body'] ?? '')),
+                    'returns_because' => trim((string) ($suggestion['returns_because'] ?? '')) ?: null,
+                    // Where it comes from, copied: the article is pruned in time.
+                    'source' => $article === null ? null : [
+                        'news_id' => $article['id'],
+                        'url' => VehicleNews::query()->whereKey((int) Str::after($article['id'], 'news:'))->value('url'),
+                        'name' => $article['source'],
+                        'date' => $article['date'],
+                    ],
                 ];
             })
             ->filter(fn (array $suggestion) => $suggestion['key'] !== '' && $suggestion['category'] !== null && $suggestion['title'] !== '')
             ->reject(fn (array $suggestion) => in_array($suggestion['subject'], VehicleAdvice::DROPPED_SUBJECTS, true))
             // With a trip planned, a vignette or sticker is the trip planner's: it knows by its own rules.
             ->reject(fn (array $suggestion) => $suggestion['subject'] === 'vignette' && ! empty($facts['planned_trips']))
-            ->reject(fn (array $suggestion) => in_array($suggestion['key'], $handledKeys, true))
-            ->reject(fn (array $suggestion) => in_array($suggestion['subject'], $handledSubjects, true))
+            ->map(fn (array $suggestion) => $this->returning($suggestion, $handled))
+            ->filter()
             // On the garage list already: one tip to prepare the visit was enough.
             ->reject(fn (array $suggestion) => in_array($suggestion['finding_id'], $listedWithTip, true))
+            // An article that is gone has no address to show.
+            ->map(fn (array $suggestion) => [...$suggestion, 'source' => ($suggestion['source']['url'] ?? null) !== null ? $suggestion['source'] : null])
             ->unique(fn (array $suggestion) => match (true) {
                 $suggestion['finding_id'] !== null => 'finding:'.$suggestion['finding_id'],
                 in_array($suggestion['subject'], ['other', 'open_finding'], true) => 'key:'.$suggestion['key'],
                 default => 'subject:'.$suggestion['subject'],
             })
+            // The news should not crowd out the maintenance.
+            ->reject(function (array $suggestion) use (&$newsTips) {
+                return $suggestion['source'] !== null && ++$newsTips > config('vehicle_news.tips');
+            })
             ->take(config('vehicle_advice.suggestions'))
             ->values()
             ->all();
+    }
+
+    /**
+     * A suggestion about what the owner handled, by its key or its subject
+     * (a finding or "other" says too little about what a tip is about: those
+     * go by key), only when it comes back for a change since the owner
+     * handled it that is listed with every handled tip it is about. Null when
+     * it does not; without returns_because when it is about nothing handled.
+     *
+     * @param  array<string, mixed>  $suggestion
+     * @param  Collection<int, array<string, mixed>>  $handled
+     * @return array<string, mixed>|null
+     */
+    private function returning(array $suggestion, Collection $handled): ?array
+    {
+        $about = $handled->filter(fn (array $tip) => $tip['key'] === $suggestion['key']
+            || (! in_array($tip['subject'] ?? null, ['other', 'open_finding'], true) && ($tip['subject'] ?? null) === $suggestion['subject']));
+
+        if ($about->isEmpty()) {
+            return [...$suggestion, 'returns_because' => null];
+        }
+
+        $because = $suggestion['returns_because'];
+
+        return $because !== null && $about->every(fn (array $tip) => in_array($because, (array) ($tip['changes_since'] ?? []), true))
+            ? $suggestion
+            : null;
     }
 
     /**
@@ -295,6 +340,9 @@ class VehicleAdviceService
             foreach (array_intersect($record['components'], $allowed) as $component) {
                 app(MaintenancePlanService::class)->record($vehicle, $component, $record['kind'], CarbonImmutable::parse($record['date']), $record['km']);
             }
+
+            // Handled after what it recorded: that is no change to come back for.
+            $tip->touch();
         }
 
         return true;
@@ -349,6 +397,7 @@ class VehicleAdviceService
                 'subject' => $suggestion['subject'] ?? VehicleAdvice::inferSubject((string) ($suggestion['key'] ?? ''), $suggestion['category'] ?? null),
                 'finding_id' => $suggestion['finding_id'] ?? null,
                 ...Arr::only($suggestion, ['key', 'category', 'icon', 'priority', 'basis', 'action', 'due_date', 'title', 'body']),
+                'source' => $suggestion['source'] ?? null,
             ]);
         }
 
@@ -360,7 +409,7 @@ class VehicleAdviceService
 
     /**
      * The tips of the latest advice in the current locale that were not
-     * handled since.
+     * handled since, or came back for a change since they were.
      *
      * @return list<array<string, mixed>>
      */
@@ -370,11 +419,11 @@ class VehicleAdviceService
             return [];
         }
 
-        $handled = VehicleTip::query()->where('vehicle_id', $vehicle->id)->recentlyHandled()->pluck('key')->all();
+        $inForce = VehicleTip::inForce($vehicle);
         $priorities = array_flip(VehicleAdvice::PRIORITIES);
 
         return collect($advice->suggestions)
-            ->reject(fn (array $suggestion) => in_array($suggestion['key'], $handled, true))
+            ->reject(fn (array $suggestion) => VehicleTip::hides($suggestion, $advice->created_at, $inForce))
             ->sortBy(fn (array $suggestion) => $priorities[$suggestion['priority']] ?? count($priorities))
             ->values()
             ->all();
@@ -382,7 +431,8 @@ class VehicleAdviceService
 
     /**
      * The advice in the current locale, for the dashboard: the tips that were
-     * not handled yet.
+     * not handled yet, each new or updated since the advice before, and with
+     * when it was done or kept before when it came back.
      *
      * @return array<string, mixed>
      */
@@ -390,11 +440,35 @@ class VehicleAdviceService
     {
         $locale = app()->getLocale();
         $advice = $this->latest($vehicle, $locale);
+        $before = $advice === null ? collect() : collect($vehicle->vehicleAdvices()
+            ->where('locale', $locale)
+            ->where('created_at', '<', $advice->created_at)
+            ->latest()
+            ->first()
+            ->suggestions ?? [])->keyBy('key');
+        $handled = $advice === null ? collect() : VehicleTip::query()
+            ->where('vehicle_id', $vehicle->id)
+            ->whereIn('status', [VehicleTip::DONE, VehicleTip::KEPT])
+            ->whereIn('key', array_column($advice->suggestions ?? [], 'key'))
+            ->get()
+            ->keyBy('key');
 
         return [
             'advice' => $advice ? [
                 'id' => $advice->id,
-                'suggestions' => array_map(fn (array $suggestion) => $this->present($vehicle, $suggestion), $this->current($vehicle, $advice)),
+                'suggestions' => array_map(fn (array $suggestion) => [
+                    ...$this->present($vehicle, $suggestion),
+                    'badge' => match (true) {
+                        ! empty($suggestion['returns_because']) => 'updated',
+                        ! $before->has($suggestion['key']) => 'new',
+                        $before[$suggestion['key']]['title'] !== $suggestion['title'] || $before[$suggestion['key']]['body'] !== $suggestion['body'] => 'updated',
+                        default => null,
+                    },
+                    'lastHandled' => ($tip = $handled->get($suggestion['key'])) === null ? null : [
+                        'status' => $tip->status,
+                        'at' => $tip->updated_at->isoFormat('D MMMM YYYY'),
+                    ],
+                ], $this->current($vehicle, $advice)),
                 'model' => $advice->model,
                 'generatedAt' => $advice->created_at->isoFormat('D MMMM HH:mm'),
             ] : null,
@@ -410,27 +484,32 @@ class VehicleAdviceService
 
     /**
      * All tips, for the overview: the current ones as on the dashboard, and
-     * the ones kept or done, the most recently handled first. The ones that
-     * are not relevant are left out altogether.
+     * the ones kept or done, the most recently handled first. One that came
+     * back is only among the current ones. The ones that are not relevant
+     * are left out altogether.
      *
      * @return array<string, mixed>
      */
     public function overview(Vehicle $vehicle): array
     {
+        $dashboard = $this->forDashboard($vehicle);
+        $current = array_column($dashboard['advice']['suggestions'] ?? [], 'key');
+
         $handled = VehicleTip::query()
             ->where('vehicle_id', $vehicle->id)
             ->whereIn('status', [VehicleTip::KEPT, VehicleTip::DONE])
+            ->whereNotIn('key', $current)
             ->latest('updated_at')
             ->get()
             ->groupBy('status');
 
         $present = fn (VehicleTip $tip) => [
-            ...$this->present($vehicle, [...$tip->only(['key', 'subject', 'category', 'icon', 'priority', 'basis', 'action', 'title', 'body']), 'due_date' => $tip->due_date?->toDateString()]),
+            ...$this->present($vehicle, [...$tip->only(['key', 'subject', 'category', 'icon', 'priority', 'basis', 'action', 'title', 'body', 'source']), 'due_date' => $tip->due_date?->toDateString()]),
             'handledAt' => $tip->updated_at->isoFormat('D MMMM YYYY'),
         ];
 
         return [
-            ...$this->forDashboard($vehicle),
+            ...$dashboard,
             'kept' => $handled->get(VehicleTip::KEPT, collect())->map($present)->values()->all(),
             'done' => $handled->get(VehicleTip::DONE, collect())->map($present)->values()->all(),
         ];
@@ -467,6 +546,12 @@ class VehicleAdviceService
             'due' => $due?->isoFormat('D MMMM YYYY'),
             'url' => $url,
             'urlLabel' => $label,
+            // The article it is based on.
+            'source' => empty($suggestion['source']['url']) ? null : [
+                'url' => $suggestion['source']['url'],
+                'name' => $suggestion['source']['name'] ?? Str::after((string) parse_url($suggestion['source']['url'], PHP_URL_HOST), 'www.'),
+                'date' => empty($suggestion['source']['date']) ? null : Carbon::parse($suggestion['source']['date'])->isoFormat('D MMMM YYYY'),
+            ],
         ];
     }
 

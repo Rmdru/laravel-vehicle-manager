@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\ServiceType;
 use App\Models\Maintenance;
 use App\Models\Refueling;
 use App\Models\Trip;
@@ -13,6 +14,7 @@ use App\Models\VehicleTip;
 use App\Services\TripPlanner\TripNotices;
 use BackedEnum;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\App;
@@ -43,6 +45,21 @@ class VehicleAdviceFacts
 
     /** Characters of a description the model gets to see, at most. */
     private const DESCRIPTION = 200;
+
+    /** Lines of the garage list the model gets to see, at most. */
+    private const GARAGE_LIST = 15;
+
+    /** Services of the past year the model gets to see, at most. */
+    private const SERVICES = 10;
+
+    /** Products of the past year the model gets to see, at most: the most recent. */
+    private const PRODUCTS = 25;
+
+    /** Sections, places or routes that recur the model gets to see, at most: the most costly. */
+    private const RECURRING = 5;
+
+    /** Fines of the past year the model gets to see, at most. */
+    private const FINES = 10;
 
     /**
      * The most recent maintenances whose description the model gets to see
@@ -99,7 +116,7 @@ class VehicleAdviceFacts
     {
         $vehicle->loadMissing(['maintenances', 'reconditionings', 'insurances', 'taxes', 'refuelings', 'user']);
 
-        return [
+        $facts = [
             'today' => today()->toDateString(),
             'month' => today()->englishMonth,
             'vehicle' => $this->vehicle($vehicle),
@@ -117,29 +134,65 @@ class VehicleAdviceFacts
                 ->mapWithKeys(fn ($reconditioning) => [(string) self::scalar($reconditioning->type) => $reconditioning->date->toDateString()])
                 ->all(),
             'insurance' => $this->insurance($vehicle),
-            'road_tax_paid_until' => $vehicle->taxes->where('start_date', '<=', today())->sortByDesc('start_date')->first()?->end_date?->toDateString(),
+            'road_tax' => $this->roadTax($vehicle),
             'open_findings' => $this->openFindings($vehicle),
             'top_ups' => app(TopUps::class)->facts($vehicle),
             'accidents' => $this->accidents($vehicle),
             'valid_vignettes_and_stickers' => $this->vignettes($vehicle),
+            'services_past_year' => $this->services($vehicle),
+            'products_past_year' => $this->products($vehicle),
+            'garage_list' => $vehicle->garageListItems()->latest()->limit(self::GARAGE_LIST)->pluck('text')->map(fn ($text) => Str::limit(strip_tags((string) $text), self::DESCRIPTION))->all(),
+            'recurring_tolls' => $this->recurringTolls($vehicle),
+            'recurring_parking' => $this->recurringParking($vehicle),
+            'ferries_past_year' => $this->ferries($vehicle),
+            'fines_past_year' => $this->fines($vehicle),
             'average_monthly_costs_past_year_eur' => $this->costs($vehicle),
             'already_shown_notifications' => $this->notifications($vehicle),
-            // Only the recent ones: the list would only grow, and a tip done long ago can be relevant again.
-            'handled_suggestions' => VehicleTip::query()
-                ->where('vehicle_id', $vehicle->id)
-                ->recentlyHandled()
-                ->orderBy('updated_at')
-                ->get()
-                ->map(fn (VehicleTip $tip) => array_filter([
-                    'key' => $tip->key,
-                    'subject' => $tip->subject,
-                    'finding_id' => $tip->finding_id,
-                    'status' => $tip->status,
-                    'title' => $tip->title,
-                    'since' => $tip->updated_at->toDateString(),
-                ], fn ($value) => $value !== null))
-                ->all(),
+            'news' => app(VehicleNewsService::class)->facts($vehicle),
             'previous_suggestions' => $this->previous($vehicle),
+        ];
+
+        return [...$facts, ...$this->handled($vehicle, $facts)];
+    }
+
+    /**
+     * The tips the owner handled that are in force (a tip done long ago can
+     * be relevant again), each with what changed since it was handled: only
+     * one of those can make it come back. Of a tip that is not relevant, the
+     * weather does not: the owner said it does not apply, whatever the season.
+     *
+     * @param  array<string, mixed>  $facts
+     * @return array{handled_suggestions: list<array<string, mixed>>, changes_since_handled: list<array{id: string, date: string, what: string}>}
+     */
+    public function handled(Vehicle $vehicle, array $facts): array
+    {
+        $tips = VehicleTip::query()->where('vehicle_id', $vehicle->id)->recentlyHandled()->orderBy('updated_at')->get();
+        $changes = $tips->isEmpty() ? [] : app(VehicleAdviceChanges::class)->since($vehicle, $tips->first()->updated_at, $facts);
+
+        $handled = $tips->map(fn (VehicleTip $tip) => array_filter([
+            'key' => $tip->key,
+            'subject' => $tip->subject,
+            'finding_id' => $tip->finding_id,
+            'status' => $tip->status,
+            'title' => $tip->title,
+            'since' => $tip->updated_at->toDateString(),
+            'changes_since' => collect($changes)
+                ->filter(fn (array $change) => $change['at']->gt($tip->updated_at) && ! ($change['weather'] && $tip->status === VehicleTip::NOT_RELEVANT))
+                ->pluck('id')
+                ->values()
+                ->all(),
+        ], fn ($value) => $value !== null))->values()->all();
+
+        // Only the changes a tip can come back for.
+        $used = collect($handled)->pluck('changes_since')->flatten()->all();
+
+        return [
+            'handled_suggestions' => $handled,
+            'changes_since_handled' => collect($changes)
+                ->filter(fn (array $change) => in_array($change['id'], $used, true))
+                ->map(fn (array $change) => Arr::only($change, ['id', 'date', 'what']))
+                ->values()
+                ->all(),
         ];
     }
 
@@ -159,8 +212,16 @@ class VehicleAdviceFacts
             $facts['month'],
             $facts['previous_suggestions'],
             $facts['handled_suggestions'],
+            $facts['changes_since_handled'],
             $facts['average_monthly_costs_past_year_eur'],
         );
+
+        // Of what recurs only where: the counts and amounts grow with every toll or parking.
+        foreach (['recurring_tolls', 'recurring_parking'] as $recurring) {
+            if (isset($facts[$recurring])) {
+                $facts[$recurring] = array_column($facts[$recurring], 'where');
+            }
+        }
 
         if (isset($facts['usage']['average_km_per_month_past_year'])) {
             $facts['usage']['average_km_per_month_past_year'] = (int) (round($facts['usage']['average_km_per_month_past_year'] / 500) * 500);
@@ -217,10 +278,16 @@ class VehicleAdviceFacts
      */
     private function previous(Vehicle $vehicle): array
     {
-        $handled = VehicleTip::query()->where('vehicle_id', $vehicle->id)->recentlyHandled()->pluck('key')->all();
+        $advice = $vehicle->vehicleAdvices()->latest()->first();
 
-        return collect($vehicle->vehicleAdvices()->latest()->first()->suggestions ?? [])
-            ->reject(fn (array $suggestion) => in_array($suggestion['key'] ?? null, $handled, true))
+        if ($advice === null) {
+            return [];
+        }
+
+        $inForce = VehicleTip::inForce($vehicle);
+
+        return collect($advice->suggestions ?? [])
+            ->reject(fn (array $suggestion) => VehicleTip::hides($suggestion, $advice->created_at, $inForce))
             ->map(fn (array $suggestion) => ['key' => (string) $suggestion['key'], 'title' => (string) ($suggestion['title'] ?? '')])
             ->values()
             ->all();
@@ -577,6 +644,169 @@ class VehicleAdviceFacts
             'start_date' => $insurance->start_date?->toDateString(),
             'end_date' => $insurance->end_date?->toDateString(),
         ], fn ($value) => $value !== null && $value !== '');
+    }
+
+    /**
+     * The road tax now: until when it is paid, and what it costs.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function roadTax(Vehicle $vehicle): ?array
+    {
+        $tax = $vehicle->taxes->where('start_date', '<=', today())->sortByDesc('start_date')->first();
+
+        return $tax === null ? null : array_filter([
+            'paid_until' => $tax->end_date?->toDateString(),
+            'price_eur' => $tax->price ? round((float) $tax->price, 2) : null,
+            'start_date' => $tax->start_date?->toDateString(),
+        ], fn ($value) => $value !== null);
+    }
+
+    /**
+     * The services of the past year that say something about the vehicle: a
+     * breakdown or a salvage (how reliable it is), the tire pressure.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function services(Vehicle $vehicle): array
+    {
+        return $vehicle->services()
+            ->whereIn('type', [ServiceType::RoadsideAssistance->value, ServiceType::Salvage->value, ServiceType::TirePressure->value])
+            ->where('date', '>=', today()->subYear())
+            ->orderByDesc('date')
+            ->limit(self::SERVICES)
+            ->get()
+            ->map(fn ($service) => array_filter([
+                'date' => $service->date->toDateString(),
+                'type' => self::scalar($service->type),
+                'what' => filled($service->name) ? Str::limit((string) $service->name, self::DESCRIPTION) : null,
+                'comments' => filled($service->comments) ? Str::limit(strip_tags((string) $service->comments), self::DESCRIPTION) : null,
+            ], fn ($value) => $value !== null))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The products bought in the past year: what the owner has already.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function products(Vehicle $vehicle): array
+    {
+        return $vehicle->products()
+            ->where('date', '>=', today()->subYear())
+            ->orderByDesc('date')
+            ->limit(self::PRODUCTS)
+            ->get()
+            ->map(fn ($product) => array_filter([
+                'date' => $product->date->toDateString(),
+                'category' => self::scalar($product->category),
+                'name' => filled($product->name) ? Str::limit((string) $product->name, self::DESCRIPTION) : null,
+                'component' => $product->component ?: null,
+                'quantity' => $product->quantity ?: null,
+                'price_eur' => $product->price ? round((float) $product->price, 2) : null,
+            ], fn ($value) => $value !== null))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The toll paid more than once in the past year, by section: where a
+     * subscription or another way of paying may save.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function recurringTolls(Vehicle $vehicle): array
+    {
+        return $this->recurring(
+            $vehicle->tolls()->where('start_date', '>=', today()->subYear())->get(),
+            fn ($toll) => trim(implode(' ', array_filter([$toll->country, implode(' ', (array) $toll->road), $toll->start_location && $toll->end_location ? "{$toll->start_location} – {$toll->end_location}" : null, $toll->toll_company]))),
+            fn ($toll) => array_filter(['payment_method' => self::scalar($toll->payment_method), 'type' => self::scalar($toll->type)]),
+            2,
+        );
+    }
+
+    /**
+     * The places parked at often in the past year: where a permit or a
+     * subscription may save.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function recurringParking(Vehicle $vehicle): array
+    {
+        return $this->recurring(
+            $vehicle->parkings()->where('start_time', '>=', today()->subYear())->get(),
+            fn ($parking) => trim(implode(' ', array_filter([$parking->location, $parking->company]))),
+            fn ($parking) => array_filter(['payment_method' => self::scalar($parking->payment_method), 'type' => self::scalar($parking->type)]),
+            3,
+        );
+    }
+
+    /**
+     * @template TModel of Model
+     *
+     * @param  Collection<int, TModel>  $records
+     * @param  callable(TModel): string  $where
+     * @param  callable(TModel): array<string, mixed>  $usually
+     * @return list<array<string, mixed>>
+     */
+    private function recurring(Collection $records, callable $where, callable $usually, int $atLeast): array
+    {
+        return $records
+            ->groupBy(fn (Model $record) => $where($record))
+            ->reject(fn (Collection $group, string $where) => $where === '' || $group->count() < $atLeast)
+            ->map(fn (Collection $group, string $where) => [
+                'where' => $where,
+                'times' => $group->count(),
+                'total_eur' => round((float) $group->sum('price'), 2),
+                ...$usually($group->last()),
+            ])
+            ->sortByDesc('total_eur')
+            ->take(self::RECURRING)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function ferries(Vehicle $vehicle): array
+    {
+        return $vehicle->ferries()
+            ->where('start_date', '>=', today()->subYear())
+            ->get()
+            ->groupBy(fn ($ferry) => "{$ferry->start_location} – {$ferry->end_location}")
+            ->map(fn (Collection $group, string $route) => ['route' => $route, 'times' => $group->count(), 'total_eur' => round((float) $group->sum('price'), 2)])
+            ->sortByDesc('total_eur')
+            ->take(self::RECURRING)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The fines of the past year: something avoidable may recur, such as an
+     * environmental zone or the same place to park.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fines(Vehicle $vehicle): array
+    {
+        return $vehicle->fines()
+            ->where('date', '>=', today()->subYear())
+            ->orderByDesc('date')
+            ->limit(self::FINES)
+            ->get()
+            ->map(fn ($fine) => array_filter([
+                'date' => $fine->date->toDateString(),
+                'type' => self::scalar($fine->type),
+                'offense' => $fine->fact ?: null,
+                'description' => filled($fine->description) ? Str::limit(strip_tags((string) $fine->description), self::DESCRIPTION) : null,
+                'country' => $fine->country ?: null,
+                'where' => trim(implode(' ', array_filter([$fine->road, $fine->location]))) ?: null,
+                'price_eur' => $fine->price ? round((float) $fine->price, 2) : null,
+            ], fn ($value) => $value !== null))
+            ->values()
+            ->all();
     }
 
     /**

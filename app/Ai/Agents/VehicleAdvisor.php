@@ -16,7 +16,8 @@ use Laravel\Ai\Providers\Provider;
  * Turns everything that is known about a vehicle into a few suggestions the
  * driver can act on. The app calculates the facts; the model connects them,
  * and adds what it knows about the make and model. It cannot look anything
- * up: the free tier has no quota for Google Search.
+ * up: the free tier has no quota for Google Search. The news it gets is read
+ * beforehand, twice a week (see VehicleNewsService).
  */
 class VehicleAdvisor implements Agent, HasStructuredOutput
 {
@@ -52,6 +53,7 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
         private readonly int $suggestions,
         private readonly ?string $key = null,
         private readonly ?string $model = null,
+        private readonly int $news = 2,
     ) {
         //
     }
@@ -115,10 +117,15 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
             owner's schedule: plan service jobs, checks and repairs in with the next service rather than advising a
             separate visit, and point out where an interval is longer than this make, model or engine needs for a
             long life, or where it differs from what the manufacturer gives.
-            handled_suggestions are tips the owner did something with in the past months: done, kept (the owner knows, and
-            looks the tip up when needed) or not_relevant. Do not make them again, under any key or subject, and avoid
-            re-suggesting the same component, theme or subject under different phrasing, unless the facts show that the
-            situation has clearly changed since (such as a new season for a seasonal tip that was done last year).
+            handled_suggestions are tips the owner did something with: done, kept (the owner knows, and looks the tip up
+            when needed) or not_relevant. They are in force: do not make them again, under any key or subject, and do not
+            re-suggest the same component, theme or subject under different phrasing. The one exception: changes_since of
+            a handled tip lists the ids of what changed in the facts since the owner handled it, and
+            changes_since_handled tells what each of those is and when. Only when one of those changes clearly makes the
+            subject relevant again, and you can give a good tip that builds on that change (what it means, what to do
+            now; not the old tip again), you may make a tip about it. Give the id of that change as returns_because,
+            exactly as listed, and keep the key of the handled tip. A change that has nothing to do with the subject is
+            no reason. In every other case returns_because is an empty string.
             open_findings are what needs attention according to the garage, the owner or the MOT, until it is
             resolved; the app shows the urgent ones already. A suggestion about one of them gives its id as finding_id,
             otherwise finding_id is an empty string. When on_the_list_for_the_garage is true, the owner already
@@ -133,6 +140,23 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
             information: the garage may have repaired them at once.
             top_ups tell how much engine oil the engine uses, and how often coolant or brake fluid was topped up: the
             app warns when that is a lot; a tip may explain what it usually means for this engine.
+            services_past_year: a roadside_assistance or salvage is a breakdown, which says much about how reliable the
+            vehicle is (connect it to its known weak spots and its history); tire_pressure is when the tire pressure was
+            checked. products_past_year is what the owner bought for the vehicle: never advise buying what was bought
+            recently, but you may advise on using it. garage_list is what the owner already noted for the next visit to
+            the garage: do not repeat it. recurring_tolls, recurring_parking and ferries_past_year are what the owner
+            pays for often: a tip about a subscription, a permit or another way of paying is only welcome when it
+            clearly saves money on these amounts, and only as general knowledge ("often", "usually"). fines_past_year:
+            only a tip when a fine points to something avoidable that may recur (such as an environmental zone, or
+            parking at the same place); never lecture the owner.
+            news are recent articles about vehicles like this one, from motoring clubs, consumer organisations,
+            authorities and magazines, and recalls in the EU. Make at most {$this->news} suggestions based on the news, and
+            only when an article clearly applies to this vehicle and gives the owner something to act on or to know
+            (a known issue, a recall or goodwill repair, a long-term test, a product test that fits this vehicle, a
+            change of the rules or the costs, saving or making the vehicle last longer in a way specific to this kind
+            of vehicle). Give the id of the article as news_id, and say in the body where it comes from ("according
+            to …"); a recall of the EU applies only when the model and the years match this vehicle. Never base a
+            generic tip on an article. Otherwise news_id is an empty string.
             previous_suggestions are the tips of the previous advice the owner did not handle yet. Do not simply
             repeat them: the owner has seen them already. Prefer rotating them out in favor of fresh angles or fewer
             suggestions. Only repeat an unhandled suggestion if it is urgent (high priority) or a critical deadline
@@ -196,6 +220,8 @@ class VehicleAdvisor implements Agent, HasStructuredOutput
                 'key' => $schema->string()->required(),
                 'subject' => $schema->string()->enum(VehicleAdvice::SUBJECTS)->required(),
                 'finding_id' => $schema->string()->description('The id of the open finding it is about, or empty.')->required(),
+                'returns_because' => $schema->string()->description('The id of the change a handled tip comes back for, or empty.')->required(),
+                'news_id' => $schema->string()->description('The id of the article of the news it is based on, or empty.')->required(),
                 'category' => $schema->string()->enum(VehicleAdvice::CATEGORIES)->required(),
                 'icon' => $schema->string()->enum(array_keys(VehicleAdvice::ICONS))->required(),
                 'priority' => $schema->string()->enum(VehicleAdvice::PRIORITIES)->required(),

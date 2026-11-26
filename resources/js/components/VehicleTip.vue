@@ -31,6 +31,12 @@ export type VehicleTipData = {
     components: TipComponent[];
     // When it was kept or done; only for those.
     handledAt?: string;
+    // Current only: new since the advice before, or updated (changed, or back for a change).
+    badge?: 'new' | 'updated' | null;
+    // Current only: back after it was done or kept, and when.
+    lastHandled?: { status: 'done' | 'kept'; at: string } | null;
+    // The article it is based on.
+    source?: { url: string; name: string; date: string | null } | null;
 };
 
 export type VehicleTipStatus = 'done' | 'kept' | 'not_relevant';
@@ -123,6 +129,12 @@ const actions = (
                 >
                     {{ t('Important') }}
                 </ColorBadge>
+                <ColorBadge
+                    v-if="state === 'current' && tip.badge"
+                    color="info"
+                >
+                    {{ t(tip.badge === 'new' ? 'New' : 'Updated') }}
+                </ColorBadge>
             </div>
             <p class="text-sm leading-relaxed text-muted-foreground">
                 {{ tip.body }}
@@ -148,6 +160,33 @@ const actions = (
                 <span v-if="state === 'done' && tip.handledAt">
                     {{ t('Done on :date', { date: tip.handledAt }) }}
                 </span>
+                <span v-if="state === 'current' && tip.lastHandled">
+                    {{
+                        t(
+                            tip.lastHandled.status === 'done'
+                                ? 'Last done on :date'
+                                : 'Kept on :date',
+                            { date: tip.lastHandled.at },
+                        )
+                    }}
+                </span>
+                <a
+                    v-if="tip.source"
+                    :href="tip.source.url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="flex items-center gap-1 underline hover:text-foreground"
+                >
+                    <AppIcon name="ic:round-open-in-new" class="size-3.5" />
+                    {{
+                        tip.source.date
+                            ? t('Source: :name · :date', {
+                                  name: tip.source.name,
+                                  date: tip.source.date,
+                              })
+                            : t('Source: :name', { name: tip.source.name })
+                    }}
+                </a>
             </div>
             <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                 <Link

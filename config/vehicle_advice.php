@@ -26,13 +26,17 @@ return [
     'pause_between' => 6,
 
     // Days a handled tip keeps the model from making a tip about the same
-    // subject again: after that it can be relevant again, such as a seasonal
-    // one the next year. Not relevant counts longer than done or kept.
+    // subject again, unless something in the facts changed since that makes
+    // it relevant again (see VehicleAdviceChanges). Null: as long as it has
+    // that status, as a kept tip is in the overview all that time.
     'handled_for_days' => [
-        'done' => 180,
-        'kept' => 180,
-        'not_relevant' => 365,
+        'done' => 28,
+        'kept' => null,
+        'not_relevant' => 180,
     ],
+
+    // Changes since a tip was handled the model gets to see, at most: the most recent.
+    'changes' => 40,
 
     // Seconds a vehicle is locked while its advice is generated, so that two
     // runs at the same time ask only once.

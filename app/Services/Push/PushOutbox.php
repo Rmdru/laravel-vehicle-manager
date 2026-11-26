@@ -70,9 +70,11 @@ class PushOutbox
         $beforeKeys = array_column($previous->suggestions ?? [], 'key');
         $beforeSubjects = array_filter(array_column($previous->suggestions ?? [], 'subject'), fn ($s) => $s !== 'other');
 
+        // A tip that came back for a change is new to the owner, whatever the advice before.
         $new = collect($advice->suggestions)
-            ->reject(fn (array $suggestion) => in_array($suggestion['key'], $beforeKeys, true)
-                || (isset($suggestion['subject']) && $suggestion['subject'] !== 'other' && in_array($suggestion['subject'], $beforeSubjects, true))
+            ->reject(fn (array $suggestion) => (empty($suggestion['returns_because'])
+                && (in_array($suggestion['key'], $beforeKeys, true)
+                    || (isset($suggestion['subject']) && $suggestion['subject'] !== 'other' && in_array($suggestion['subject'], $beforeSubjects, true))))
                 || $suggestion['priority'] === 'high')
             ->values();
 

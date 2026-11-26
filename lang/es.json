@@ -1344,5 +1344,10 @@
     "Not going that way? Near you: :station :price": "¿No vas hacia allí? Cerca: :station :price",
     "Prices are expected to go down: refuel tomorrow if you can.": "Se espera que los precios bajen: reposta mañana si puedes.",
     "Refuel in :country: on average :price.": "Reposta en :country: de media :price.",
-    "Refuel in :country: :station :price (:distance km past the border).": "Reposta en :country: :station :price (a :distance km de la frontera)."
+    "Refuel in :country: :station :price (:distance km past the border).": "Reposta en :country: :station :price (a :distance km de la frontera).",
+    "New": "Nuevo",
+    "Updated": "Actualizado",
+    "Last done on :date": "Hecho por última vez el :date",
+    "Source: :name · :date": "Fuente: :name · :date",
+    "Source: :name": "Fuente: :name"
 }

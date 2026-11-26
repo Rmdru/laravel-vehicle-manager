@@ -106,7 +106,7 @@ class VehicleAdviceTest extends TestCase
         $this->assertSame(['Oil change'], $facts['maintenance_history'][0]['tasks']);
         // The MOT expires within two months: the dashboard says so already.
         $this->assertContains('apk', array_column($facts['already_shown_notifications'], 'key'));
-        $this->assertSame([['key' => 'winter_tires', 'subject' => 'tires', 'status' => 'kept', 'title' => 'Winter tires', 'since' => '2026-10-17']], $facts['handled_suggestions']);
+        $this->assertSame([['key' => 'winter_tires', 'subject' => 'tires', 'status' => 'kept', 'title' => 'Winter tires', 'since' => '2026-10-17', 'changes_since' => []]], $facts['handled_suggestions']);
     }
 
     public function test_the_fingerprint_does_not_change_with_the_day()

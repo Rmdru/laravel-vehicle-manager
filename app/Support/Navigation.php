@@ -182,6 +182,7 @@ class Navigation
             'Cheap', 'In between', 'Expensive', 'No price', 'Fuel stations', 'Fast chargers', 'Slow chargers', 'Fuel types', 'Gas stations that do not tell what they sell are shown too.', 'Connectors', 'Only gas stations with a price', 'The stations could not be loaded.', 'Loading the stations of this area for the first time…', 'Zoom in to see the stations one by one.', 'Not all stations are shown: zoom in further.', '1 station', ':count stations', 'Self service', 'Served: :price', 'Served', 'Loading the prices…', 'No price of this gas station is known: the average of the country.', 'You paid here on :date', 'Navigate',
             // The overview of the tips, and what can be done with a tip.
             'All tips', 'Current tips', 'Kept', 'Keep', 'Remove', 'Kept on :date', 'Done on :date',
+            'New', 'Updated', 'Last done on :date', 'Source: :name · :date', 'Source: :name',
             'What did you do?', 'Checked, in order', 'Replaced or refreshed', 'The interval does not start again.',
             'The interval starts again from this date.', 'Which?', 'Skip',
             'Keep a tip to look it up here later, without it showing on the dashboard.',

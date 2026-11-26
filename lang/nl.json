@@ -1341,5 +1341,10 @@
     "Not going that way? Near you: :station :price": "Niet die kant op? In de buurt: :station :price",
     "Prices are expected to go down: refuel tomorrow if you can.": "De prijs daalt naar verwachting: tank morgen als het kan.",
     "Refuel in :country: on average :price.": "Tank in :country: gemiddeld :price.",
-    "Refuel in :country: :station :price (:distance km past the border).": "Tank in :country: :station :price (:distance km over de grens)."
+    "Refuel in :country: :station :price (:distance km past the border).": "Tank in :country: :station :price (:distance km over de grens).",
+    "New": "Nieuw",
+    "Updated": "Bijgewerkt",
+    "Last done on :date": "Laatst gedaan op :date",
+    "Source: :name · :date": "Bron: :name · :date",
+    "Source: :name": "Bron: :name"
 }
